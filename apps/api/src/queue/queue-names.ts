@@ -3,6 +3,7 @@ export const QUEUE = {
   TRACK_BUNGAE: 'track-bungae',
   TRACK_NEURIMBO: 'track-neurimbo',
   CARRIER_SWEEP: 'carrier-sweep',
+  OUTBOX: 'outbox',
 } as const;
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];

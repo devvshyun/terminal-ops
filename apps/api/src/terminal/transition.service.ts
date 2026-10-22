@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { EntityManager, LockMode } from '@mikro-orm/mysql';
 import { InvalidTransitionError } from '../common/domain-errors.js';
+import { OUTBOX_TYPE, OutboxEvent } from '../outbox/outbox-event.entity.js';
 import { Terminal } from './terminal.entity.js';
 import { TerminalStatusHistory } from './terminal-status-history.entity.js';
 import { TerminalStatus, TransitionSource } from './terminal-status.js';
@@ -57,6 +58,7 @@ export class TransitionService {
         actor: cmd.actor,
         reason: cmd.reason,
       });
+      this.recordOutbox(tx, terminal, from, cmd);
       return terminal;
     });
   }
@@ -66,13 +68,40 @@ export class TransitionService {
    * 단말기 INSERT와 이력 INSERT가 같은 트랜잭션이고 부모 행은 이 트랜잭션이 막 만든 행이라 S→X 승격이 생기지 않는다.
    */
   recordRegistration(terminal: Terminal, actor: string, source: TransitionSource, em: EntityManager): TerminalStatusHistory {
-    return em.create(TerminalStatusHistory, {
+    const reason = '신규 등록';
+    const history = em.create(TerminalStatusHistory, {
       terminal,
       fromStatus: null,
       toStatus: terminal.status,
       source,
       actor,
-      reason: '신규 등록',
+      reason,
+    });
+    this.recordOutbox(em, terminal, null, { to: terminal.status, source, actor, reason });
+    return history;
+  }
+
+  /**
+   * 상태 변경 알림을 같은 트랜잭션에 기록한다(Outbox, decisions/0016). 커밋되면 알림도 반드시 남고, 롤백되면 같이 사라진다.
+   * outbox_event에는 외래키가 없어 단말기 행에 락을 걸지 않는다(UPDATE 먼저 규칙과 충돌하지 않는다).
+   */
+  private recordOutbox(
+    em: EntityManager,
+    terminal: Terminal,
+    from: TerminalStatus | null,
+    change: { to: TerminalStatus; source: TransitionSource; actor: string; reason: string },
+  ): void {
+    em.create(OutboxEvent, {
+      type: OUTBOX_TYPE.TERMINAL_STATUS_CHANGED,
+      payload: {
+        serialNo: terminal.serialNo,
+        fromStatus: from,
+        toStatus: change.to,
+        source: change.source,
+        actor: change.actor,
+        reason: change.reason,
+        occurredAt: new Date().toISOString(),
+      },
     });
   }
 }

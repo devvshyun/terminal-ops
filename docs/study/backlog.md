@@ -50,3 +50,5 @@
 - [ ] Nest 동적 모듈(forRoot)과 정적 @Module 메타데이터가 합쳐지는 방식 (app.module.ts)
 - [ ] 영구 오류 운송장이 sweep마다 재조회되는 문제 — 연속 영구 실패 N회 후 sweep 대상에서 빼는 상태 (decisions/0014)
 - [ ] vitest globalSetup 오류가 소스맵 변환 실패(`code.charCodeAt is not a function`)로 가려지는 이유 (troubleshooting/0006)
+- [ ] SELECT … FOR UPDATE SKIP LOCKED — 여러 relay가 행을 나눠 갖는 방식 (decisions/0016)
+- [ ] at-least-once와 멱등키, exactly-once가 어려운 이유 (decisions/0016)

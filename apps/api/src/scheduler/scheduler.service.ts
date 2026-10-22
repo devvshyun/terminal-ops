@@ -12,7 +12,10 @@ import { QUEUE } from '../queue/queue-names.js';
 export class SchedulerService implements OnApplicationBootstrap {
   private readonly logger = new Logger(SchedulerService.name);
 
-  constructor(@InjectQueue(QUEUE.CARRIER_SWEEP) private readonly sweepQueue: Queue) {}
+  constructor(
+    @InjectQueue(QUEUE.CARRIER_SWEEP) private readonly sweepQueue: Queue,
+    @InjectQueue(QUEUE.OUTBOX) private readonly outboxQueue: Queue,
+  ) {}
 
   async onApplicationBootstrap(): Promise<void> {
     await this.sweepQueue.upsertJobScheduler(
@@ -20,6 +23,11 @@ export class SchedulerService implements OnApplicationBootstrap {
       { every: env.sweepIntervalMs },
       { name: 'sweep', data: {}, opts: { removeOnComplete: true, removeOnFail: 100 } },
     );
-    this.logger.log(`주기 작업 등록: carrier-sweep ${env.sweepIntervalMs}ms`);
+    await this.outboxQueue.upsertJobScheduler(
+      'outbox-relay',
+      { every: env.relayIntervalMs },
+      { name: 'relay', data: {}, opts: { removeOnComplete: true, removeOnFail: 100 } },
+    );
+    this.logger.log(`주기 작업 등록: carrier-sweep ${env.sweepIntervalMs}ms, outbox-relay ${env.relayIntervalMs}ms`);
   }
 }
