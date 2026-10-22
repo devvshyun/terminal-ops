@@ -81,10 +81,14 @@ export interface Stats {
   overlaps: number;
   /** 같은 운송장 동시 처리 수의 최댓값 */
   maxInFlight: number;
+  /** 지금 처리 중인 번개 추적 조회 수(운송장 구분 없이 전체) */
+  inFlightTotal: number;
+  /** 운송장 구분 없이 동시에 처리한 번개 추적 조회 수의 최댓값. 1보다 크면 실제로 겹쳐 돌았다는 뜻 */
+  maxInFlightTotal: number;
 }
 
 function emptyStats(): Stats {
-  return { calls: {}, perTracking: {}, status429: 0, status429Limit: 0, status429Forced: 0, status5xx: 0, overlaps: 0, maxInFlight: 0 };
+  return { calls: {}, perTracking: {}, status429: 0, status429Limit: 0, status429Forced: 0, status5xx: 0, overlaps: 0, maxInFlight: 0, inFlightTotal: 0, maxInFlightTotal: 0 };
 }
 
 /** 가상 업체 서버의 메모리 상태. 재시작하거나 reset하면 모두 사라진다. */
@@ -147,11 +151,14 @@ export class PartnersState {
     if (n > 1) this.stats.overlaps += 1;
     this.stats.maxInFlight = Math.max(this.stats.maxInFlight, n);
     this.inFlight.set(trackingNo, n);
+    this.stats.inFlightTotal += 1;
+    this.stats.maxInFlightTotal = Math.max(this.stats.maxInFlightTotal, this.stats.inFlightTotal);
   }
 
   end(trackingNo: string): void {
     const n = (this.inFlight.get(trackingNo) ?? 1) - 1;
     if (n <= 0) this.inFlight.delete(trackingNo);
     else this.inFlight.set(trackingNo, n);
+    this.stats.inFlightTotal = Math.max(0, this.stats.inFlightTotal - 1);
   }
 }

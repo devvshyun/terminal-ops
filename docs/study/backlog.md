@@ -56,3 +56,4 @@
 - [ ] 격리 수준을 트랜잭션별로 바꾸기 — `em.transactional(cb, { isolationLevel })`, `SET TRANSACTION ISOLATION LEVEL`이 다음 트랜잭션 하나에만 걸리는 것 (troubleshooting/0007)
 - [ ] 보조 인덱스 잠금 읽기(FOR UPDATE, SKIP LOCKED 없이) 여러 개가 동시에 돌 때 데드락이 나는 이유 (troubleshooting/0007)
 - [ ] 재시도 폭주(retry storm)와 지터 — 429가 많을 때 백오프에 jitter를 넣는 이유 (experiments/0004)
+- [ ] BullMQ limiter가 1초 창에 max건을 한꺼번에 내보내는지(버스트) 고르게 펴는지 — limiter 초당 10에서도 동시 처리 10이 나온 이유 (experiments/0005)

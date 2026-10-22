@@ -144,5 +144,28 @@ describe('번개택배', () => {
     const stats = await p.stats();
     expect(stats.overlaps).toBe(1);
     expect(stats.maxInFlight).toBe(2);
+    expect(stats.maxInFlightTotal).toBe(2);
+    expect(stats.inFlightTotal).toBe(0);
+  });
+
+  it('서로 다른 운송장을 동시에 조회하면 전역 동시 처리 최댓값만 오른다', async () => {
+    await p.configure({ bungae: { delayMs: 50 } });
+    const nos = [await waybill(), await waybill(), await waybill()];
+    await Promise.all(nos.map((no) => track(no)));
+    const stats = await p.stats();
+    expect(stats.overlaps).toBe(0);
+    expect(stats.maxInFlight).toBe(1);
+    expect(stats.maxInFlightTotal).toBe(3);
+    expect(stats.inFlightTotal).toBe(0);
+  });
+
+  it('하나씩 조회하면 전역 동시 처리 최댓값은 1', async () => {
+    const a = await waybill();
+    const b = await waybill();
+    await track(a);
+    await track(b);
+    const stats = await p.stats();
+    expect(stats.maxInFlightTotal).toBe(1);
+    expect(stats.inFlightTotal).toBe(0);
   });
 });

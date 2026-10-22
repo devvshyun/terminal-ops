@@ -20,6 +20,10 @@ export interface PartnersStats {
   status5xx: number;
   overlaps: number;
   maxInFlight: number;
+  /** 지금 처리 중인 번개 추적 조회 수(전체) */
+  inFlightTotal: number;
+  /** 운송장 구분 없이 동시에 처리한 번개 추적 조회 수의 최댓값 */
+  maxInFlightTotal: number;
 }
 
 export interface ToktokSummary {
