@@ -6,16 +6,21 @@ export async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-/** JSON 본문을 읽는다. 비었거나 깨졌으면 undefined */
+/** 본문이 있는데 JSON 객체가 아닐 때 던진다. 서버가 400으로 바꿔 응답한다. */
+export class BadJsonError extends Error {}
+
+/** JSON 본문을 읽는다. 본문이 비었으면 undefined, 깨졌거나 객체가 아니면 BadJsonError */
 export async function readJson(req: IncomingMessage): Promise<Record<string, unknown> | undefined> {
   const raw = await readBody(req);
   if (!raw) return undefined;
+  let value: unknown;
   try {
-    const value: unknown = JSON.parse(raw);
-    return value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
+    value = JSON.parse(raw);
   } catch {
-    return undefined;
+    throw new BadJsonError('본문이 올바른 JSON이 아닙니다.');
   }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new BadJsonError('본문은 JSON 객체여야 합니다.');
+  return value as Record<string, unknown>;
 }
 
 export function sendJson(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {

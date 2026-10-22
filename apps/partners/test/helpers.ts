@@ -14,7 +14,11 @@ export async function startPartners() {
       fetch(`${base}/__admin/config`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }),
     reset: () => fetch(`${base}/__admin/reset`, { method: 'POST' }),
     stats: async () => (await fetch(`${base}/__admin/stats`)).json(),
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    close: () =>
+      new Promise<void>((resolve) => {
+        server.close(() => resolve());
+        server.closeAllConnections();
+      }),
   };
 }
 

@@ -31,3 +31,5 @@
 - [ ] 쿼리스트링에서 같은 키가 반복되면 배열이 되는 것(Express qs)과 DTO 검증 (inspection-stats.query.ts, devlog 2026-10-22)
 - [ ] MikroORM 마이그레이션 스냅샷과 down() 생성 방식 — enum down이 소문자로 나온 이유 (troubleshooting/0005)
 - [ ] 출처별 허용 전이 — 기본 허용을 좁히는 방식(deny by default) (decisions/0007)
+- [ ] 시드 난수(mulberry32)와 재현 가능한 테스트 — 동시 요청에서는 왜 완전히 재현되지 않나 (decisions/0009)
+- [ ] fast-xml-parser isArray·parseTagValue — XML 하나/여럿, 숫자처럼 보이는 문자열 (apps/partners/src/neurimbo.ts)
