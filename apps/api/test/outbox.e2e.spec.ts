@@ -156,10 +156,14 @@ describe('알림 Outbox (F5)', () => {
         t.http().post('/terminals/OB-2000/transitions').set(OP).send({ to: 'IN_STOCK', reason: '입고', expectedVersion: terminal.version }),
       );
       const LIMIT_MS = 1000;
+      let timer: NodeJS.Timeout | undefined;
       const doneInTime = await Promise.race([
         Promise.all([register, transition]).then(() => true),
-        new Promise<boolean>((r) => setTimeout(() => r(false), LIMIT_MS)),
+        new Promise<boolean>((r) => {
+          timer = setTimeout(() => r(false), LIMIT_MS);
+        }),
       ]);
+      clearTimeout(timer);
       hold.release();
       await relaying;
       const [reg, tr] = await Promise.all([register, transition]);

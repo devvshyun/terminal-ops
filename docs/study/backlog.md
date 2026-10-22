@@ -55,3 +55,4 @@
 - [ ] REPEATABLE READ의 gap/next-key 락과 SKIP LOCKED — 잠금 읽기가 아직 없는 행의 INSERT까지 막는 이유, data_locks의 supremum pseudo-record (troubleshooting/0007)
 - [ ] 격리 수준을 트랜잭션별로 바꾸기 — `em.transactional(cb, { isolationLevel })`, `SET TRANSACTION ISOLATION LEVEL`이 다음 트랜잭션 하나에만 걸리는 것 (troubleshooting/0007)
 - [ ] 보조 인덱스 잠금 읽기(FOR UPDATE, SKIP LOCKED 없이) 여러 개가 동시에 돌 때 데드락이 나는 이유 (troubleshooting/0007)
+- [ ] 재시도 폭주(retry storm)와 지터 — 429가 많을 때 백오프에 jitter를 넣는 이유 (experiments/0004)
