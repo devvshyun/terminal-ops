@@ -22,7 +22,9 @@ export function parseBungaeTracking(body: unknown): NormalizedEvent[] {
   const events = (body as { events?: unknown } | null)?.events;
   if (!Array.isArray(events)) fail('events 배열 없음');
   return events
-    .map((e: Record<string, unknown>) => {
+    .map((item: unknown) => {
+      if (typeof item !== 'object' || item === null) fail('events 항목이 객체가 아님');
+      const e = item as Record<string, unknown>;
       if (typeof e.eventId !== 'string' || !e.eventId) fail('eventId 없음');
       if (typeof e.code !== 'string' || !CODES.has(e.code)) fail(`알 수 없는 상태 코드 ${String(e.code)}`);
       const occurredAt = new Date(String(e.occurredAt));

@@ -2,10 +2,11 @@ import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
+import { TEST_PARTNERS_URL } from './partners-url.js';
 
 // vitest는 apps/api에서 실행한다. 가상 업체 서버(apps/partners)를 빌드해 자식 프로세스로 띄우고, 끝나면 끈다.
 const partnersDir = resolve(process.cwd(), '../partners');
-const PARTNERS_URL = new URL(process.env.PARTNERS_URL ?? 'http://127.0.0.1:4011');
+const PARTNERS_URL = new URL(TEST_PARTNERS_URL);
 
 async function isUp(): Promise<boolean> {
   try {

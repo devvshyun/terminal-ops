@@ -35,6 +35,11 @@ describe('번개택배 파서', () => {
     expect(() => parseBungaeTracking({})).toThrow(PartnerPermanentError);
   });
 
+  it('events 안에 null이나 객체가 아닌 값이 있으면 영구 오류', () => {
+    expect(() => parseBungaeTracking({ events: [null] })).toThrow(PartnerPermanentError);
+    expect(() => parseBungaeTracking({ events: [1] })).toThrow(PartnerPermanentError);
+  });
+
   it('운송장 발급 응답', () => {
     expect(parseBungaeWaybill({ trackingNo: 'BG1' })).toBe('BG1');
     expect(() => parseBungaeWaybill({})).toThrow(PartnerPermanentError);

@@ -1,5 +1,6 @@
 import swc from 'unplugin-swc';
 import { defineConfig } from 'vitest/config';
+import { TEST_PARTNERS_URL } from './test/partners-url.js';
 
 export default defineConfig({
   test: {
@@ -10,7 +11,7 @@ export default defineConfig({
     globalSetup: ['test/global-setup.ts'],
     env: {
       NODE_ENV: 'test',
-      PARTNERS_URL: 'http://127.0.0.1:4011',
+      PARTNERS_URL: TEST_PARTNERS_URL,
       RUN_SCHEDULERS: '0',
     },
   },

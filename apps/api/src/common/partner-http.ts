@@ -17,14 +17,16 @@ export function parseRetryAfter(value: string | null, now = Date.now()): number 
  */
 export async function partnerFetch(label: string, url: string, init: RequestInit, timeoutMs: number): Promise<string> {
   let res: Response;
+  let body: string;
   try {
     res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+    // 헤더 뒤 본문을 읽다가 타임아웃·연결 끊김이 나도 같은 일시 오류로 본다.
+    body = await res.text();
   } catch (error) {
     // AbortSignal.timeout은 TimeoutError, 연결 실패는 TypeError(fetch failed)
     const reason = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
     throw new PartnerTransientError(`${label} 호출 실패(${reason})`);
   }
-  const body = await res.text();
   if (res.ok) return body;
   const message = `${label} 응답 ${res.status}: ${body.slice(0, 200)}`;
   if (res.status === 429) throw new PartnerRateLimitedError(message, parseRetryAfter(res.headers.get('retry-after')));
