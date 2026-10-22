@@ -14,3 +14,6 @@
 - [ ] 마이그레이션 vs schema.refresh — 테스트에서 refresh를 쓰는 이유와 위험 (Task 2)
 - [ ] swc(Vitest)는 타입을 검사하지 않는다 — 테스트와 별도로 typecheck를 돌리는 이유 (troubleshooting/0002)
 - [ ] defineConfig가 엔티티 목록을 readonly로 추론하는 이유와 MikroORM 제네릭 타입 (troubleshooting/0003)
+- [ ] Rel<T>와 ESM 순환 import — emitDecoratorMetadata가 클래스를 너무 일찍 참조하는 문제 (terminal.entity.ts)
+- [ ] em.transactional 안에서 create만 하고 flush를 안 부르는데 저장되는 이유 (terminal.service.ts register)
+- [ ] LIKE 검색어 이스케이프 (terminal.service.ts escapeLike)
