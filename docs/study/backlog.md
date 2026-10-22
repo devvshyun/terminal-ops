@@ -10,3 +10,7 @@
 - [ ] Redis 정렬 집합(ZSET)으로 하트비트 최신 시각 관리 (F8)
 - [ ] ESM에서 import 경로에 .js를 붙이는 이유 (decisions/0002)
 - [ ] Nest APP_PIPE/APP_FILTER provider vs app.useGlobalPipes 차이 (app.module.ts)
+- [ ] MikroORM RequestContext — MikroOrmModule.forRoot가 요청마다 em을 fork하는 방식 (app.module.ts)
+- [ ] 마이그레이션 vs schema.refresh — 테스트에서 refresh를 쓰는 이유와 위험 (Task 2)
+- [ ] swc(Vitest)는 타입을 검사하지 않는다 — 테스트와 별도로 typecheck를 돌리는 이유 (troubleshooting/0002)
+- [ ] defineConfig가 엔티티 목록을 readonly로 추론하는 이유와 MikroORM 제네릭 타입 (troubleshooting/0003)

@@ -5,6 +5,21 @@ import { resolve } from 'node:path';
 const envFile = resolve(process.cwd(), '../../.env');
 if (existsSync(envFile)) process.loadEnvFile(envFile);
 
+function required(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`환경변수 ${name}가 없습니다. 저장소 루트 .env를 확인하세요.`);
+  return value;
+}
+
+const isTest = process.env.NODE_ENV === 'test';
+
 export const env = {
   port: Number(process.env.API_PORT ?? 3000),
+  mysql: {
+    host: process.env.MYSQL_HOST ?? '127.0.0.1',
+    port: Number(process.env.MYSQL_PORT ?? 3306),
+    user: required('MYSQL_USER'),
+    password: required('MYSQL_PASSWORD'),
+    dbName: isTest ? required('MYSQL_TEST_DATABASE') : required('MYSQL_DATABASE'),
+  },
 };
