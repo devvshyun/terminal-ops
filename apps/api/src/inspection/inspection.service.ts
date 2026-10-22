@@ -29,7 +29,7 @@ export class InspectionService {
       const given = dto.results.map((r) => r.itemCode);
       const missing = [...expected].filter((code) => !given.includes(code));
       const unknown = given.filter((code) => !expected.has(code));
-      const duplicated = given.filter((code, i) => given.indexOf(code) !== i);
+      const duplicated = [...new Set(given.filter((code, i) => given.indexOf(code) !== i))];
       if (missing.length || unknown.length || duplicated.length) {
         throw new BadRequestException({
           statusCode: 400,
@@ -62,6 +62,41 @@ export class InspectionService {
         tx.create(InspectionResult, { inspection, itemCode: r.itemCode, passed: r.passed, note: r.note ?? null });
       }
       return { inspection, passed, failedItems, terminal: updated };
+    });
+  }
+
+  /** 모델·항목별 불합격 통계. 집계는 DB에서 한 번에 한다(행을 앱으로 가져와 세지 않는다). */
+  async failureStats(modelCode?: string) {
+    const params: string[] = [];
+    let where = '';
+    if (modelCode) {
+      where = 'where m.code = ?';
+      params.push(modelCode);
+    }
+    const rows: { model_code: string; item_code: string; total: number | string; failed: number | string }[] =
+      await this.em.execute(
+        `select m.code as model_code, r.item_code, count(*) as total,
+                sum(case when r.passed then 0 else 1 end) as failed
+           from inspection_result r
+           join inspection i on i.id = r.inspection_id
+           join terminal t on t.id = i.terminal_id
+           join terminal_model m on m.id = t.model_id
+           ${where}
+          group by m.code, r.item_code
+          order by failed desc, m.code, r.item_code`,
+        params,
+      );
+    return rows.map((row) => {
+      // COUNT는 숫자, SUM은 DECIMAL이라 mysql2가 문자열로 줄 수 있다.
+      const total = Number(row.total);
+      const failed = Number(row.failed);
+      return {
+        modelCode: row.model_code,
+        itemCode: row.item_code,
+        total,
+        failed,
+        failRate: total ? Math.round((failed / total) * 1000) / 1000 : 0,
+      };
     });
   }
 }

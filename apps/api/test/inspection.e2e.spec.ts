@@ -92,4 +92,27 @@ describe('검수 체크리스트 (F13)', () => {
     const res = await t.http().post('/terminals/IN-0201/inspections').set(OP).send({ results });
     expect(res.body.terminal.status).toBe('INSPECTED');
   });
+
+  it('modelCode 없이 검수 항목을 조회하면 400', async () => {
+    const res = await t.http().get('/inspection-items');
+    expect(res.status).toBe(400);
+  });
+
+  it('불합격 통계: 항목별 검수 수·불합격 수·불합격률, 불합격 많은 순', async () => {
+    const res = await t.http().get('/inspections/stats').query({ modelCode: 'SN-100' });
+    expect(res.status).toBe(200);
+    expect(res.body[0]).toEqual({ modelCode: 'SN-100', itemCode: 'PRINTER', total: 2, failed: 1, failRate: 0.5 });
+    expect(res.body.find((s: { itemCode: string }) => s.itemCode === 'POWER')).toEqual({
+      modelCode: 'SN-100',
+      itemCode: 'POWER',
+      total: 2,
+      failed: 0,
+      failRate: 0,
+    });
+  });
+
+  it('모델을 안 주면 전체 모델 통계', async () => {
+    const res = await t.http().get('/inspections/stats');
+    expect(new Set(res.body.map((s: { modelCode: string }) => s.modelCode))).toEqual(new Set(['SN-100', 'SN-200']));
+  });
 });
