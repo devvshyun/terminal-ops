@@ -115,4 +115,14 @@ describe('검수 체크리스트 (F13)', () => {
     const res = await t.http().get('/inspections/stats');
     expect(new Set(res.body.map((s: { modelCode: string }) => s.modelCode))).toEqual(new Set(['SN-100', 'SN-200']));
   });
+
+  it('통계 조회에 modelCode를 반복해서 주면 400', async () => {
+    const res = await t.http().get('/inspections/stats?modelCode=SN-100&modelCode=SN-200');
+    expect(res.status).toBe(400);
+  });
+
+  it('통계 조회에 빈 modelCode를 주면 400', async () => {
+    const res = await t.http().get('/inspections/stats?modelCode=');
+    expect(res.status).toBe(400);
+  });
 });

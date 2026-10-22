@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { Operator } from '../common/operator.decorator.js';
 import { toTerminalView } from '../terminal/terminal.views.js';
 import { InspectionItemsQuery } from './dto/inspection-items.query.js';
+import { InspectionStatsQuery } from './dto/inspection-stats.query.js';
 import { InspectDto } from './dto/inspect.dto.js';
 import { InspectionService } from './inspection.service.js';
 
@@ -22,7 +23,7 @@ export class InspectionController {
   }
 
   @Get('inspections/stats')
-  async stats(@Query('modelCode') modelCode?: string) {
-    return this.inspections.failureStats(modelCode);
+  async stats(@Query() query: InspectionStatsQuery) {
+    return this.inspections.failureStats(query.modelCode);
   }
 }
