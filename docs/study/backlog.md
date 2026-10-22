@@ -3,14 +3,13 @@
 작업 중 나온 개념을 한 줄씩 쌓는다. 출처 기록 링크를 함께 적는다.
 
 - [ ] MikroORM Unit of Work / Identity Map — flush 전까지 SQL이 안 나가는 이유 (설계안 5장)
-- [ ] MikroORM `RequestContext` — 요청마다 EntityManager를 fork하는 이유, 워커에서는? (설계안 5장)
+- [ ] MikroORM `RequestContext` — 요청마다 EntityManager를 fork하는 이유, MikroOrmModule.forRoot가 fork하는 방식, 워커에서는? (설계안 5장, app.module.ts)
 - [ ] 낙관적 락(version) vs 비관적 락 (설계안 7장 동시 수정 실험)
 - [ ] Outbox 패턴 — 상태 변경과 알림을 왜 같은 트랜잭션에 기록하나 (F5)
 - [ ] BullMQ 재시도·백오프·limiter (F3)
 - [ ] Redis 정렬 집합(ZSET)으로 하트비트 최신 시각 관리 (F8)
 - [ ] ESM에서 import 경로에 .js를 붙이는 이유 (decisions/0002)
 - [ ] Nest APP_PIPE/APP_FILTER provider vs app.useGlobalPipes 차이 (app.module.ts)
-- [ ] MikroORM RequestContext — MikroOrmModule.forRoot가 요청마다 em을 fork하는 방식 (app.module.ts)
 - [ ] 마이그레이션 vs schema.refresh — 테스트에서 refresh를 쓰는 이유와 위험 (Task 2)
 - [ ] swc(Vitest)는 타입을 검사하지 않는다 — 테스트와 별도로 typecheck를 돌리는 이유 (troubleshooting/0002)
 - [ ] defineConfig가 엔티티 목록을 readonly로 추론하는 이유와 MikroORM 제네릭 타입 (troubleshooting/0003)
@@ -29,3 +28,4 @@
 - [ ] 트랜잭션 안에서 다른 서비스 호출하기 — em을 인자로 넘기는 방식과 @Transactional 데코레이터 비교 (inspection.service.ts)
 - [ ] OneToMany Collection과 cascade persist (inspection.entities.ts)
 - [ ] 공유 작업 단위(Unit of Work)에서 중간 flush가 앞서 쌓인 INSERT까지 함께 보내는 것 (decisions/0006, experiments/0002)
+- [ ] 쿼리스트링에서 같은 키가 반복되면 배열이 되는 것(Express qs)과 DTO 검증 (inspection-stats.query.ts, devlog 2026-10-22)
