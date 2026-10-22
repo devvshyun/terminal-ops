@@ -1,11 +1,12 @@
 import type { Terminal } from './terminal.entity.js';
 import type { TerminalStatusHistory } from './terminal-status-history.entity.js';
 
-/** 엔티티를 그대로 내보내지 않고 응답 형태를 여기서 고정한다. model이 populate돼 있어야 한다. */
+/** 엔티티를 그대로 내보내지 않고 응답 형태를 여기서 고정한다. model과 merchant가 populate돼 있어야 한다. */
 export function toTerminalView(t: Terminal) {
   return {
     serialNo: t.serialNo,
     modelCode: t.model.code,
+    merchantCode: t.merchant?.code ?? null,
     status: t.status,
     version: t.version,
     createdAt: t.createdAt.toISOString(),

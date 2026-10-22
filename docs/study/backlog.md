@@ -36,3 +36,4 @@
 - [ ] fetch + AbortSignal.timeout — 타임아웃 에러 이름(TimeoutError)과 연결 실패(TypeError) 구분 (src/common/partner-http.ts)
 - [ ] HTTP Retry-After(초 또는 날짜) (src/common/partner-http.ts)
 - [ ] vitest globalSetup과 자식 프로세스 — 테스트용 서버 띄우고 정리하기 (test/global-setup.ts)
+- [ ] 낙관적 락 version이 UPDATE 횟수만큼 오르는 것 — 한 요청에서 UPDATE를 한 번으로 묶는 이유 (decisions/0011)

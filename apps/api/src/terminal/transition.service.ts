@@ -14,6 +14,11 @@ export interface TransitionCommand {
   source: TransitionSource;
   /** 사람이 화면을 보고 바꿀 때는 필수. 시스템 작업은 생략할 수 있다(flush 시 version 검사는 그래도 일어난다). */
   expectedVersion?: number;
+  /**
+   * 상태와 함께 바꿀 단말기 필드(예: 배정 가맹점). 규칙 확인 뒤, UPDATE 전에 적용해 상태 변경과 같은 UPDATE 한 번에 나간다
+   * (decisions/0011). 상태(status)는 여기서 바꾸지 않는다.
+   */
+  mutate?: (terminal: Terminal) => void;
 }
 
 /** 단말기 상태를 바꾸는 유일한 경로. 규칙 확인, 상태 변경, 이력 기록을 한 트랜잭션으로 묶는다. */
@@ -26,7 +31,7 @@ export class TransitionService {
    */
   async transition(cmd: TransitionCommand, em: EntityManager = this.em): Promise<Terminal> {
     return em.transactional(async (tx) => {
-      const terminal = await tx.findOne(Terminal, { serialNo: cmd.serialNo }, { populate: ['model'] });
+      const terminal = await tx.findOne(Terminal, { serialNo: cmd.serialNo }, { populate: ['model', 'merchant'] });
       if (!terminal) throw new NotFoundException(`단말기 ${cmd.serialNo}이(가) 없습니다.`);
 
       // 규칙보다 version을 먼저 본다. 낡은 화면에서 온 요청은 "규칙 위반"이 아니라 "충돌"로 알려야 한다.
@@ -41,6 +46,7 @@ export class TransitionService {
 
       const from = terminal.status;
       terminal.status = cmd.to;
+      cmd.mutate?.(terminal);
       // version 검사 UPDATE를 이력 INSERT보다 먼저 보낸다. INSERT가 먼저면 FK 검사의 공유 락끼리 엉켜 데드락이 난다(troubleshooting/0004).
       await tx.flush();
       tx.create(TerminalStatusHistory, {

@@ -37,7 +37,7 @@ export class TerminalService {
       ...(query.q ? { serialNo: { $like: `${escapeLike(query.q)}%` } } : {}),
     };
     const [items, total] = await this.em.findAndCount(Terminal, where, {
-      populate: ['model'],
+      populate: ['model', 'merchant'],
       orderBy: { id: 'desc' },
       limit: query.size,
       offset: (query.page - 1) * query.size,
@@ -46,7 +46,7 @@ export class TerminalService {
   }
 
   async getBySerial(serialNo: string): Promise<Terminal> {
-    const terminal = await this.em.findOne(Terminal, { serialNo }, { populate: ['model'] });
+    const terminal = await this.em.findOne(Terminal, { serialNo }, { populate: ['model', 'merchant'] });
     if (!terminal) throw new NotFoundException(`단말기 ${serialNo}이(가) 없습니다.`);
     return terminal;
   }

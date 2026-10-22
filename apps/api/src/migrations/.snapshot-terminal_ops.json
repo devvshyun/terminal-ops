@@ -397,6 +397,105 @@
       "comment": null
     },
     {
+      "name": "merchant",
+      "columns": {
+        "address": {
+          "name": "address",
+          "type": "varchar(200)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": 200,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "string"
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(20)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": true,
+          "length": 20,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "string"
+        },
+        "id": {
+          "name": "id",
+          "type": "int",
+          "unsigned": true,
+          "autoincrement": true,
+          "primary": true,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "integer"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(50)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": 50,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "string"
+        }
+      },
+      "indexes": [
+        {
+          "columnNames": [
+            "id"
+          ],
+          "composite": false,
+          "constraint": true,
+          "keyName": "PRIMARY",
+          "primary": true,
+          "unique": true
+        },
+        {
+          "columnNames": [
+            "code"
+          ],
+          "composite": false,
+          "constraint": true,
+          "keyName": "merchant_code_unique",
+          "primary": false,
+          "unique": true
+        }
+      ],
+      "checks": [],
+      "triggers": [],
+      "foreignKeys": {},
+      "comment": null
+    },
+    {
       "name": "terminal",
       "columns": {
         "created_at": {
@@ -423,6 +522,23 @@
           "autoincrement": true,
           "primary": true,
           "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "integer"
+        },
+        "merchant_id": {
+          "name": "merchant_id",
+          "type": "int",
+          "unsigned": true,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
           "unique": false,
           "length": null,
           "precision": null,
@@ -545,6 +661,16 @@
         },
         {
           "columnNames": [
+            "merchant_id"
+          ],
+          "composite": false,
+          "constraint": false,
+          "keyName": "terminal_merchant_id_index",
+          "primary": false,
+          "unique": false
+        },
+        {
+          "columnNames": [
             "model_id"
           ],
           "composite": false,
@@ -577,6 +703,18 @@
       "checks": [],
       "triggers": [],
       "foreignKeys": {
+        "terminal_merchant_id_foreign": {
+          "columnNames": [
+            "merchant_id"
+          ],
+          "constraintName": "terminal_merchant_id_foreign",
+          "localTableName": "terminal",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "merchant",
+          "deleteRule": "set null"
+        },
         "terminal_model_id_foreign": {
           "columnNames": [
             "model_id"

@@ -1,5 +1,6 @@
 import { OptionalProps, type Rel } from '@mikro-orm/core';
 import { Entity, Enum, Index, ManyToOne, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
+import { Merchant } from '../merchant/merchant.entity.js';
 import { TerminalModel } from './terminal-model.entity.js';
 import { TerminalStatus } from './terminal-status.js';
 
@@ -17,6 +18,10 @@ export class Terminal {
   // Rel<>: ESM 순환 import에서 데코레이터 메타데이터가 클래스를 너무 일찍 참조하지 않게 한다.
   @ManyToOne(() => TerminalModel)
   model!: Rel<TerminalModel>;
+
+  /** 배정된 가맹점. 배정 전에는 null */
+  @ManyToOne(() => Merchant, { nullable: true })
+  merchant?: Rel<Merchant> | null;
 
   @Enum({ items: () => TerminalStatus })
   status: TerminalStatus = TerminalStatus.RECEIVED;
