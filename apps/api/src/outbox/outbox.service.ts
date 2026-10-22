@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { UnrecoverableError, type JobsOptions, type Queue } from 'bullmq';
-import { EntityManager, LockMode } from '@mikro-orm/mysql';
+import { EntityManager, IsolationLevel, LockMode } from '@mikro-orm/mysql';
 import { PartnerPermanentError } from '../common/partner-errors.js';
 import { QUEUE } from '../queue/queue-names.js';
 import { OutboxEvent, OutboxStatus } from './outbox-event.entity.js';
@@ -31,6 +31,8 @@ function textOf(event: OutboxEvent): string {
 /**
  * Outbox(F5).
  * - relay: PENDING 행을 잠그고(다른 relay가 잡은 행은 건너뜀, SKIP LOCKED) notify job을 넣은 뒤 QUEUED로 바꾼다.
+ *   READ COMMITTED로 돈다. 기본(REPEATABLE READ)이면 잠금 읽기가 (status, id) 인덱스의 gap까지 잠가
+ *   새 PENDING 행 INSERT(= 전이·등록 트랜잭션)를 relay가 커밋할 때까지 막는다(troubleshooting/0007).
  * - notify: 톡톡메신저로 보내고 SENT로 바꾼다. 최종 실패면 FAILED.
  * 보장 수준은 "최소 한 번 + 멱등키"다(decisions/0016).
  */
@@ -55,7 +57,7 @@ export class OutboxService {
         row.status = OutboxStatus.QUEUED;
       }
       return rows.map((r) => r.id);
-    });
+    }, { isolationLevel: IsolationLevel.READ_COMMITTED });
     return { queued };
   }
 
