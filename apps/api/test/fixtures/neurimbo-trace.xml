@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<trace>
+  <invoiceNo>NR17611111111110001</invoiceNo>
+  <item><seq>3</seq><statusCd>30</statusCd><statusTime>20261022100300</statusTime></item>
+  <item><seq>1</seq><statusCd>10</statusCd><statusTime>20261022100100</statusTime></item>
+  <item><seq>2</seq><statusCd>20</statusCd><statusTime>20261022100200</statusTime></item>
+  <item><seq>4</seq><statusCd>40</statusCd><statusTime>20261022100400</statusTime></item>
+</trace>

@@ -1,0 +1,8 @@
+{
+  "trackingNo": "BG17611111111110001",
+  "events": [
+    { "eventId": "BG17611111111110001-2", "code": "IN_TRANSIT", "occurredAt": "2026-10-22T01:02:00.000Z" },
+    { "eventId": "BG17611111111110001-1", "code": "PICKED_UP", "occurredAt": "2026-10-22T01:01:00.000Z" },
+    { "eventId": "BG17611111111110001-1", "code": "PICKED_UP", "occurredAt": "2026-10-22T01:01:00.000Z" }
+  ]
+}

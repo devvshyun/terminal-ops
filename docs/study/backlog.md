@@ -33,3 +33,6 @@
 - [ ] 출처별 허용 전이 — 기본 허용을 좁히는 방식(deny by default) (decisions/0007)
 - [ ] 시드 난수(mulberry32)와 재현 가능한 테스트 — 동시 요청에서는 왜 완전히 재현되지 않나 (decisions/0009)
 - [ ] fast-xml-parser isArray·parseTagValue — XML 하나/여럿, 숫자처럼 보이는 문자열 (apps/partners/src/neurimbo.ts)
+- [ ] fetch + AbortSignal.timeout — 타임아웃 에러 이름(TimeoutError)과 연결 실패(TypeError) 구분 (src/common/partner-http.ts)
+- [ ] HTTP Retry-After(초 또는 날짜) (src/common/partner-http.ts)
+- [ ] vitest globalSetup과 자식 프로세스 — 테스트용 서버 띄우고 정리하기 (test/global-setup.ts)
