@@ -1,0 +1,41 @@
+{
+  "name": "@terminal-ops/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:migration:create": "npm run build && node dist/db/migrate.js create",
+    "db:migrate": "npm run build && node dist/db/migrate.js up",
+    "db:migration:check": "npm run build && node dist/db/migrate.js check",
+    "db:seed": "npm run build && node dist/db/seed.js"
+  },
+  "dependencies": {
+    "@mikro-orm/core": "^7.2.5",
+    "@mikro-orm/decorators": "^7.2.5",
+    "@mikro-orm/migrations": "^7.2.5",
+    "@mikro-orm/mysql": "^7.2.5",
+    "@mikro-orm/nestjs": "^7.1.0",
+    "@nestjs/common": "^12.2.0",
+    "@nestjs/core": "^12.2.0",
+    "@nestjs/platform-express": "^12.2.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "^12.2.0",
+    "@swc/core": "^1.16.18",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.19.2",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.3.1",
+    "typescript": "~6.0.2",
+    "unplugin-swc": "^2.0.0",
+    "vitest": "^5.0.5"
+  }
+}

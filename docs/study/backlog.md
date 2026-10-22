@@ -8,3 +8,5 @@
 - [ ] Outbox 패턴 — 상태 변경과 알림을 왜 같은 트랜잭션에 기록하나 (F5)
 - [ ] BullMQ 재시도·백오프·limiter (F3)
 - [ ] Redis 정렬 집합(ZSET)으로 하트비트 최신 시각 관리 (F8)
+- [ ] ESM에서 import 경로에 .js를 붙이는 이유 (decisions/0002)
+- [ ] Nest APP_PIPE/APP_FILTER provider vs app.useGlobalPipes 차이 (app.module.ts)
