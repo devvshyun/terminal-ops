@@ -17,3 +17,5 @@
 - [ ] Rel<T>와 ESM 순환 import — emitDecoratorMetadata가 클래스를 너무 일찍 참조하는 문제 (terminal.entity.ts)
 - [ ] em.transactional 안에서 create만 하고 flush를 안 부르는데 저장되는 이유 (terminal.service.ts register)
 - [ ] LIKE 검색어 이스케이프 (terminal.service.ts escapeLike)
+- [ ] MySQL 네이티브 enum 컬럼 — 상태·출처 값을 추가할 때 ALTER가 필요한 이유와 대안(varchar+check) (Migration20261022040212)
+- [ ] FK 자동 인덱스와 복합 인덱스 (terminal_id, occurred_at)가 겹치는 문제 (Migration20261022040212)

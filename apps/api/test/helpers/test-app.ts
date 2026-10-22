@@ -24,7 +24,7 @@ export async function createTestApp(): Promise<TestApp> {
 export async function resetDatabase(orm: MikroORM): Promise<void> {
   // 개발 DB를 실수로 지우지 않도록 테스트 DB에서만 실행한다.
   const dbName = orm.config.get('dbName');
-  if (dbName !== process.env.MYSQL_TEST_DATABASE) {
+  if (!process.env.MYSQL_TEST_DATABASE || dbName !== process.env.MYSQL_TEST_DATABASE) {
     throw new Error(`resetDatabase는 테스트 DB에서만 실행합니다(현재: ${dbName}).`);
   }
   await orm.schema.refresh();
