@@ -46,11 +46,12 @@ async function deleteTestQueueKeys(): Promise<number> {
 }
 
 export default async function setup() {
-  await deleteTestQueueKeys();
-
+  // 포트 확인을 키 정리보다 먼저 한다. 다른 테스트 실행이 돌고 있으면 그 실행의 test-* 키를 지우기 전에 멈춘다.
   if (await isUp()) {
     throw new Error(`${PARTNERS_URL.origin}에 이미 서버가 떠 있습니다. 테스트용 partners 포트를 비우고 다시 실행하세요.`);
   }
+
+  await deleteTestQueueKeys();
 
   // tsc는 partners 쪽 node_modules에서 찾는다(Windows에서 npm.cmd를 거치지 않으려고 node로 직접 실행).
   const tsc = createRequire(resolve(partnersDir, 'package.json')).resolve('typescript/bin/tsc');

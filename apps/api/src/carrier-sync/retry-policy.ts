@@ -1,4 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
+import { NotFoundError } from '@mikro-orm/core';
 import { UnrecoverableError, type JobsOptions } from 'bullmq';
 import { InvalidTransitionError } from '../common/domain-errors.js';
 import { PartnerPermanentError, PartnerRateLimitedError } from '../common/partner-errors.js';
@@ -24,10 +25,16 @@ export function carrierBackoff(attemptsMade: number, _type?: string, err?: Error
 
 /**
  * 다시 해도 같은 결과인 오류는 UnrecoverableError로 바꿔 재시도하지 않게 한다.
+ * 행이 없음(Nest NotFoundException, MikroORM findOneOrFail의 NotFoundError)도 여기에 든다.
  * 429·5xx·타임아웃, 낙관적 락 충돌, 데드락은 그대로 던져 재시도한다.
  */
 export function toJobError(error: unknown): unknown {
-  if (error instanceof PartnerPermanentError || error instanceof InvalidTransitionError || error instanceof NotFoundException) {
+  if (
+    error instanceof PartnerPermanentError ||
+    error instanceof InvalidTransitionError ||
+    error instanceof NotFoundException ||
+    error instanceof NotFoundError
+  ) {
     return new UnrecoverableError(`${error.name}: ${error.message}`);
   }
   return error;

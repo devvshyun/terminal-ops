@@ -48,3 +48,5 @@
 - [ ] 워커에는 RequestContext가 없다 — em.fork()로 작업 단위를 나누는 이유 (carrier-sync.service.ts)
 - [ ] em.insert(UoW 밖 단건 INSERT)와 em.create+flush의 차이 (carrier-sync.service.ts)
 - [ ] Nest 동적 모듈(forRoot)과 정적 @Module 메타데이터가 합쳐지는 방식 (app.module.ts)
+- [ ] 영구 오류 운송장이 sweep마다 재조회되는 문제 — 연속 영구 실패 N회 후 sweep 대상에서 빼는 상태 (decisions/0014)
+- [ ] vitest globalSetup 오류가 소스맵 변환 실패(`code.charCodeAt is not a function`)로 가려지는 이유 (troubleshooting/0006)
