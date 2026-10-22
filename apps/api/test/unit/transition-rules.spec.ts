@@ -52,6 +52,28 @@ describe('checkTransition', () => {
     if (!r.ok) expect(r.reason).toContain('재검수');
   });
 
+  it('배송 완료는 수동과 배치 둘 다 가능', () => {
+    expect(checkTransition(S.SHIPPED, S.DELIVERED, Src.MANUAL, normal)).toEqual({ ok: true });
+    expect(checkTransition(S.SHIPPED, S.DELIVERED, Src.BATCH, normal)).toEqual({ ok: true });
+  });
+
+  it.each([
+    [S.INSPECTED, S.IN_STOCK],
+    [S.IN_STOCK, S.ALLOCATED],
+    [S.ALLOCATED, S.SHIPPED],
+    [S.DELIVERED, S.IN_SERVICE],
+    [S.RETURNED, S.IN_STOCK],
+    [S.DEFECTIVE, S.DISPOSED],
+  ])('배치는 일반 전이 %s → %s 를 할 수 없다', (from, to) => {
+    const r = checkTransition(from, to, Src.BATCH, normal);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toContain('MANUAL 경로로만');
+  });
+
+  it('검수 전용 전이는 배치로도 안 된다', () => {
+    expect(checkTransition(S.RECEIVED, S.INSPECTED, Src.BATCH, normal).ok).toBe(false);
+  });
+
   it('폐기는 끝 상태다', () => {
     for (const to of Object.values(S)) {
       expect(checkTransition(S.DISPOSED, to, Src.MANUAL, normal).ok).toBe(false);

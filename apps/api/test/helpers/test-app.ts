@@ -12,8 +12,14 @@ export interface TestApp {
   http: () => ReturnType<typeof request>;
 }
 
-export async function createTestApp(): Promise<TestApp> {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+/**
+ * @param options.workers true면 큐 프로세서까지 띄운다(수집·알림 테스트). 주기 작업(스케줄러)은 테스트에서 항상 끈다 —
+ *   테스트가 sweep()·relay()를 직접 부른다.
+ */
+export async function createTestApp(options: { workers?: boolean } = {}): Promise<TestApp> {
+  const moduleRef = await Test.createTestingModule({
+    imports: [AppModule.forRoot({ workers: options.workers ?? false, schedulers: false })],
+  }).compile();
   const app = moduleRef.createNestApplication();
   await app.init();
   const orm: MikroORM = app.get(MikroORM);

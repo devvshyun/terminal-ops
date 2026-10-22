@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/mysql';
 import { TerminalModel } from '../terminal/terminal-model.entity.js';
 import { InspectionItem } from '../inspection/inspection-item.entity.js';
+import { Merchant } from '../merchant/merchant.entity.js';
 
 interface ModelSeed {
   code: string;
@@ -31,7 +32,14 @@ export const MODEL_SEEDS: ModelSeed[] = [
   },
 ];
 
-/** 기준 데이터(모델, 검수 항목)를 넣는다. 이미 있는 행은 건너뛰므로 여러 번 실행해도 된다. */
+/** 가상 가맹점. 실제 상호·주소가 아니다. */
+export const MERCHANT_SEEDS = [
+  { code: 'GANGNAM-KIMBAP', name: '강남김밥', address: '서울 강남구 가상대로 101' },
+  { code: 'YEOKSAM-CAFE', name: '역삼카페', address: '서울 강남구 가상로 202' },
+  { code: 'PANGYO-BUNSIK', name: '판교분식', address: '경기 성남시 분당구 가상길 303' },
+];
+
+/** 기준 데이터(모델, 검수 항목, 가맹점)를 넣는다. 이미 있는 행은 건너뛰므로 여러 번 실행해도 된다. */
 export async function seedReference(em: EntityManager): Promise<void> {
   for (const seed of MODEL_SEEDS) {
     let model = await em.findOne(TerminalModel, { code: seed.code });
@@ -43,6 +51,10 @@ export async function seedReference(em: EntityManager): Promise<void> {
       const exists = await em.findOne(InspectionItem, { model, code });
       if (!exists) em.create(InspectionItem, { model, code, label, sortOrder });
     }
+  }
+  for (const seed of MERCHANT_SEEDS) {
+    const exists = await em.findOne(Merchant, { code: seed.code });
+    if (!exists) em.create(Merchant, seed);
   }
   await em.flush();
 }

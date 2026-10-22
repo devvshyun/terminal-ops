@@ -13,8 +13,9 @@ export enum TerminalStatus {
   DISPOSED = 'DISPOSED', // 폐기
 }
 
-/** 상태를 바꾼 경로. 이후 Day에서 BATCH, SCAN, IMPORT 등을 추가한다. */
+/** 상태를 바꾼 경로. 규칙별 허용 출처는 transition-rules.ts에서 정한다(decisions/0007). */
 export enum TransitionSource {
   MANUAL = 'MANUAL',
   INSPECTION = 'INSPECTION',
+  BATCH = 'BATCH', // 시스템 배치(택배 추적 수집 등)
 }

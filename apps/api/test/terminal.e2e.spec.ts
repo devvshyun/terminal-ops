@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { TransitionService } from '../src/terminal/transition.service.js';
 import { createTestApp, resetDatabase, type TestApp } from './helpers/test-app.js';
 
 const OP = { 'X-Operator': 'kim' };
@@ -25,6 +26,17 @@ describe('단말기 등록·조회 (F1)', () => {
     expect(res.body).toEqual([
       expect.objectContaining({ fromStatus: null, toStatus: 'RECEIVED', source: 'MANUAL', actor: 'kim', reason: '신규 등록' }),
     ]);
+  });
+
+  it('등록 이력도 전이 서비스가 남긴다(상태 변경 경로 일원화)', async () => {
+    const spy = vi.spyOn(TransitionService.prototype, 'recordRegistration');
+    try {
+      const res = await t.http().post('/terminals').set(OP).send({ serialNo: 'REG-0001', modelCode: 'SN-100' });
+      expect(res.status).toBe(201);
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('한글 작업자 이름은 URL 인코딩해서 보낸다', async () => {
