@@ -19,3 +19,6 @@
 - [ ] LIKE 검색어 이스케이프 (terminal.service.ts escapeLike)
 - [ ] MySQL 네이티브 enum 컬럼 — 상태·출처 값을 추가할 때 ALTER가 필요한 이유와 대안(varchar+check) (Migration20261022040212)
 - [ ] FK 자동 인덱스와 복합 인덱스 (terminal_id, occurred_at)가 겹치는 문제 (Migration20261022040212)
+- [ ] 전이 규칙의 기본 허용 출처 — 새 출처 추가 시 허용 범위가 자동으로 넓어지는 문제 (decisions/0003)
+- [ ] em.lock(OPTIMISTIC, expectedVersion)과 flush 시 version 검사의 차이 (transition.service.ts)
+- [ ] em.transactional 중첩 — 바깥 트랜잭션이 있으면 savepoint가 되는 이유 (transition.service.ts em 인자)
