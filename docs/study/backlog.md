@@ -37,3 +37,7 @@
 - [ ] HTTP Retry-After(초 또는 날짜) (src/common/partner-http.ts)
 - [ ] vitest globalSetup과 자식 프로세스 — 테스트용 서버 띄우고 정리하기 (test/global-setup.ts)
 - [ ] 낙관적 락 version이 UPDATE 횟수만큼 오르는 것 — 한 요청에서 UPDATE를 한 번으로 묶는 이유 (decisions/0011)
+- [ ] 외부 HTTP 호출을 DB 트랜잭션 밖으로 — 고아 자원과 saga (decisions/0012)
+- [ ] reflect-metadata와 유니온 타입 — Date | null이 Object가 되어 varchar(255)가 되는 이유 (shipment.entities.ts)
+- [ ] supertest가 listen하지 않은 서버에 요청할 때 서버를 열고 닫는 방식 — 요청 체인 안에서 다른 요청을 await하면 깨지는 이유 (shipment.e2e.spec.ts)
+- [ ] Day 3(F7) 범위: 일반 전이 API로 ALLOCATED·SHIPPED 만들기 막기 + 배정 취소(ALLOCATED→IN_STOCK) 시 merchant 비우기(`mutate`) — 지금은 반환해도 merchantCode가 남는다 (decisions/0011)

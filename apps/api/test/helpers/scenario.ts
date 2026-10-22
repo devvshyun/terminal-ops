@@ -26,3 +26,18 @@ export async function allocateTo(t: TestApp, serialNo: string, merchantCode = 'G
   expect(res.status).toBe(201);
   return res.body.version;
 }
+
+/** 배정된 단말기를 출고한다. */
+export async function shipWith(t: TestApp, serialNo: string, carrier: 'BUNGAE' | 'NEURIMBO') {
+  const version = (await t.http().get(`/terminals/${serialNo}`)).body.version;
+  const res = await t.http().post('/shipments').set(SCENARIO_OP).send({ serialNo, carrier, expectedVersion: version });
+  expect(res.status).toBe(201);
+  return { shipmentId: res.body.id as number, trackingNo: res.body.trackingNo as string };
+}
+
+/** 등록부터 출고까지 한 번에. 수집 테스트·실험 준비용 */
+export async function prepareShipped(t: TestApp, serialNo: string, carrier: 'BUNGAE' | 'NEURIMBO') {
+  await registerInStock(t, serialNo);
+  await allocateTo(t, serialNo);
+  return shipWith(t, serialNo, carrier);
+}
