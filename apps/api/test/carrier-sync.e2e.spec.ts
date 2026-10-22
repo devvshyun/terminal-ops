@@ -1,0 +1,134 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { CarrierSyncService, SYNC_ACTOR } from '../src/carrier-sync/carrier-sync.service.js';
+import { CarrierEvent, Shipment, ShipmentStatus, SyncRun } from '../src/shipment/shipment.entities.js';
+import { TerminalStatusHistory } from '../src/terminal/terminal-status-history.entity.js';
+import { TerminalStatus } from '../src/terminal/terminal-status.js';
+import { partners } from './helpers/partners.js';
+import { resetQueues, waitFor, waitForQueuesIdle } from './helpers/queues.js';
+import { prepareShipped } from './helpers/scenario.js';
+import { createTestApp, resetDatabase, type TestApp } from './helpers/test-app.js';
+
+describe('택배 추적 자동 수집 (F3)', () => {
+  let t: TestApp;
+  let sync: CarrierSyncService;
+
+  const em = () => t.orm.em.fork();
+  const shipment = (id: number) => em().findOneOrFail(Shipment, id, { populate: ['terminal'] });
+  const runs = (id: number) => em().find(SyncRun, { shipment: id }, { orderBy: { id: 'asc' } });
+  const deliveredHistory = (serialNo: string) =>
+    em().find(TerminalStatusHistory, { terminal: { serialNo }, toStatus: TerminalStatus.DELIVERED });
+
+  /** sweep 한 번 → 큐가 빌 때까지 대기 */
+  async function sweepOnce() {
+    await sync.sweep();
+    await waitForQueuesIdle(t.app);
+  }
+
+  beforeAll(async () => {
+    t = await createTestApp({ workers: true });
+    await resetDatabase(t.orm);
+    await resetQueues(t.app);
+    sync = t.app.get(CarrierSyncService);
+  });
+  beforeEach(async () => {
+    await partners.reset();
+  });
+  afterAll(async () => {
+    await resetQueues(t.app);
+    await t.app.close();
+  });
+
+  it('번개: sweep 네 번에 이벤트 4개, 단말기는 배치 경로로 DELIVERED', async () => {
+    const { shipmentId } = await prepareShipped(t, 'CS-0001', 'BUNGAE');
+    for (let i = 0; i < 3; i++) await sweepOnce();
+    expect((await shipment(shipmentId)).status).toBe(ShipmentStatus.IN_TRANSIT);
+    expect(await em().count(CarrierEvent, { shipment: shipmentId })).toBe(3);
+
+    await sweepOnce();
+    const s = await shipment(shipmentId);
+    expect(s.status).toBe(ShipmentStatus.DELIVERED);
+    expect(s.deliveredAt).toBeInstanceOf(Date);
+    expect(s.terminal.status).toBe(TerminalStatus.DELIVERED);
+    expect(await em().count(CarrierEvent, { shipment: shipmentId })).toBe(4);
+
+    const history = await deliveredHistory('CS-0001');
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({ fromStatus: 'SHIPPED', source: 'BATCH', actor: SYNC_ACTOR });
+
+    const r = await runs(shipmentId);
+    expect(r.map((x) => x.outcome)).toEqual(['OK', 'OK', 'OK', 'DELIVERED']);
+    expect(r.map((x) => x.inserted)).toEqual([1, 1, 1, 1]);
+    expect(r.map((x) => x.duplicated)).toEqual([0, 1, 2, 3]); // 이미 저장한 이벤트는 다시 넣지 않는다
+  });
+
+  it('완료된 운송장은 sweep 대상이 아니다', async () => {
+    const before = (await partners.stats()).calls['bungae.track'] ?? 0;
+    await sweepOnce();
+    expect((await partners.stats()).calls['bungae.track'] ?? 0).toBe(before);
+  });
+
+  it('번개 중복 이벤트(duplicateRate=1): 저장은 한 번, 중복으로 센다', async () => {
+    await partners.configure({ bungae: { duplicateRate: 1, advancePerPoll: 4 } });
+    const { shipmentId } = await prepareShipped(t, 'CS-0002', 'BUNGAE');
+    await sweepOnce();
+    expect(await em().count(CarrierEvent, { shipment: shipmentId })).toBe(4);
+    const [run] = await runs(shipmentId);
+    expect(run).toMatchObject({ outcome: 'DELIVERED', fetched: 8, inserted: 4, duplicated: 4 });
+    expect(await deliveredHistory('CS-0002')).toHaveLength(1);
+  });
+
+  it('느림보: 순서가 섞인 XML도 공통 코드로 저장하고 DELIVERED', async () => {
+    await partners.configure({ neurimbo: { shuffle: true, advancePerPoll: 4 } });
+    const { shipmentId } = await prepareShipped(t, 'CS-0003', 'NEURIMBO');
+    await sweepOnce();
+    const events = await em().find(CarrierEvent, { shipment: shipmentId }, { orderBy: { occurredAt: 'asc' } });
+    expect(events.map((e) => e.code)).toEqual(['PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED']);
+    expect((await shipment(shipmentId)).terminal.status).toBe(TerminalStatus.DELIVERED);
+  });
+
+  it('운영자가 먼저 수동으로 DELIVERED로 바꿨으면 단말기는 그대로 두고 운송장만 완료(no-op)', async () => {
+    await partners.configure({ bungae: { advancePerPoll: 4 } });
+    const { shipmentId } = await prepareShipped(t, 'CS-0004', 'BUNGAE');
+    const version = (await t.http().get('/terminals/CS-0004')).body.version;
+    await t
+      .http()
+      .post('/terminals/CS-0004/transitions')
+      .set({ 'X-Operator': 'kang' })
+      .send({ to: 'DELIVERED', reason: '가맹점 수령 확인 전화', expectedVersion: version });
+
+    await sweepOnce();
+    expect((await shipment(shipmentId)).status).toBe(ShipmentStatus.DELIVERED);
+    const history = await deliveredHistory('CS-0004');
+    expect(history.map((h) => h.source)).toEqual(['MANUAL']);
+    const [run] = await runs(shipmentId);
+    expect(run).toMatchObject({ outcome: 'NOOP', detail: '단말기 상태가 DELIVERED라 전이하지 않음' });
+  });
+
+  it('429면 Retry-After만큼 기다렸다가 재시도해 성공', async () => {
+    const { shipmentId } = await prepareShipped(t, 'CS-0005', 'BUNGAE');
+    await partners.configure({ bungae: { force429Rate: 1, retryAfterSec: 1 } });
+    await sync.sweep();
+    await waitFor(async () => (await runs(shipmentId)).length >= 1, { message: '첫 시도' });
+    await partners.configure({ bungae: { force429Rate: 0 } });
+    await waitForQueuesIdle(t.app);
+
+    const r = await runs(shipmentId);
+    expect(r.map((x) => [x.attempt, x.outcome])).toEqual([
+      [1, 'ERROR'],
+      [2, 'OK'],
+    ]);
+    expect(r[0].detail).toContain('PartnerRateLimitedError');
+    // 두 번째 시도는 Retry-After(1초) 이후에 시작했다.
+    expect(r[1].startedAt.getTime() - r[0].startedAt.getTime()).toBeGreaterThanOrEqual(900);
+  });
+
+  it('없는 운송장(404)은 재시도하지 않는다', async () => {
+    const { shipmentId } = await prepareShipped(t, 'CS-0006', 'BUNGAE');
+    await partners.reset(); // 택배사가 운송장을 잊었다
+    await sweepOnce();
+    const r = await runs(shipmentId);
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ attempt: 1, outcome: 'ERROR' });
+    expect(r[0].detail).toContain('PartnerPermanentError');
+  });
+});
