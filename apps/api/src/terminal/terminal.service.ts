@@ -5,7 +5,8 @@ import type { ListTerminalsQuery } from './dto/list-terminals.query.js';
 import { TerminalModel } from './terminal-model.entity.js';
 import { Terminal } from './terminal.entity.js';
 import { TerminalStatusHistory } from './terminal-status-history.entity.js';
-import { TerminalStatus, TransitionSource } from './terminal-status.js';
+import { TransitionSource } from './terminal-status.js';
+import { TransitionService } from './transition.service.js';
 
 function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -13,22 +14,18 @@ function escapeLike(value: string): string {
 
 @Injectable()
 export class TerminalService {
-  constructor(private readonly em: EntityManager) {}
+  constructor(
+    private readonly em: EntityManager,
+    private readonly transitions: TransitionService,
+  ) {}
 
-  /** 단말기와 첫 이력(RECEIVED)을 한 트랜잭션으로 만든다. */
+  /** 단말기와 첫 이력(RECEIVED)을 한 트랜잭션으로 만든다. 이력은 전이 서비스가 남긴다(decisions/0008). */
   async register(dto: RegisterTerminalDto, actor: string): Promise<Terminal> {
     return this.em.transactional(async (tx) => {
       const model = await tx.findOne(TerminalModel, { code: dto.modelCode });
       if (!model) throw new NotFoundException(`단말기 모델 ${dto.modelCode}이(가) 없습니다.`);
       const terminal = tx.create(Terminal, { serialNo: dto.serialNo, model });
-      tx.create(TerminalStatusHistory, {
-        terminal,
-        fromStatus: null,
-        toStatus: TerminalStatus.RECEIVED,
-        source: TransitionSource.MANUAL,
-        actor,
-        reason: '신규 등록',
-      });
+      this.transitions.recordRegistration(terminal, actor, TransitionSource.MANUAL, tx);
       return terminal;
     });
   }

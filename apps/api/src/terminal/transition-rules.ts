@@ -7,11 +7,14 @@ export interface ModelPolicy {
 interface TransitionRule {
   from: S;
   to: S;
-  /** 이 전이를 일으킬 수 있는 경로. 없으면 INSPECTION을 뺀 모든 경로 */
+  /** 이 전이를 일으킬 수 있는 경로. 없으면 MANUAL만 (decisions/0007) */
   only?: TransitionSource[];
   /** 모델 정책 때문에 막히면 이유를 돌려준다 */
   blockedBy?: (policy: ModelPolicy) => string | undefined;
 }
+
+/** `only`가 없는 규칙의 허용 출처. 새 출처를 추가해도 자동으로 넓어지지 않게 MANUAL만 둔다(decisions/0007). */
+const DEFAULT_SOURCES: TransitionSource[] = [TransitionSource.MANUAL];
 
 /** 단말기 상태 전이 표. 상태 변경 규칙은 여기 한 곳에만 둔다(decisions/0003). */
 const RULES: TransitionRule[] = [
@@ -21,7 +24,8 @@ const RULES: TransitionRule[] = [
   { from: S.IN_STOCK, to: S.ALLOCATED },
   { from: S.ALLOCATED, to: S.IN_STOCK },
   { from: S.ALLOCATED, to: S.SHIPPED },
-  { from: S.SHIPPED, to: S.DELIVERED },
+  // 배송 완료는 택배 추적 수집(BATCH)이 자동으로, 또는 운영자가 수동으로 바꾼다.
+  { from: S.SHIPPED, to: S.DELIVERED, only: [TransitionSource.MANUAL, TransitionSource.BATCH] },
   { from: S.DELIVERED, to: S.IN_SERVICE },
   { from: S.IN_SERVICE, to: S.RETURN_REQUESTED },
   { from: S.RETURN_REQUESTED, to: S.RETURNING },
@@ -42,7 +46,7 @@ export function checkTransition(from: S, to: S, source: TransitionSource, policy
   const rule = RULES.find((r) => r.from === from && r.to === to);
   if (!rule) return { ok: false, reason: `허용되지 않은 전이입니다: ${from} → ${to}` };
 
-  const allowed = rule.only ?? Object.values(TransitionSource).filter((s) => s !== TransitionSource.INSPECTION);
+  const allowed = rule.only ?? DEFAULT_SOURCES;
   if (!allowed.includes(source)) {
     return { ok: false, reason: `${from} → ${to} 는 ${allowed.join(', ')} 경로로만 바꿀 수 있습니다(요청 경로: ${source}).` };
   }

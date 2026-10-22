@@ -793,7 +793,7 @@
         },
         "source": {
           "name": "source",
-          "type": "enum('manual','inspection')",
+          "type": "enum('manual','inspection','batch')",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
@@ -807,7 +807,8 @@
           "collation": null,
           "enumItems": [
             "MANUAL",
-            "INSPECTION"
+            "INSPECTION",
+            "BATCH"
           ],
           "mappedType": "enum"
         },

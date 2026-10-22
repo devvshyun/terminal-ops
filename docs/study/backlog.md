@@ -29,3 +29,5 @@
 - [ ] OneToMany Collection과 cascade persist (inspection.entities.ts)
 - [ ] 공유 작업 단위(Unit of Work)에서 중간 flush가 앞서 쌓인 INSERT까지 함께 보내는 것 (decisions/0006, experiments/0002)
 - [ ] 쿼리스트링에서 같은 키가 반복되면 배열이 되는 것(Express qs)과 DTO 검증 (inspection-stats.query.ts, devlog 2026-10-22)
+- [ ] MikroORM 마이그레이션 스냅샷과 down() 생성 방식 — enum down이 소문자로 나온 이유 (troubleshooting/0005)
+- [ ] 출처별 허용 전이 — 기본 허용을 좁히는 방식(deny by default) (decisions/0007)

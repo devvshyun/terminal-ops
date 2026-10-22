@@ -97,6 +97,17 @@ describe('상태 전이 API (F2)', () => {
     expect(res.status).toBe(400);
   });
 
+  it('reason이 공백뿐이면 400', async () => {
+    const current = (await t.http().get('/terminals/TR-0001')).body.version;
+    const res = await t
+      .http()
+      .post('/terminals/TR-0001/transitions')
+      .set(OP)
+      .send({ to: 'ALLOCATED', reason: '   ', expectedVersion: current });
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body.message)).toContain('공백');
+  });
+
   it('없는 단말기는 404', async () => {
     const res = await t
       .http()
