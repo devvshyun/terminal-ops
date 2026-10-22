@@ -26,3 +26,6 @@
 - [ ] MikroORM flush 안의 쿼리 순서(INSERT → UPDATE → DELETE)와 중간 flush (troubleshooting/0004)
 - [ ] MySQL 에러 1213(데드락)과 1205(락 대기 타임아웃) 차이, 데드락 재시도 전략 (troubleshooting/0004)
 - [ ] REPEATABLE READ에서 첫 SELECT 시점에 스냅샷이 잡히는 것 — 실험 B의 실패 사유가 갈리는 이유 (experiments/0001)
+- [ ] 트랜잭션 안에서 다른 서비스 호출하기 — em을 인자로 넘기는 방식과 @Transactional 데코레이터 비교 (inspection.service.ts)
+- [ ] OneToMany Collection과 cascade persist (inspection.entities.ts)
+- [ ] 공유 작업 단위(Unit of Work)에서 중간 flush가 앞서 쌓인 INSERT까지 함께 보내는 것 (decisions/0006, experiments/0002)
