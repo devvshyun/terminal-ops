@@ -41,6 +41,8 @@ export class TransitionService {
 
       const from = terminal.status;
       terminal.status = cmd.to;
+      // version 검사 UPDATE를 이력 INSERT보다 먼저 보낸다. INSERT가 먼저면 FK 검사의 공유 락끼리 엉켜 데드락이 난다(troubleshooting/0004).
+      await tx.flush();
       tx.create(TerminalStatusHistory, {
         terminal,
         fromStatus: from,

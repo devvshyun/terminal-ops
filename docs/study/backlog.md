@@ -22,3 +22,7 @@
 - [ ] 전이 규칙의 기본 허용 출처 — 새 출처 추가 시 허용 범위가 자동으로 넓어지는 문제 (decisions/0003)
 - [ ] em.lock(OPTIMISTIC, expectedVersion)과 flush 시 version 검사의 차이 (transition.service.ts)
 - [ ] em.transactional 중첩 — 바깥 트랜잭션이 있으면 savepoint가 되는 이유 (transition.service.ts em 인자)
+- [ ] InnoDB FK 검사가 부모 행에 거는 공유 락(S)과 S→X 승격 데드락 (troubleshooting/0004)
+- [ ] MikroORM flush 안의 쿼리 순서(INSERT → UPDATE → DELETE)와 중간 flush (troubleshooting/0004)
+- [ ] MySQL 에러 1213(데드락)과 1205(락 대기 타임아웃) 차이, 데드락 재시도 전략 (troubleshooting/0004)
+- [ ] REPEATABLE READ에서 첫 SELECT 시점에 스냅샷이 잡히는 것 — 실험 B의 실패 사유가 갈리는 이유 (experiments/0001)
