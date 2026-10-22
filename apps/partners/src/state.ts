@@ -70,7 +70,12 @@ export interface Stats {
   calls: Record<string, number>;
   /** 운송장별 추적 조회 수(429·5xx 포함) */
   perTracking: Record<string, number>;
+  /** 429 전체 = status429Limit + status429Forced */
   status429: number;
+  /** 초당 한도(rateLimitPerSec)를 넘어서 낸 429 */
+  status429Limit: number;
+  /** force429Rate 난수로 낸 429 */
+  status429Forced: number;
   status5xx: number;
   /** 같은 운송장 조회가 처리 중일 때 또 들어온 횟수 */
   overlaps: number;
@@ -79,7 +84,7 @@ export interface Stats {
 }
 
 function emptyStats(): Stats {
-  return { calls: {}, perTracking: {}, status429: 0, status5xx: 0, overlaps: 0, maxInFlight: 0 };
+  return { calls: {}, perTracking: {}, status429: 0, status429Limit: 0, status429Forced: 0, status5xx: 0, overlaps: 0, maxInFlight: 0 };
 }
 
 /** 가상 업체 서버의 메모리 상태. 재시작하거나 reset하면 모두 사라진다. */

@@ -15,6 +15,8 @@ export interface PartnersStats {
   calls: Record<string, number>;
   perTracking: Record<string, number>;
   status429: number;
+  status429Limit: number;
+  status429Forced: number;
   status5xx: number;
   overlaps: number;
   maxInFlight: number;

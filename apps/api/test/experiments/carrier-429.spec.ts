@@ -19,7 +19,7 @@ describe(`실험 0004: 번개택배 429 비율별 수집 (운송장 ${N}건, 비
     t = await createTestApp({ workers: true });
   });
   afterAll(async () => {
-    console.log(['[실험 0004 요약]', '| 429 비율 | 완료 | 소요(ms) | 조회 | 429 | 재시도(ERROR 실행) | 재시도 소진 | 최대 시도 |', '|---|---|---|---|---|---|---|---|', ...table].join('\n'));
+    console.log(['[실험 0004 요약]', '| 429 비율 | 완료 | 소요(ms) | 조회 | 429(강제/한도) | 재시도(ERROR 실행) | 재시도 소진 | 최대 시도 |', '|---|---|---|---|---|---|---|---|', ...table].join('\n'));
     await resetQueues(t.app);
     await t.app.close();
   });
@@ -45,10 +45,11 @@ describe(`실험 0004: 번개택배 429 비율별 수집 (운송장 ${N}건, 비
 
       const runs = await syncRunTotals(t);
       const stats = await partners.stats();
-      const row = `| ${rate * 100}% | ${N - remaining}/${N} | ${elapsed} | ${stats.calls['bungae.track']} | ${stats.status429} | ${runs.byOutcome.ERROR ?? 0} | ${runs.exhausted} | ${runs.maxAttempt} |`;
+      const row = `| ${rate * 100}% | ${N - remaining}/${N} | ${elapsed} | ${stats.calls['bungae.track']} | ${stats.status429}(${stats.status429Forced}/${stats.status429Limit}) | ${runs.byOutcome.ERROR ?? 0} | ${runs.exhausted} | ${runs.maxAttempt} |`;
       table.push(row);
       console.log(`[실험 0004] rate=${rate} ${row} 결과=${JSON.stringify(runs.byOutcome)}`);
 
+      expect(remaining).toBe(0); // 제한 시간 안에 모두 DELIVERED까지 가야 한다
       expect(await maxDeliveredPerTerminal(t)).toBeLessThanOrEqual(1); // 몇 번을 재시도해도 중복 반영은 없어야 한다
     }, LIMIT_MS + 120_000);
   }

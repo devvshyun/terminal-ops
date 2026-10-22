@@ -24,8 +24,12 @@ export async function bungaeTrack(state: PartnersState, trackingNo: string, res:
 
   const now = Date.now();
   state.bungaeWindow = state.bungaeWindow.filter((t) => now - t < 1000);
-  if (state.bungaeWindow.length >= cfg.rateLimitPerSec || state.chance(cfg.force429Rate)) {
+  // 한도 초과를 먼저 본다. 한도 안일 때만 강제 429 난수를 뽑는다(원래 순서 그대로 — 난수 순서를 바꾸지 않는다).
+  const overLimit = state.bungaeWindow.length >= cfg.rateLimitPerSec;
+  if (overLimit || state.chance(cfg.force429Rate)) {
     state.stats.status429 += 1;
+    if (overLimit) state.stats.status429Limit += 1;
+    else state.stats.status429Forced += 1;
     return sendJson(res, 429, { error: 'RATE_LIMITED' }, { 'Retry-After': String(cfg.retryAfterSec) });
   }
   state.bungaeWindow.push(now);

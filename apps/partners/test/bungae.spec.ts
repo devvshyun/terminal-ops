@@ -119,6 +119,8 @@ describe('번개택배', () => {
     expect(body.events).toHaveLength(3); // 성공한 조회 3번째
     const stats = await p.stats();
     expect(stats.status429).toBe(2);
+    expect(stats.status429Limit).toBe(2);
+    expect(stats.status429Forced).toBe(0);
     expect(stats.calls['bungae.track']).toBe(5);
     expect(stats.perTracking[no]).toBe(5);
   });
@@ -129,6 +131,10 @@ describe('번개택배', () => {
     const res = await track(no);
     expect(res.status).toBe(429);
     expect(res.headers.get('retry-after')).toBe('2');
+    const stats = await p.stats();
+    expect(stats.status429).toBe(1);
+    expect(stats.status429Forced).toBe(1);
+    expect(stats.status429Limit).toBe(0);
   });
 
   it('같은 운송장을 동시에 조회하면 overlaps로 센다', async () => {
