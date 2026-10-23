@@ -28,6 +28,12 @@ describe('시뮬레이터 관리 API', () => {
     expect(await res.json()).toMatchObject({ targetUrl: api.url, count: 3, batchSize: 2, intervalMs: 30_000 });
     expect((await sim.post('/__admin/config', { batchSize: 0 })).status).toBe(400);
     expect((await sim.post('/__admin/config', { offlineRate: 2 })).status).toBe(400);
+    expect((await sim.post('/__admin/config', { firmwareFailRate: -0.1 })).status).toBe(400);
+    expect((await sim.post('/__admin/config', { updateDelayMs: -1 })).status).toBe(400);
+    expect((await sim.post('/__admin/config', { updateJitterMs: 1.5 })).status).toBe(400);
+    const fw = await sim.post('/__admin/config', { firmwareFailRate: 0.5, updateDelayMs: 0, updateJitterMs: 10 });
+    expect(fw.status).toBe(200);
+    expect(await fw.json()).toMatchObject({ firmwareFailRate: 0.5, updateDelayMs: 0, updateJitterMs: 10 });
     const broken = await fetch(`${sim.base}/__admin/config`, { method: 'POST', body: '{"count":' });
     expect(broken.status).toBe(400);
   });
@@ -50,7 +56,7 @@ describe('시뮬레이터 관리 API', () => {
 
   it('단말기 상태 조회(없으면 404)', async () => {
     await sim.post('/__admin/config', { count: 2, serialPrefix: 'DV', firmwareVersion: '2.0.0' });
-    expect(await sim.get('/__admin/devices/DV-0002')).toEqual({ serialNo: 'DV-0002', firmwareVersion: '2.0.0', offline: false });
+    expect(await sim.get('/__admin/devices/DV-0002')).toEqual({ serialNo: 'DV-0002', firmwareVersion: '2.0.0', offline: false, updating: false });
     expect((await fetch(`${sim.base}/__admin/devices/NONE`)).status).toBe(404);
   });
 
@@ -89,9 +95,12 @@ describe('시뮬레이터 관리 API', () => {
     expect((await sim.post('/__admin/config', { count: 20_000, targetUrl: 'https://example.test:8443/' })).status).toBe(200);
   });
 
-  it('본문이 배열이거나 __proto__ 키가 있으면 400', async () => {
+  it('본문이 배열이거나 JSON 객체가 아니거나(숫자·true·문자열·null) __proto__ 키가 있으면 400', async () => {
     const arr = await fetch(`${sim.base}/__admin/config`, { method: 'POST', body: '[]' });
     expect(arr.status).toBe(400);
+    for (const body of ['5', 'true', '"count"', 'null']) {
+      expect((await fetch(`${sim.base}/__admin/config`, { method: 'POST', body })).status, body).toBe(400);
+    }
     const proto = await fetch(`${sim.base}/__admin/config`, { method: 'POST', body: '{"__proto__":{"count":1}}' });
     expect(proto.status).toBe(400);
   });

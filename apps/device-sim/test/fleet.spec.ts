@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { defaultConfig, serialsOf, type SimConfig } from '../src/config.js';
 import { Fleet, pickSeeded } from '../src/fleet.js';
 import { sendJson } from '../src/http.js';
@@ -169,5 +169,17 @@ describe('단말기 무리(Fleet)', () => {
     expect(fleet.config).toBe(before.config);
     expect(fleet.devices).toBe(before.devices);
     expect([...fleet.devices.keys()]).toEqual(['KEEP-0001', 'KEEP-0002', 'KEEP-0003']);
+  });
+
+  it('RequestError가 아닌 예외도 실패 응답 시간(0ms)으로 남겨 latency.count === requests를 지킨다', async () => {
+    fleet = new Fleet(config({ count: 2, batchSize: 1 }));
+    const client = (fleet as unknown as { client: { postJson: (...args: unknown[]) => Promise<unknown> } }).client;
+    const spy = vi.spyOn(client, 'postJson').mockRejectedValueOnce(new TypeError('예상 밖 오류'));
+    await fleet.tick();
+    spy.mockRestore();
+    const v = fleet.stats.view();
+    expect(v).toMatchObject({ requests: 2, errors: 1, networkErrors: 1 });
+    expect(v.latency.count).toBe(v.requests);
+    expect(v.latencyFailed.count).toBe(1);
   });
 });

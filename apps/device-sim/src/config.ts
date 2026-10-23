@@ -19,6 +19,12 @@ export interface SimConfig {
   offlineRate: number;
   /** 단말기의 처음 펌웨어 버전 */
   firmwareVersion: string;
+  /** 업데이트 지시를 받았을 때 실패로 보고할 확률(0~1, 시드 난수) */
+  firmwareFailRate: number;
+  /** 업데이트(가짜 다운로드·설치)에 걸리는 시간(ms). 지나면 결과를 보고한다 */
+  updateDelayMs: number;
+  /** 업데이트 시간에 더하는 무작위 시간의 상한(ms, 시드 난수). 0이면 모두 같은 시간에 끝난다 */
+  updateJitterMs: number;
   /** 요청 하나의 제한 시간(ms) */
   requestTimeoutMs: number;
   seed: number;
@@ -42,6 +48,9 @@ export function defaultConfig(): SimConfig {
     offlineSerials: [],
     offlineRate: 0,
     firmwareVersion: '1.0.0',
+    firmwareFailRate: 0,
+    updateDelayMs: 1000,
+    updateJitterMs: 0,
     requestTimeoutMs: 5000,
     seed: 42,
   };
@@ -73,6 +82,9 @@ export const CONFIG_RULES: Record<keyof SimConfig, Rule> = {
   offlineSerials: { type: 'strings', max: MAX_DEVICES },
   offlineRate: { type: 'number', min: 0, max: 1 },
   firmwareVersion: { type: 'string', nonEmpty: true },
+  firmwareFailRate: { type: 'number', min: 0, max: 1 },
+  updateDelayMs: { type: 'int', min: 0, max: 3_600_000 }, // 한 시간
+  updateJitterMs: { type: 'int', min: 0, max: 3_600_000 },
   requestTimeoutMs: { type: 'int', min: 1, max: 600_000 },
   seed: { type: 'int', min: 0, max: 4_294_967_295 },
 };

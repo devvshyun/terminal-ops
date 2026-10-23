@@ -89,6 +89,13 @@ export interface StatsView {
   latency: LatencyView;
   latencyOk: LatencyView;
   latencyFailed: LatencyView;
+  /** 받아서 시작한 업데이트 지시 수(업데이트 중이거나 이미 그 버전이면 세지 않는다) */
+  updateOffers: number;
+  /** 성공으로 보고한 수 / 실패로 보고한 수(API가 2xx로 받은 것만) */
+  reportsSucceeded: number;
+  reportsFailed: number;
+  /** 보고 요청이 2xx가 아니거나 연결이 안 된 수. 보고는 요청·응답 시간 통계(requests, latency)에 넣지 않는다 */
+  reportErrors: number;
   startedAt: string | null;
   lastTickAt: string | null;
 }
@@ -105,6 +112,10 @@ export class SimStats {
   timeouts = 0;
   networkErrors = 0;
   badResponses = 0;
+  updateOffers = 0;
+  reportsSucceeded = 0;
+  reportsFailed = 0;
+  reportErrors = 0;
   startedAt: string | null = null;
   lastTickAt: string | null = null;
   private all = new LatencyHistogram();
@@ -138,6 +149,10 @@ export class SimStats {
       latency: this.all.view(),
       latencyOk: this.ok.view(),
       latencyFailed: this.failed.view(),
+      updateOffers: this.updateOffers,
+      reportsSucceeded: this.reportsSucceeded,
+      reportsFailed: this.reportsFailed,
+      reportErrors: this.reportErrors,
       startedAt: this.startedAt,
       lastTickAt: this.lastTickAt,
     };
