@@ -1,7 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/mysql';
 import type { Redis } from 'ioredis';
 import { env } from '../config/env.js';
+import { HEARTBEAT_MYSQL_MODE_WARNING } from '../config/heartbeat-write-mode.js';
 import { execOrThrow } from '../redis/redis-exec.js';
 import { REDIS } from '../redis/redis.provider.js';
 import { normalizeValue, SERIAL_NO_MESSAGE, SERIAL_NO_PATTERN } from '../terminal/bulk-rows.js';
@@ -37,7 +38,9 @@ export interface HeartbeatResponse {
  * 왕복은 묶음당 2번: ① active·offers 조회(pipeline) ② lastSeen·firmware 쓰기(pipeline).
  */
 @Injectable()
-export class HeartbeatService {
+export class HeartbeatService implements OnModuleInit {
+  private readonly logger = new Logger(HeartbeatService.name);
+
   /**
    * 실험 0008 전용 비교 경로(decisions/0027). 'mysql'이면 lastSeen·firmware를 Redis 대신 하트비트 묶음마다
    * device_connectivity에 바로 UPSERT한다(active·offers 확인은 그대로 Redis). 운영 기본은 'redis'(HEARTBEAT_WRITE_MODE).
@@ -48,6 +51,11 @@ export class HeartbeatService {
     @Inject(REDIS) private readonly redis: Redis,
     private readonly em: EntityManager,
   ) {}
+
+  /** 실험용 mysql 모드로 떴으면 경고한다(운영에서는 env가 시작할 때 거절한다) */
+  onModuleInit(): void {
+    if (this.writeMode === 'mysql') this.logger.warn(HEARTBEAT_MYSQL_MODE_WARNING);
+  }
 
   async receive(items: Record<string, unknown>[], now = Date.now()): Promise<HeartbeatResponse> {
     const rows = items.map((item) => ({ serialNo: normalizeValue(item.serialNo), firmwareVersion: normalizeValue(item.firmwareVersion) }));

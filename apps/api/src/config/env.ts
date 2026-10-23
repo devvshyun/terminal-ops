@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { resolveHeartbeatWriteMode } from './heartbeat-write-mode.js';
 
 // 스크립트·테스트는 apps/api에서 실행한다. 저장소 루트의 .env를 읽는다(이미 있는 환경변수는 덮어쓰지 않는다).
 const envFile = resolve(process.cwd(), '../../.env');
@@ -48,8 +49,8 @@ export const env = {
   relayIntervalMs: Number(process.env.RELAY_INTERVAL_MS ?? 2_000),
   /** 운영 중 단말기 목록(Redis active)을 MySQL에서 통째로 다시 만드는 주기(decisions/0028) */
   activeRebuildIntervalMs: Number(process.env.ACTIVE_REBUILD_INTERVAL_MS ?? 60_000),
-  /** 하트비트 쓰기 경로. 'mysql'은 실험 0008 비교용(decisions/0027), 운영은 'redis' */
-  heartbeatWriteMode: (process.env.HEARTBEAT_WRITE_MODE === 'mysql' ? 'mysql' : 'redis') as 'redis' | 'mysql',
+  /** 하트비트 쓰기 경로. 'mysql'은 실험 0008 비교용(decisions/0027), 운영은 'redis'. NODE_ENV=production에서 'mysql'이면 시작할 때 던진다 */
+  heartbeatWriteMode: resolveHeartbeatWriteMode(process.env.HEARTBEAT_WRITE_MODE, process.env.NODE_ENV),
   /** 마지막 하트비트가 이보다 오래되면 오프라인으로 본다(단말기 하트비트 주기 30초의 3배, decisions/0029) */
   hbOfflineAfterMs: Number(process.env.HEARTBEAT_OFFLINE_AFTER_MS ?? 90_000),
   /** 오프라인 판정 주기 */

@@ -70,6 +70,7 @@ export class Fleet {
   /**
    * 업데이트 중인 단말기(시리얼 → 시작한 세대). Device 객체와 따로 둔다 — configure가 단말기 목록을 새로 만들거나
    * 단말기가 목록에서 빠졌다 다시 들어와도 같은 단말기가 업데이트를 두 번 하지 않게.
+   * 끝낼 때는 저장된 세대가 그 보고의 세대와 같을 때만 지운다(다른 세대가 시작한 업데이트 표시를 지우지 않게).
    */
   private updating = new Map<string, number>();
   /**
@@ -277,11 +278,12 @@ export class Fleet {
     } catch {
       if (current()) this.stats.reportErrors += 1;
     } finally {
-      if (current()) this.finishUpdate(serialNo, offer, reported && success);
+      if (current()) this.finishUpdate(serialNo, offer, reported && success, generation);
     }
   }
 
-  private finishUpdate(serialNo: string, offer: UpdateOffer, installed: boolean): void {
+  private finishUpdate(serialNo: string, offer: UpdateOffer, installed: boolean, generation: number): void {
+    if (this.updating.get(serialNo) !== generation) return;
     this.updating.delete(serialNo);
     const device = this.devices.get(serialNo);
     if (!device) return;
