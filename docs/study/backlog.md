@@ -92,3 +92,4 @@
 - [ ] MikroORM FlushMode AUTO — 트랜잭션 안 조회 전에 자동 flush가 일어나 INSERT가 묶이지 않는 이유 (experiments/0006 A)
 - [ ] 잠그지 않고 읽은 뒤 PK로 갱신하는 패턴이 안전하려면 무엇이 직렬화를 보장해야 하나(여기서는 단말기 X 락) (shipment.service.ts recordShipment, decisions/0018)
 - [ ] 조회마다 flushMode(COMMIT)로 자동 flush만 끄기 vs 조회를 `find($in)` 한 번으로 묶기 — 어느 쪽을 언제 (experiments/0006 보강)
+- [ ] SHOW ENGINE INNODB STATUS의 LATEST DETECTED DEADLOCK 읽는 법, `information_schema.innodb_metrics`의 lock_deadlocks로 데드락 수 세기 (experiments/0007)

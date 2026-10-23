@@ -56,3 +56,4 @@
   - gap 락끼리는 서로 호환되므로 두 트랜잭션 모두 UPDATE는 통과하고, 막히는 것은 뒤의 INSERT다.
   - 고치는 방법: 잠그지 않고 읽은 뒤 PK로 갱신, 또는 그 트랜잭션만 READ COMMITTED.
   - → study/backlog.md에 추가
+- 그 뒤(2026-10-23, Task 11): 실험 0007 "서로 다른 교체 단말기 10대 동시"를 회귀 시나리오로 둠. 지금 코드 6회 모두 201 10건·데드락 0, 옛 UPDATE로 되돌리면 1회차에 500 8건·`lock_deadlocks` +8, LATEST DETECTED DEADLOCK이 이 기록과 같은 모양(`shipment_terminal_id_index` `lock_mode X` + `insert intention waiting`) → experiments/0007
