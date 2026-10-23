@@ -1,7 +1,8 @@
 import { IsString, Matches } from 'class-validator';
+import { SERIAL_NO_MESSAGE, SERIAL_NO_PATTERN } from '../bulk-rows.js';
 
 export class RegisterTerminalDto {
-  @Matches(/^[A-Z0-9-]{4,32}$/, { message: 'serialNo는 대문자·숫자·하이픈 4~32자입니다.' })
+  @Matches(SERIAL_NO_PATTERN, { message: SERIAL_NO_MESSAGE })
   serialNo!: string;
 
   @IsString()

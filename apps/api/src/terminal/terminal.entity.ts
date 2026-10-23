@@ -1,6 +1,7 @@
 import { OptionalProps, type Rel } from '@mikro-orm/core';
 import { Entity, Enum, Index, ManyToOne, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 import { Merchant } from '../merchant/merchant.entity.js';
+import { PurchaseOrder } from '../purchase-order/purchase-order.entity.js';
 import { TerminalModel } from './terminal-model.entity.js';
 import { TerminalStatus } from './terminal-status.js';
 
@@ -22,6 +23,10 @@ export class Terminal {
   /** 배정된 가맹점. 배정 전에는 null */
   @ManyToOne(() => Merchant, { nullable: true })
   merchant?: Rel<Merchant> | null;
+
+  /** 박스 스캔으로 입고된 발주. 단건·엑셀 등록이면 null (F10 대조에 쓴다) */
+  @ManyToOne(() => PurchaseOrder, { nullable: true })
+  purchaseOrder?: Rel<PurchaseOrder> | null;
 
   @Enum({ items: () => TerminalStatus })
   status: TerminalStatus = TerminalStatus.RECEIVED;

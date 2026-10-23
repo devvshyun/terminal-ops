@@ -44,18 +44,30 @@ export class OutboxService {
     @InjectQueue(QUEUE.OUTBOX) private readonly queue: Queue,
   ) {}
 
-  async relay(limit = 100): Promise<{ queued: number[] }> {
+  /**
+   * @param opts.enqueue 'bulk'(기본): 잡은 행을 addBulk 한 번으로 넣는다(Redis 왕복 1번). 'each': 행마다 add(Day 2 방식).
+   *   'each'는 실험 0006에서 비교하려고만 남긴다(decisions/0024).
+   */
+  async relay(limit = 100, opts: { enqueue?: 'bulk' | 'each' } = {}): Promise<{ queued: number[] }> {
     const queued = await this.em.fork().transactional(async (tx) => {
       const rows = await tx.find(
         OutboxEvent,
         { status: OutboxStatus.PENDING },
         { lockMode: LockMode.PESSIMISTIC_PARTIAL_WRITE, limit, orderBy: { id: 'asc' } },
       );
-      for (const row of rows) {
-        // jobId가 같으면 BullMQ가 한 번만 받는다. 커밋 전에 죽어 이 행이 다시 relay돼도 job이 남아 있으면 중복으로 들어가지 않는다.
-        await this.queue.add('notify', { outboxId: row.id }, { ...NOTIFY_JOB_OPTIONS, jobId: idempotencyKeyOf(row.id) });
-        row.status = OutboxStatus.QUEUED;
+      // jobId가 같으면 BullMQ가 한 번만 받는다(addBulk도 같다). 커밋 전에 죽어 이 행이 다시 relay돼도 job이 남아 있으면 중복으로 들어가지 않는다.
+      // addBulk는 MULTI가 아니라 pipeline이라 일부만 넣고 throw할 수 있다 → 이 트랜잭션이 롤백돼 행은 PENDING, 다음 relay가 같은 jobId로 다시 넣는다(decisions/0024).
+      const jobs = rows.map((row) => ({
+        name: 'notify',
+        data: { outboxId: row.id },
+        opts: { ...NOTIFY_JOB_OPTIONS, jobId: idempotencyKeyOf(row.id) },
+      }));
+      if (opts.enqueue === 'each') {
+        for (const job of jobs) await this.queue.add(job.name, job.data, job.opts);
+      } else if (jobs.length > 0) {
+        await this.queue.addBulk(jobs);
       }
+      for (const row of rows) row.status = OutboxStatus.QUEUED;
       return rows.map((r) => r.id);
     }, { isolationLevel: IsolationLevel.READ_COMMITTED });
     return { queued };

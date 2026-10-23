@@ -6,6 +6,8 @@ import { Terminal } from '../terminal/terminal.entity.js';
 export enum ShipmentStatus {
   IN_TRANSIT = 'IN_TRANSIT',
   DELIVERED = 'DELIVERED',
+  /** 같은 단말기를 다시 출고해 더는 이 운송장으로 단말기 상태를 바꾸지 않는다(decisions/0018). */
+  SUPERSEDED = 'SUPERSEDED',
 }
 
 // 주의: `Date | null` 같은 유니온 타입은 데코레이터 메타데이터가 Object로 나와 MikroORM이 varchar(255)로 만든다.

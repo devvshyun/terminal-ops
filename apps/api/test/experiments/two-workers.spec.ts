@@ -69,8 +69,11 @@ async function startWorker(name: string, variant: Variant, workers: ChildProcess
   try {
     await new Promise<void>((ready, fail) => {
       const timer = setTimeout(() => fail(new Error(`${name}가 15초 안에 준비되지 않았습니다.`)), 15_000);
+      // stdout은 청크 경계가 정해져 있지 않다. 'worker ready'가 두 청크에 걸쳐 올 수 있어 누적해서 본다(Day 2 리뷰 Minor 5).
+      let output = '';
       child.stdout!.on('data', (chunk: Buffer) => {
-        if (chunk.toString().includes('worker ready')) {
+        output += chunk.toString();
+        if (output.includes('worker ready')) {
           clearTimeout(timer);
           ready();
         }

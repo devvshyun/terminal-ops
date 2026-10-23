@@ -5,7 +5,15 @@ import { OUTBOX_TYPE, OutboxEvent } from '../outbox/outbox-event.entity.js';
 import { Terminal } from './terminal.entity.js';
 import { TerminalStatusHistory } from './terminal-status-history.entity.js';
 import { TerminalStatus, TransitionSource } from './terminal-status.js';
-import { checkTransition } from './transition-rules.js';
+import { checkTransition, type TransitionCheck } from './transition-rules.js';
+
+/** transitionMany 한 행 */
+export interface BulkTransitionItem {
+  /** 같은 트랜잭션에서 읽은 단말기(model populate 필수) */
+  terminal: Terminal;
+  to: TerminalStatus;
+  reason: string;
+}
 
 export interface TransitionCommand {
   serialNo: string;
@@ -64,11 +72,52 @@ export class TransitionService {
   }
 
   /**
+   * 여러 단말기를 한 번에 전이한다(박스 스캔 RETURN_IN 등). 열린 트랜잭션(tx)에서 이미 읽은 단말기를 받는다.
+   * 행마다 규칙을 확인해 통과한 것만 바꾸고, flush 한 번으로 UPDATE를 보낸 뒤(MikroORM이 CASE 문 하나로 묶는다)
+   * 이력·Outbox를 만든다. version은 flush가 확인한다 — 하나라도 그사이 바뀌었으면 OptimisticLockError로 전체가 롤백된다
+   * (부분 반영 없음, decisions/0019). 결과는 입력과 같은 순서의 규칙 확인 결과다.
+   */
+  async transitionMany(
+    tx: EntityManager,
+    items: BulkTransitionItem[],
+    ctx: { actor: string; source: TransitionSource },
+  ): Promise<TransitionCheck[]> {
+    if (!tx.isInTransaction()) throw new Error('transitionMany는 트랜잭션 안에서만 부른다.');
+    const checks = items.map((it) =>
+      checkTransition(it.terminal.status, it.to, ctx.source, { requiresReinspection: it.terminal.model.requiresReinspection }),
+    );
+    const from = items.map((it) => it.terminal.status);
+    items.forEach((it, i) => {
+      if (checks[i].ok) it.terminal.status = it.to;
+    });
+    // UPDATE를 이력 INSERT보다 먼저 보낸다(troubleshooting/0004).
+    await tx.flush();
+    items.forEach((it, i) => {
+      if (!checks[i].ok) return;
+      tx.create(TerminalStatusHistory, {
+        terminal: it.terminal,
+        fromStatus: from[i],
+        toStatus: it.to,
+        source: ctx.source,
+        actor: ctx.actor,
+        reason: it.reason,
+      });
+      this.recordOutbox(tx, it.terminal, from[i], { to: it.to, source: ctx.source, actor: ctx.actor, reason: it.reason });
+    });
+    return checks;
+  }
+
+  /**
    * 새로 만든 단말기의 첫 이력(null → 현재 상태)을 남긴다. 등록 트랜잭션 안에서 부른다(decisions/0008).
    * 단말기 INSERT와 이력 INSERT가 같은 트랜잭션이고 부모 행은 이 트랜잭션이 막 만든 행이라 S→X 승격이 생기지 않는다.
    */
-  recordRegistration(terminal: Terminal, actor: string, source: TransitionSource, em: EntityManager): TerminalStatusHistory {
-    const reason = '신규 등록';
+  recordRegistration(
+    terminal: Terminal,
+    actor: string,
+    source: TransitionSource,
+    em: EntityManager,
+    reason = '신규 등록',
+  ): TerminalStatusHistory {
     const history = em.create(TerminalStatusHistory, {
       terminal,
       fromStatus: null,
