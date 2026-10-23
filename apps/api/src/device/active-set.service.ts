@@ -1,0 +1,52 @@
+import { randomUUID } from 'node:crypto';
+import { Inject, Injectable } from '@nestjs/common';
+import { EntityManager } from '@mikro-orm/mysql';
+import type { Redis } from 'ioredis';
+import { execOrThrow } from '../redis/redis-exec.js';
+import { REDIS } from '../redis/redis.provider.js';
+import { Terminal } from '../terminal/terminal.entity.js';
+import { TerminalStatus } from '../terminal/terminal-status.js';
+import { deviceKeys } from './device-keys.js';
+
+/** HSET 한 번에 넣는 필드 수 */
+const CHUNK = 1000;
+
+/**
+ * 하트비트를 받을 단말기 목록(Redis HASH `hb:active`, serialNo → terminal.id). 원본은 MySQL의 단말기 상태(IN_SERVICE)이고,
+ * 이 HASH는 하트비트마다 MySQL을 보지 않으려고 둔 사본이다(decisions/0027·0028).
+ */
+@Injectable()
+export class ActiveSetService {
+  constructor(
+    @Inject(REDIS) private readonly redis: Redis,
+    private readonly em: EntityManager,
+  ) {}
+
+  /**
+   * MySQL의 IN_SERVICE 단말기로 HASH를 통째로 다시 만든다. 임시 키에 다 쓴 뒤 RENAME으로 한 번에 바꾼다 —
+   * 만드는 동안 하트비트가 빈 목록을 보지 않는다. 임시 키에는 TTL을 걸어(중간에 죽으면 사라지게) RENAME 직전에 PERSIST한다
+   * (RENAME은 원래 키의 TTL을 그대로 가져간다). @returns 단말기 수
+   */
+  async rebuild(): Promise<number> {
+    const rows: { id: number; serialNo: string }[] = await this.em
+      .fork()
+      .createQueryBuilder(Terminal)
+      .select(['id', 'serialNo'])
+      .where({ status: TerminalStatus.IN_SERVICE })
+      .execute('all');
+    const { active } = deviceKeys();
+    if (rows.length === 0) {
+      await this.redis.del(active);
+      return 0;
+    }
+    const tmp = `${active}:rebuild:${randomUUID()}`;
+    const fill = this.redis.pipeline();
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      fill.hset(tmp, Object.fromEntries(rows.slice(i, i + CHUNK).map((r) => [r.serialNo, String(r.id)])));
+    }
+    fill.pexpire(tmp, 60_000);
+    await execOrThrow(fill);
+    await execOrThrow(this.redis.multi().persist(tmp).rename(tmp, active));
+    return rows.length;
+  }
+}

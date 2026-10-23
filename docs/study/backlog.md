@@ -88,3 +88,6 @@
 - [ ] ioredis 연결 상태(connecting·connect·ready·end)와 quit·disconnect, 'error' 리스너가 없을 때의 동작 (redis/redis.provider.ts)
 - [ ] HTTP keep-alive와 Node http.Agent(maxSockets·maxFreeSockets), TIME_WAIT와 임시 포트 고갈 (apps/device-sim/src/client.ts)
 - [ ] 백분위(p50·p95) 계산 방법 — 가장 가까운 순위 vs 보간, 표본 상한 (apps/device-sim/src/stats.ts)
+- [ ] Redis ZSET(정렬 집합) — ZADD·ZRANGEBYSCORE·ZMSCORE와 점수로 시간 범위 찾기 (device/heartbeat.service.ts, decisions/0027)
+- [ ] Redis pipeline과 MULTI의 차이, ioredis exec()가 명령별 오류를 결과 배열로 주는 방식 (redis/redis-exec.ts)
+- [ ] RENAME으로 키를 원자적으로 바꾸기와 TTL이 함께 옮겨 가는 점(PERSIST) (device/active-set.service.ts)
