@@ -21,15 +21,20 @@ const RULES: TransitionRule[] = [
   { from: S.RECEIVED, to: S.INSPECTED, only: [TransitionSource.INSPECTION] },
   { from: S.RECEIVED, to: S.DEFECTIVE, only: [TransitionSource.INSPECTION] },
   { from: S.INSPECTED, to: S.IN_STOCK },
-  { from: S.IN_STOCK, to: S.ALLOCATED },
-  { from: S.ALLOCATED, to: S.IN_STOCK },
-  { from: S.ALLOCATED, to: S.SHIPPED },
+  // 배정·배정 취소는 가맹점을 함께 바꿔야 하므로 배정 API(ALLOCATION)로만 한다. 일반 전이 API로는 가맹점 없는 배정이 생긴다(decisions/0017).
+  { from: S.IN_STOCK, to: S.ALLOCATED, only: [TransitionSource.ALLOCATION] },
+  { from: S.ALLOCATED, to: S.IN_STOCK, only: [TransitionSource.ALLOCATION] },
+  // 출고는 운송장과 함께여야 하므로 출고 API(SHIPMENT)로만 한다.
+  { from: S.ALLOCATED, to: S.SHIPPED, only: [TransitionSource.SHIPMENT] },
   // 배송 완료는 택배 추적 수집(BATCH)이 자동으로, 또는 운영자가 수동으로 바꾼다.
   { from: S.SHIPPED, to: S.DELIVERED, only: [TransitionSource.MANUAL, TransitionSource.BATCH] },
-  { from: S.DELIVERED, to: S.IN_SERVICE },
-  { from: S.IN_SERVICE, to: S.RETURN_REQUESTED },
+  // 설치 확인: 운영자가 직접, 또는 A/S 교체 건의 설치 확인 API(SERVICE)가 바꾼다.
+  { from: S.DELIVERED, to: S.IN_SERVICE, only: [TransitionSource.MANUAL, TransitionSource.SERVICE] },
+  // 회수 요청: 운영자가 직접, 또는 A/S 교체 출고가 고장 단말기를 회수 요청으로 바꾼다.
+  { from: S.IN_SERVICE, to: S.RETURN_REQUESTED, only: [TransitionSource.MANUAL, TransitionSource.SERVICE] },
   { from: S.RETURN_REQUESTED, to: S.RETURNING },
-  { from: S.RETURNING, to: S.RETURNED },
+  // 회수 입고: 운영자가 직접, 또는 박스 스캔(RETURN_IN)이 일괄로 바꾼다.
+  { from: S.RETURNING, to: S.RETURNED, only: [TransitionSource.MANUAL, TransitionSource.SCAN] },
   { from: S.RETURNED, to: S.INSPECTED, only: [TransitionSource.INSPECTION] },
   { from: S.RETURNED, to: S.DEFECTIVE, only: [TransitionSource.INSPECTION] },
   {

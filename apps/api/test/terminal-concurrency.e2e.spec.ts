@@ -35,23 +35,23 @@ describe(`동시 수정 실험: 같은 단말기에 전이 ${N}건 동시 요청
     await t.app.close();
   });
 
-  it('A. HTTP + 같은 expectedVersion: 1건만 200, 나머지는 409', async () => {
+  it('A. 배정 API + 같은 expectedVersion: 1건만 201, 나머지는 409', async () => {
     const version = await setStatus('CC-0001', TerminalStatus.IN_STOCK);
     const started = performance.now();
     const responses = await Promise.all(
       Array.from({ length: N }, (_, i) =>
         t
           .http()
-          .post('/terminals/CC-0001/transitions')
+          .post('/terminals/CC-0001/allocations')
           .set(OP)
-          .send({ to: 'ALLOCATED', reason: `동시 배정 ${i}`, expectedVersion: version }),
+          .send({ merchantCode: i % 2 ? 'YEOKSAM-CAFE' : 'GANGNAM-KIMBAP', expectedVersion: version }),
       ),
     );
     const elapsed = Math.round(performance.now() - started);
     const byStatus = responses.reduce<Record<number, number>>((acc, r) => ({ ...acc, [r.status]: (acc[r.status] ?? 0) + 1 }), {});
     console.log(`[실험 A] N=${N} 결과=${JSON.stringify(byStatus)} 소요=${elapsed}ms`);
 
-    expect(byStatus[200]).toBe(1);
+    expect(byStatus[201]).toBe(1);
     expect(byStatus[409]).toBe(N - 1);
     expect(await countHistory('CC-0001', TerminalStatus.ALLOCATED)).toBe(1);
   });
@@ -67,7 +67,7 @@ describe(`동시 수정 실험: 같은 단말기에 전이 ${N}건 동시 요청
             to: TerminalStatus.IN_STOCK,
             reason: `배정 취소 ${i}`,
             actor: 'system:experiment',
-            source: TransitionSource.MANUAL,
+            source: TransitionSource.ALLOCATION,
           },
           t.orm.em.fork(),
         ),

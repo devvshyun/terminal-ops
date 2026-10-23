@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Shipment, ShipmentStatus } from '../src/shipment/shipment.entities.js';
+import { Terminal } from '../src/terminal/terminal.entity.js';
 import { TerminalStatusHistory } from '../src/terminal/terminal-status-history.entity.js';
 import { TerminalStatus } from '../src/terminal/terminal-status.js';
 import { partners } from './helpers/partners.js';
@@ -44,7 +45,12 @@ describe('출고 (F3)', () => {
     expect(res.body.trackingNo).toMatch(/^BG\d+$/);
 
     const history = await t.http().get('/terminals/SH-0001/history');
-    expect(history.body.at(-1)).toMatchObject({ toStatus: 'SHIPPED', actor: 'yoon', reason: `출고: BUNGAE ${res.body.trackingNo}` });
+    expect(history.body.at(-1)).toMatchObject({
+      toStatus: 'SHIPPED',
+      source: 'SHIPMENT',
+      actor: 'yoon',
+      reason: `출고: BUNGAE ${res.body.trackingNo}`,
+    });
     expect(await waybillCalls()).toBe(1);
 
     const detail = await t.http().get(`/shipments/${res.body.id}`);
@@ -100,6 +106,27 @@ describe('출고 (F3)', () => {
     expect(shippedHistory).toBe(1);
     const shipment = await em.findOneOrFail(Shipment, { terminal: { serialNo: 'SH-0005' } });
     expect(shipment.status).toBe(ShipmentStatus.IN_TRANSIT);
+  });
+
+  it('같은 단말기를 다시 출고하면 이전 배송 중 운송장은 SUPERSEDED (decisions/0018)', async () => {
+    // SH-0001은 첫 테스트에서 번개로 출고됐다(운송장 IN_TRANSIT). 회수·재입고를 거쳐 다시 배정된 상황을 직접 만든다.
+    const em = t.orm.em.fork();
+    const terminal = await em.findOneOrFail(Terminal, { serialNo: 'SH-0001' });
+    terminal.status = TerminalStatus.IN_STOCK;
+    terminal.merchant = null;
+    await em.flush();
+    await allocateTo(t, 'SH-0001', 'PANGYO-BUNSIK');
+    const old = await em.fork().findOneOrFail(Shipment, { terminal: { serialNo: 'SH-0001' } });
+    expect(old.status).toBe(ShipmentStatus.IN_TRANSIT);
+
+    const version = await versionOf('SH-0001');
+    const res = await t.http().post('/shipments').set(OP).send({ serialNo: 'SH-0001', carrier: 'NEURIMBO', expectedVersion: version });
+    expect(res.status).toBe(201);
+    const all = await em.fork().find(Shipment, { terminal: { serialNo: 'SH-0001' } }, { orderBy: { id: 'asc' } });
+    expect(all.map((s) => [s.id, s.status])).toEqual([
+      [old.id, ShipmentStatus.SUPERSEDED],
+      [res.body.id, ShipmentStatus.IN_TRANSIT],
+    ]);
   });
 
   it('없는 출고 id는 404, 숫자가 아니면 400', async () => {

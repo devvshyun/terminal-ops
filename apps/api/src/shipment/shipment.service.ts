@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { EntityManager, LockMode } from '@mikro-orm/mysql';
 import { CarrierAdapters } from '../carrier/carrier.adapters.js';
+import type { Carrier } from '../carrier/carrier.types.js';
 import { InvalidTransitionError } from '../common/domain-errors.js';
 import { Terminal } from '../terminal/terminal.entity.js';
 import { TerminalStatus, TransitionSource } from '../terminal/terminal-status.js';
 import { TransitionService } from '../terminal/transition.service.js';
 import type { CreateShipmentDto } from './dto/create-shipment.dto.js';
-import { CarrierEvent, Shipment } from './shipment.entities.js';
+import { CarrierEvent, Shipment, ShipmentStatus } from './shipment.entities.js';
 
 @Injectable()
 export class ShipmentService {
@@ -46,14 +47,28 @@ export class ShipmentService {
           to: TerminalStatus.SHIPPED,
           reason: `출고: ${dto.carrier} ${trackingNo}`,
           actor,
-          source: TransitionSource.MANUAL,
+          source: TransitionSource.SHIPMENT,
           expectedVersion: dto.expectedVersion,
         },
         tx,
       );
-      const shipment = tx.create(Shipment, { terminal: updated, carrier: dto.carrier, trackingNo });
+      const shipment = await this.recordShipment(tx, updated, dto.carrier, trackingNo);
       return { shipment, terminal: updated };
     });
+  }
+
+  /**
+   * 단말기의 새 운송장을 저장한다. 같은 단말기의 이전 배송 중 운송장은 SUPERSEDED로 바꿔, 옛 운송장의 배송 완료가
+   * 새 출고를 완료 처리하지 못하게 한다(decisions/0018). 단말기 UPDATE(전이) 뒤에 부른다 — 단말기 X 락을 먼저 쥔 상태라
+   * 같은 단말기의 출고끼리는 여기서 순서가 정해진다. 교체 출고(F7)도 이 함수를 쓴다.
+   */
+  async recordShipment(tx: EntityManager, terminal: Terminal, carrier: Carrier, trackingNo: string): Promise<Shipment> {
+    await tx.nativeUpdate(
+      Shipment,
+      { terminal: terminal.id, status: ShipmentStatus.IN_TRANSIT },
+      { status: ShipmentStatus.SUPERSEDED },
+    );
+    return tx.create(Shipment, { terminal, carrier, trackingNo });
   }
 
   async get(id: number): Promise<{ shipment: Shipment; events: CarrierEvent[] }> {

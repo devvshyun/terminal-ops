@@ -131,12 +131,15 @@ export class CarrierSyncService {
 
   /**
    * 배송 완료 반영: 한 트랜잭션에서 단말기 전이(SHIPPED → DELIVERED, BATCH)를 먼저 하고 운송장을 완료로 바꾼다.
+   * 운송장이 IN_TRANSIT가 아니면(완료·SUPERSEDED) no-op이다.
    * 단말기가 이미 SHIPPED가 아니면(운영자가 먼저 수동으로 바꾼 경우 등) 단말기는 건드리지 않고 운송장만 완료한다(no-op, decisions/0014).
    */
   private async applyDelivered(shipmentId: number, deliveredAt: Date): Promise<{ outcome: TrackOutcome; detail: string | null }> {
     return this.em.fork().transactional(async (tx) => {
       const shipment = await tx.findOneOrFail(Shipment, shipmentId, { populate: ['terminal'] });
-      if (shipment.status === ShipmentStatus.DELIVERED) return { outcome: 'NOOP', detail: '운송장이 이미 완료됨' };
+      // 배송 중(IN_TRANSIT)인 운송장만 단말기를 바꾼다. 이미 완료됐거나, 그사이 같은 단말기가 다시 출고돼
+      // SUPERSEDED가 된 옛 운송장이면 아무것도 하지 않는다(decisions/0018).
+      if (shipment.status !== ShipmentStatus.IN_TRANSIT) return { outcome: 'NOOP', detail: `운송장이 이미 ${shipment.status}` };
 
       let result: { outcome: TrackOutcome; detail: string | null } = {
         outcome: 'NOOP',

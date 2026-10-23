@@ -18,4 +18,9 @@ export enum TransitionSource {
   MANUAL = 'MANUAL',
   INSPECTION = 'INSPECTION',
   BATCH = 'BATCH', // 시스템 배치(택배 추적 수집 등)
+  ALLOCATION = 'ALLOCATION', // 가맹점 배정·배정 취소 API (decisions/0017)
+  SHIPMENT = 'SHIPMENT', // 출고 API
+  SCAN = 'SCAN', // 박스 일괄 스캔
+  IMPORT = 'IMPORT', // 엑셀 일괄 등록
+  SERVICE = 'SERVICE', // A/S 접수·교체·설치 확인
 }

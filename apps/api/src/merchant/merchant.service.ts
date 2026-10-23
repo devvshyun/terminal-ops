@@ -4,6 +4,7 @@ import { Terminal } from '../terminal/terminal.entity.js';
 import { TerminalStatus, TransitionSource } from '../terminal/terminal-status.js';
 import { TransitionService } from '../terminal/transition.service.js';
 import type { AllocateDto } from './dto/allocate.dto.js';
+import type { CancelAllocationDto } from './dto/cancel-allocation.dto.js';
 import { Merchant } from './merchant.entity.js';
 
 @Injectable()
@@ -26,10 +27,25 @@ export class MerchantService {
       to: TerminalStatus.ALLOCATED,
       reason: `가맹점 배정: ${merchant.name}(${merchant.code})`,
       actor,
-      source: TransitionSource.MANUAL,
+      source: TransitionSource.ALLOCATION,
       expectedVersion: dto.expectedVersion,
       mutate: (terminal) => {
         terminal.merchant = merchant;
+      },
+    });
+  }
+
+  /** 배정 취소: ALLOCATED → IN_STOCK과 가맹점 비우기를 UPDATE 한 번으로(decisions/0011, 0017). */
+  async cancelAllocation(serialNo: string, dto: CancelAllocationDto, actor: string): Promise<Terminal> {
+    return this.transitions.transition({
+      serialNo,
+      to: TerminalStatus.IN_STOCK,
+      reason: `배정 취소: ${dto.reason}`,
+      actor,
+      source: TransitionSource.ALLOCATION,
+      expectedVersion: dto.expectedVersion,
+      mutate: (terminal) => {
+        terminal.merchant = null;
       },
     });
   }

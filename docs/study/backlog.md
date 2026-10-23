@@ -51,3 +51,7 @@
 - [ ] 격리 수준을 트랜잭션별로 바꾸기 — `em.transactional(cb, { isolationLevel })`, `SET TRANSACTION ISOLATION LEVEL`이 다음 트랜잭션 하나에만 걸리는 것 (troubleshooting/0007)
 - [ ] 보조 인덱스 잠금 읽기(FOR UPDATE, SKIP LOCKED 없이) 여러 개가 동시에 돌 때 데드락이 나는 이유 (troubleshooting/0007)
 - [ ] 재시도 폭주(retry storm)와 지터 — 429가 많을 때 백오프에 jitter를 넣는 이유 (experiments/0004)
+- [ ] 출처별 허용 전이 표가 커질 때 — 전이×출처 표를 출처별 허용 목록으로 뒤집는 설계 (decisions/0017)
+- [ ] BullMQ job scheduler 삭제(removeJobScheduler)와 이미 넣어진 job (scheduler/job-schedulers.ts)
+- [ ] Node stream 'data' 청크 경계 — 줄 단위가 아니라서 누적해서 봐야 하는 이유 (two-workers.spec.ts)
+- [ ] MikroORM schema.refresh()가 메타데이터에 없는 테이블을 지우지 않는 것 (troubleshooting/0009)

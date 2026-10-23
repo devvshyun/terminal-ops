@@ -58,6 +58,27 @@ describe('상태 전이 API (F2)', () => {
     expect((await t.http().get('/terminals/TR-0001')).body.status).toBe('IN_STOCK');
   });
 
+  it('일반 전이 API로는 배정·출고를 할 수 없다(배정·출고 API 전용 출처, decisions/0017)', async () => {
+    const current = (await t.http().get('/terminals/TR-0001')).body.version;
+    const allocate = await t
+      .http()
+      .post('/terminals/TR-0001/transitions')
+      .set(OP)
+      .send({ to: 'ALLOCATED', reason: '가맹점 없이 배정', expectedVersion: current });
+    expect(allocate.status).toBe(422);
+    expect(allocate.body.message).toContain('ALLOCATION 경로로만');
+
+    const version = await forceStatus('TR-0001', TerminalStatus.ALLOCATED);
+    const ship = await t
+      .http()
+      .post('/terminals/TR-0001/transitions')
+      .set(OP)
+      .send({ to: 'SHIPPED', reason: '운송장 없이 출고', expectedVersion: version });
+    expect(ship.status).toBe(422);
+    expect(ship.body.message).toContain('SHIPMENT 경로로만');
+    await forceStatus('TR-0001', TerminalStatus.IN_STOCK);
+  });
+
   it('허용되지 않은 전이는 422 INVALID_TRANSITION, 이력이 늘지 않는다', async () => {
     const before = (await t.http().get('/terminals/TR-0001/history')).body.length;
     const current = (await t.http().get('/terminals/TR-0001')).body.version;

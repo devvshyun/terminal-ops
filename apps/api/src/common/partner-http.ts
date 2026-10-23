@@ -1,12 +1,15 @@
 import { PartnerPermanentError, PartnerRateLimitedError, PartnerTransientError } from './partner-errors.js';
 
-/** Retry-After(초 또는 HTTP 날짜)를 ms로. 없거나 못 읽으면 기본 1초 */
+/** Retry-After 상한. 업체가 아주 큰 값을 줘도 job이 그만큼 잠들지 않게 한다(decisions/0014 갱신). */
+export const MAX_RETRY_AFTER_MS = 60_000;
+
+/** Retry-After(초 또는 HTTP 날짜)를 ms로. 없거나 못 읽으면 기본 1초, 0 ~ 60초로 자른다. */
 export function parseRetryAfter(value: string | null, now = Date.now()): number {
   if (!value) return 1000;
   const seconds = Number(value);
-  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
   const at = Date.parse(value);
-  return Number.isNaN(at) ? 1000 : Math.max(0, at - now);
+  const ms = Number.isFinite(seconds) ? seconds * 1000 : Number.isNaN(at) ? 1000 : at - now;
+  return Math.min(MAX_RETRY_AFTER_MS, Math.max(0, ms));
 }
 
 /**

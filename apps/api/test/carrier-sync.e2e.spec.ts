@@ -1,5 +1,7 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CarrierSyncService, SYNC_ACTOR } from '../src/carrier-sync/carrier-sync.service.js';
+import { CarrierAdapters } from '../src/carrier/carrier.adapters.js';
+import { Carrier } from '../src/carrier/carrier.types.js';
 import { CarrierEvent, Shipment, ShipmentStatus, SyncRun } from '../src/shipment/shipment.entities.js';
 import { TerminalStatusHistory } from '../src/terminal/terminal-status-history.entity.js';
 import { TerminalStatus } from '../src/terminal/terminal-status.js';
@@ -130,5 +132,29 @@ describe('택배 추적 자동 수집 (F3)', () => {
     expect(r).toHaveLength(1);
     expect(r[0]).toMatchObject({ attempt: 1, outcome: 'ERROR' });
     expect(r[0].detail).toContain('PartnerPermanentError');
+  });
+
+  it('반영 직전에 같은 단말기가 다시 출고돼 운송장이 SUPERSEDED면 단말기를 바꾸지 않는다(decisions/0018)', async () => {
+    await partners.configure({ bungae: { advancePerPoll: 4 } });
+    const { shipmentId } = await prepareShipped(t, 'CS-0007', 'BUNGAE');
+    const adapter = t.app.get(CarrierAdapters).get(Carrier.BUNGAE);
+    const original = adapter.track.bind(adapter);
+    // 택배사 응답(DELIVERED 포함)을 받은 뒤 반영하기 전에, 다른 요청이 이 단말기를 다시 출고한 상황을 만든다.
+    const spy = vi.spyOn(adapter, 'track').mockImplementationOnce(async (trackingNo) => {
+      const events = await original(trackingNo);
+      await em().nativeUpdate(Shipment, shipmentId, { status: ShipmentStatus.SUPERSEDED });
+      return events;
+    });
+    try {
+      expect(await sync.track(shipmentId, { queue: 'test', attempt: 1 })).toBe('NOOP');
+    } finally {
+      spy.mockRestore();
+    }
+    const s = await shipment(shipmentId);
+    expect(s.status).toBe(ShipmentStatus.SUPERSEDED);
+    expect(s.terminal.status).toBe(TerminalStatus.SHIPPED);
+    expect(await deliveredHistory('CS-0007')).toHaveLength(0);
+    const [run] = await runs(shipmentId);
+    expect(run).toMatchObject({ outcome: 'NOOP', detail: '운송장이 이미 SUPERSEDED' });
   });
 });

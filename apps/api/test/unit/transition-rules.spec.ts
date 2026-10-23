@@ -8,9 +8,6 @@ const strict = { requiresReinspection: true };
 describe('checkTransition', () => {
   it.each([
     [S.INSPECTED, S.IN_STOCK],
-    [S.IN_STOCK, S.ALLOCATED],
-    [S.ALLOCATED, S.IN_STOCK],
-    [S.ALLOCATED, S.SHIPPED],
     [S.SHIPPED, S.DELIVERED],
     [S.DELIVERED, S.IN_SERVICE],
     [S.IN_SERVICE, S.RETURN_REQUESTED],
@@ -52,23 +49,48 @@ describe('checkTransition', () => {
     if (!r.ok) expect(r.reason).toContain('재검수');
   });
 
-  it('배송 완료는 수동과 배치 둘 다 가능', () => {
-    expect(checkTransition(S.SHIPPED, S.DELIVERED, Src.MANUAL, normal)).toEqual({ ok: true });
-    expect(checkTransition(S.SHIPPED, S.DELIVERED, Src.BATCH, normal)).toEqual({ ok: true });
+  // 전용 출처 표(decisions/0007, 0017): 표에 적은 출처만 허용하고 나머지 출처는 모두 거절한다.
+  it.each([
+    [S.IN_STOCK, S.ALLOCATED, [Src.ALLOCATION]],
+    [S.ALLOCATED, S.IN_STOCK, [Src.ALLOCATION]],
+    [S.ALLOCATED, S.SHIPPED, [Src.SHIPMENT]],
+    [S.SHIPPED, S.DELIVERED, [Src.MANUAL, Src.BATCH]],
+    [S.DELIVERED, S.IN_SERVICE, [Src.MANUAL, Src.SERVICE]],
+    [S.IN_SERVICE, S.RETURN_REQUESTED, [Src.MANUAL, Src.SERVICE]],
+    [S.RETURNING, S.RETURNED, [Src.MANUAL, Src.SCAN]],
+  ])('%s → %s 는 %j 출처만 허용', (from, to, allowed) => {
+    for (const source of Object.values(Src)) {
+      expect(checkTransition(from, to, source, normal).ok, source).toBe(allowed.includes(source));
+    }
   });
 
-  it.each([
-    [S.INSPECTED, S.IN_STOCK],
-    [S.IN_STOCK, S.ALLOCATED],
-    [S.ALLOCATED, S.SHIPPED],
-    [S.DELIVERED, S.IN_SERVICE],
-    [S.RETURNED, S.IN_STOCK],
-    [S.DEFECTIVE, S.DISPOSED],
-  ])('배치는 일반 전이 %s → %s 를 할 수 없다', (from, to) => {
-    const r = checkTransition(from, to, Src.BATCH, normal);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toContain('MANUAL 경로로만');
+  it('일반 전이 API(MANUAL)로는 배정·배정 취소·출고를 할 수 없다', () => {
+    for (const [from, to] of [
+      [S.IN_STOCK, S.ALLOCATED],
+      [S.ALLOCATED, S.IN_STOCK],
+      [S.ALLOCATED, S.SHIPPED],
+    ] as const) {
+      const r = checkTransition(from, to, Src.MANUAL, normal);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toContain('경로로만');
+    }
   });
+
+  it.each([Src.BATCH, Src.SCAN, Src.IMPORT, Src.SERVICE, Src.ALLOCATION, Src.SHIPMENT])(
+    '%s 는 only가 없는 일반 전이를 할 수 없다(기본 허용은 MANUAL)',
+    (source) => {
+      for (const [from, to] of [
+        [S.INSPECTED, S.IN_STOCK],
+        [S.RETURN_REQUESTED, S.RETURNING],
+        [S.RETURNED, S.IN_STOCK],
+        [S.DEFECTIVE, S.DISPOSED],
+      ] as const) {
+        const r = checkTransition(from, to, source, normal);
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.reason).toContain('MANUAL 경로로만');
+      }
+    },
+  );
 
   it('검수 전용 전이는 배치로도 안 된다', () => {
     expect(checkTransition(S.RECEIVED, S.INSPECTED, Src.BATCH, normal).ok).toBe(false);

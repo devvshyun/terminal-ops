@@ -3,10 +3,11 @@ import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import { env } from '../config/env.js';
 import { QUEUE } from '../queue/queue-names.js';
+import { JOB_SCHEDULERS } from './job-schedulers.js';
 
 /**
  * 주기 작업 등록. BullMQ job scheduler는 Redis에 한 개만 저장되므로(같은 id면 덮어씀)
- * 이 서비스가 여러 프로세스에서 떠도 주기 작업은 하나다.
+ * 이 서비스가 여러 프로세스에서 떠도 주기 작업은 하나다. 지우려면 npm run scheduler:clear (decisions/0015).
  */
 @Injectable()
 export class SchedulerService implements OnApplicationBootstrap {
@@ -18,16 +19,17 @@ export class SchedulerService implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
+    const [sweep, relay] = JOB_SCHEDULERS;
     await this.sweepQueue.upsertJobScheduler(
-      'carrier-sweep',
+      sweep.id,
       { every: env.sweepIntervalMs },
-      { name: 'sweep', data: {}, opts: { removeOnComplete: true, removeOnFail: 100 } },
+      { name: sweep.jobName, data: {}, opts: { removeOnComplete: true, removeOnFail: 100 } },
     );
     await this.outboxQueue.upsertJobScheduler(
-      'outbox-relay',
+      relay.id,
       { every: env.relayIntervalMs },
-      { name: 'relay', data: {}, opts: { removeOnComplete: true, removeOnFail: 100 } },
+      { name: relay.jobName, data: {}, opts: { removeOnComplete: true, removeOnFail: 100 } },
     );
-    this.logger.log(`주기 작업 등록: carrier-sweep ${env.sweepIntervalMs}ms, outbox-relay ${env.relayIntervalMs}ms`);
+    this.logger.log(`주기 작업 등록: ${sweep.id} ${env.sweepIntervalMs}ms, ${relay.id} ${env.relayIntervalMs}ms`);
   }
 }
