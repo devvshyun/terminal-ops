@@ -1,0 +1,68 @@
+import { Inject, Injectable } from '@nestjs/common';
+import type { Redis } from 'ioredis';
+import { execOrThrow } from '../redis/redis-exec.js';
+import { REDIS } from '../redis/redis.provider.js';
+import { deviceKeys } from './device-keys.js';
+
+/** 하트비트 응답에 실어 보내는 업데이트 지시 */
+export interface FirmwareOffer {
+  rolloutId: number;
+  version: string;
+}
+
+/** 한 번에 HSET·HDEL하는 필드 수 */
+const CHUNK = 1000;
+
+/**
+ * 그 배포의 제안일 때만 지운다. 중단된 배포의 제안을 늦게 지우다가, 그사이 같은 단말기에 생긴 다른 배포의 제안을 지우지 않게.
+ * KEYS[1] = offers HASH, ARGV[1] = rolloutId, ARGV[2..] = serialNo
+ */
+const WITHDRAW_SCRIPT = `
+local removed = 0
+for i = 2, #ARGV do
+  local v = redis.call('hget', KEYS[1], ARGV[i])
+  if v and cjson.decode(v).rolloutId == tonumber(ARGV[1]) then
+    removed = removed + redis.call('hdel', KEYS[1], ARGV[i])
+  end
+end
+return removed`;
+
+/**
+ * 펌웨어 업데이트 제안(Redis HASH `fw:offers`, serialNo → {rolloutId, version}). 하트비트가 MySQL을 보지 않고
+ * "이 단말기에 업데이트가 있나"를 알게 하는 사본이다. 원본은 MySQL의 firmware_rollout_target(OFFERED)이다(decisions/0030).
+ */
+@Injectable()
+export class OfferStore {
+  constructor(@Inject(REDIS) private readonly redis: Redis) {}
+
+  async publish(serials: string[], offer: FirmwareOffer): Promise<void> {
+    if (serials.length === 0) return;
+    const value = JSON.stringify(offer);
+    const batch = this.redis.pipeline();
+    for (let i = 0; i < serials.length; i += CHUNK) {
+      batch.hset(deviceKeys().offers, Object.fromEntries(serials.slice(i, i + CHUNK).map((s) => [s, value])));
+    }
+    await execOrThrow(batch);
+  }
+
+  /** 그 배포의 제안만 지운다. @returns 지운 수 */
+  async withdraw(rolloutId: number, serials: string[]): Promise<number> {
+    let removed = 0;
+    for (let i = 0; i < serials.length; i += CHUNK) {
+      removed += Number(await this.redis.eval(WITHDRAW_SCRIPT, 1, deviceKeys().offers, rolloutId, ...serials.slice(i, i + CHUNK)));
+    }
+    return removed;
+  }
+
+  /** 시리얼마다 제안(없으면 null) */
+  async lookup(serials: string[]): Promise<(FirmwareOffer | null)[]> {
+    if (serials.length === 0) return [];
+    const raw = await this.redis.hmget(deviceKeys().offers, ...serials);
+    return raw.map((v) => (v ? (JSON.parse(v) as FirmwareOffer) : null));
+  }
+
+  /** 제안이 걸린 단말기 수(실험·테스트용) */
+  count(): Promise<number> {
+    return this.redis.hlen(deviceKeys().offers);
+  }
+}

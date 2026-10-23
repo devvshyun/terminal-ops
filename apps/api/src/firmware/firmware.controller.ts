@@ -1,0 +1,52 @@
+import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { Operator } from '../common/operator.decorator.js';
+import { CreateRolloutDto, RegisterFirmwareDto } from './dto/firmware.dto.js';
+import { FirmwareService, toFirmwareView } from './firmware.service.js';
+import { RolloutService, toRolloutView } from './rollout.service.js';
+import type { FirmwareRollout } from './firmware.entities.js';
+
+/** 펌웨어 등록과 단계 배포 관리(운영자). 쓰기는 작업자 헤더가 필요하다(decisions/0001). */
+@Controller()
+export class FirmwareController {
+  constructor(
+    private readonly firmware: FirmwareService,
+    private readonly rollouts: RolloutService,
+  ) {}
+
+  @Post('firmware')
+  async register(@Body() dto: RegisterFirmwareDto, @Operator() actor: string) {
+    return toFirmwareView(await this.firmware.register(dto, actor));
+  }
+
+  @Post('firmware-rollouts')
+  async create(@Body() dto: CreateRolloutDto, @Operator() actor: string) {
+    return this.view(await this.rollouts.create(dto, actor));
+  }
+
+  @Get('firmware-rollouts/:id')
+  async get(@Param('id', ParseIntPipe) id: number) {
+    return this.view(await this.rollouts.get(id));
+  }
+
+  @Post('firmware-rollouts/:id/pause')
+  @HttpCode(200)
+  async pause(@Param('id', ParseIntPipe) id: number, @Operator() _actor: string) {
+    return this.view(await this.rollouts.pause(id));
+  }
+
+  @Post('firmware-rollouts/:id/resume')
+  @HttpCode(200)
+  async resume(@Param('id', ParseIntPipe) id: number, @Operator() _actor: string) {
+    return this.view(await this.rollouts.resume(id));
+  }
+
+  @Post('firmware-rollouts/:id/abort')
+  @HttpCode(200)
+  async abort(@Param('id', ParseIntPipe) id: number, @Operator() actor: string) {
+    return this.view(await this.rollouts.abort(id, actor));
+  }
+
+  private async view(rollout: FirmwareRollout) {
+    return toRolloutView(rollout, await this.rollouts.stageStats(rollout));
+  }
+}

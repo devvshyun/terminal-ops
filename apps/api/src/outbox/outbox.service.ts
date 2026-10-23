@@ -57,6 +57,10 @@ export function textOf(event: Pick<OutboxEvent, 'type' | 'payload'>): string {
     count?: number;
     serials?: string[];
     detectedAt?: string;
+    rolloutId?: number;
+    version?: string;
+    stage?: number;
+    percent?: number;
   };
   if (event.type === OUTBOX_TYPE.DEVICE_OFFLINE_BULK || event.type === OUTBOX_TYPE.DEVICE_ONLINE_BULK) {
     const what = event.type === OUTBOX_TYPE.DEVICE_OFFLINE_BULK ? '오프라인' : '온라인 복귀';
@@ -66,6 +70,11 @@ export function textOf(event: Pick<OutboxEvent, 'type' | 'payload'>): string {
   }
   if (event.type === OUTBOX_TYPE.DEVICE_OFFLINE) return `[단말온] ${p.serialNo}: 오프라인 (마지막 하트비트 ${p.lastSeenAt})`;
   if (event.type === OUTBOX_TYPE.DEVICE_ONLINE) return `[단말온] ${p.serialNo}: 온라인 복귀 (하트비트 ${p.lastSeenAt})`;
+  if (event.type === OUTBOX_TYPE.FIRMWARE_STAGE_ADVANCED) {
+    return `[단말온] 펌웨어 배포 #${p.rolloutId} ${p.version}: ${(p.stage ?? 0) + 1}단계(${p.percent}%) 시작`;
+  }
+  if (event.type === OUTBOX_TYPE.FIRMWARE_ROLLOUT_COMPLETED) return `[단말온] 펌웨어 배포 #${p.rolloutId} ${p.version}: 완료`;
+  if (event.type === OUTBOX_TYPE.FIRMWARE_ROLLOUT_ABORTED) return `[단말온] 펌웨어 배포 #${p.rolloutId} ${p.version}: 중단 (${p.reason})`;
   return `[단말온] ${p.serialNo}: ${p.fromStatus ?? '신규'} → ${p.toStatus} (${p.actor}) ${p.reason}`;
 }
 

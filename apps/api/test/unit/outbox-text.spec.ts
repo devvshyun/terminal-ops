@@ -28,4 +28,14 @@ describe('알림 문구(textOf)', () => {
       '[단말온] 단말기 3대 온라인 복귀 (A-1, A-2, A-3, 판정 T)',
     );
   });
+
+  it('펌웨어 배포는 배포 번호·버전과 단계 시작(1부터 센 단계, 누적 비율)·완료·중단 사유', () => {
+    expect(textOf({ type: 'firmware.stage_advanced', payload: { rolloutId: 3, version: '2.0.0', stage: 1, percent: 50 } })).toBe(
+      '[단말온] 펌웨어 배포 #3 2.0.0: 2단계(50%) 시작',
+    );
+    expect(textOf({ type: 'firmware.rollout_completed', payload: { rolloutId: 3, version: '2.0.0' } })).toBe('[단말온] 펌웨어 배포 #3 2.0.0: 완료');
+    expect(textOf({ type: 'firmware.rollout_aborted', payload: { rolloutId: 3, version: '2.0.0', reason: '운영자 중단: han' } })).toBe(
+      '[단말온] 펌웨어 배포 #3 2.0.0: 중단 (운영자 중단: han)',
+    );
+  });
 });

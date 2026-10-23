@@ -103,3 +103,5 @@
 - [ ] MySQL ON DUPLICATE KEY UPDATE의 VALUES() deprecated와 행 별칭(`INSERT … AS new … UPDATE x = new.x`), 대입 순서(왼쪽부터, 앞 대입 결과가 뒤에 보임) (device/connectivity.service.ts mergeExpr, decisions/0029)
 - [ ] 알림 폭주 막기 — 묶음(batch)·시간 창(debounce)·대표 알림, 큐 뒤 이벤트가 앞 이벤트에 막히는 head-of-line (decisions/0029, 실험 0010)
 - [ ] Function.prototype.apply·스프레드 인자 수 한도(Math.max(...배열)의 RangeError) (device/connectivity.service.ts snapshotLocked)
+- [ ] 결정적 표본 고르기 — 해시(CRC32) 순서로 비율만큼, 단계 배포(카나리)에서 같은 단말기가 계속 앞 단계에 오는 장단점 (firmware/rollout.service.ts, decisions/0030)
+- [ ] Redis Lua의 cjson, EVAL 안에서 조건부 삭제(비교 후 삭제) (device/offer-store.ts)
