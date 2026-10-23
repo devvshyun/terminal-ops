@@ -11,6 +11,7 @@ import { ShipmentModule } from './shipment/shipment.module.js';
 import { QueuesModule } from './queue/queues.module.js';
 import { CarrierSyncModule } from './carrier-sync/carrier-sync.module.js';
 import { OutboxModule } from './outbox/outbox.module.js';
+import { PurchaseOrderModule } from './purchase-order/purchase-order.module.js';
 import { WorkersModule } from './workers/workers.module.js';
 import { SchedulerModule } from './scheduler/scheduler.module.js';
 
@@ -32,6 +33,7 @@ export interface AppOptions {
     ShipmentModule,
     CarrierSyncModule,
     OutboxModule,
+    PurchaseOrderModule,
   ],
   controllers: [HealthController],
   providers: [

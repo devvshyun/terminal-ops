@@ -188,6 +188,7 @@ describe('택배 추적 자동 수집 (F3)', () => {
     let reshipped: number;
     try {
       const tracking = sync.track(shipmentId, { queue: 'test', attempt: 1 });
+      tracking.catch(() => {}); // 중간에 실패해도 처리되지 않은 rejection이 되지 않게 한다(아래 await tracking은 그대로 실패를 드러낸다)
       await reached;
       reshipped = (await shipWith(t, 'CS-0008', 'BUNGAE')).shipmentId;
       resumeApply();

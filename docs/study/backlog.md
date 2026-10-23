@@ -59,3 +59,5 @@
 - [ ] REPEATABLE READ의 스냅샷 읽기 vs 잠금 읽기(현재 읽기) — 같은 트랜잭션에서 SELECT와 UPDATE가 보는 행이 다른 이유 (troubleshooting/0010)
 - [ ] recordShipment의 terminal_id+status UPDATE가 RR에서 next-key 락을 건다(규모상 무시, 관찰 후보) (shipment.service.ts, decisions/0018)
 - [ ] MikroORM 트랜잭션 컨텍스트(AsyncLocalStorage)가 테스트 hook 안의 HTTP 요청으로 새는 현상 (troubleshooting/0010)
+- [ ] 외부 업체 발주의 멱등 — reference를 고정 키로 보내 재시도해도 발주가 하나만 생기게 (purchase-order.service.ts, decisions/0012)
+- [ ] MySQL datetime 정밀도(초)와 JS Date 밀리초 — 저장 후 다시 읽으면 값이 다른 이유 (purchase-order.e2e.spec.ts)

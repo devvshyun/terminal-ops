@@ -168,6 +168,7 @@ export class CarrierSyncService {
         { status: ShipmentStatus.DELIVERED, deliveredAt, lastSyncedAt: new Date() },
       );
       if (updated === 0) {
+        // 방어용 분기라 테스트로 닿지 않는다(보통 단말기 version 검사가 먼저 실패한다).
         // 단말기를 이미 바꿨다면 트랜잭션 전체를 되돌린다. job이 재시도되면 처음 조회에서 IN_TRANSIT가 아닌 것을 보고 건너뛴다.
         if (result.outcome === 'DELIVERED') {
           throw new Error(`운송장 ${shipmentId}이(가) 반영 중에 IN_TRANSIT가 아니게 되어 단말기 전이를 되돌림`);
