@@ -80,3 +80,6 @@
 - [ ] JSON_TABLE — JSON 배열을 행으로 펼쳐 조인하기, FOR ORDINALITY (purchase-order.service.ts)
 - [ ] 같은 행을 잠그는 두 기능(입고 스캔·마감)이 줄을 서는 방식 — 잠금으로 상태 검사를 직렬화 (reconciliation.e2e.spec.ts)
 - [ ] 연결 풀의 세션 변수가 연결마다 다를 수 있다 — schema.refresh의 `set names`가 테스트 연결 하나만 바꿔 오류를 가림. 테스트 연결을 운영과 맞추는 방법 (troubleshooting/0008)
+- [ ] collation의 PAD SPACE와 NO PAD — `'a' = 'a '`가 unicode_ci에서 참, 0900_ai_ci에서 거짓 (decisions/0025)
+- [ ] mysql2 연결 옵션 charset이 collation 이름을 받는 방식과 ORM 설정이 드라이버로 넘어가는 경로(driverOptions) (mikro-orm.config.ts, decisions/0025)
+- [ ] InnoDB REPEATABLE READ의 일관된 읽기(첫 읽기 시점 스냅숏)와 여러 집계 쿼리를 한 트랜잭션에 묶는 이유 (purchase-order.service.ts reconcile)

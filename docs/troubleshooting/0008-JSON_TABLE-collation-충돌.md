@@ -29,3 +29,12 @@
 - 해결: JSON_TABLE 열 정의에 `collate utf8mb4_0900_ai_ci`(Task 7 커밋). 비교 쪽에 `COLLATE`를 붙이는 방법도 있지만 열 정의에 두면 EXPLAIN에서 serial_no unique 인덱스(eq_ref)를 그대로 쓴다. 연결 collation 자체를 바꾸는 것(MikroORM 연결 설정)은 모든 쿼리에 영향이 있어 이번엔 하지 않았다. 되돌린 뒤 대조 테스트 3회 모두 `5 passed`.
 - 남은 위험: 테스트의 첫 연결이 운영과 다른 collation이라, 다른 collation 문제도 테스트에서 가려질 수 있다. 운영 서버는 `set names`를 보내지 않으므로 모든 연결이 unicode_ci다. 테스트 연결을 운영과 맞추는 것(예: resetDatabase 뒤 연결을 다시 열기, 또는 연결 collation을 설정으로 고정)은 결정이 필요해 이번에는 하지 않고 backlog에 둔다.
 - 배운 것: → study/backlog.md
+
+## 해결 후: 연결 collation 고정(근본 해결, 2026-10-23 fix 커밋)
+
+- 리뷰 지적: MikroORM 7의 맨 위 `charset`/`collate`는 mysql2 연결에 전달되지 않는다(스키마 생성과 `set names`에만 쓰임). mysql2 연결 collation은 `driverOptions.charset`(대문자 collation 이름)으로 정해진다.
+- `mikro-orm.config.ts`에 `driverOptions: { charset: 'UTF8MB4_0900_AI_CI' }`, `collate: 'utf8mb4_0900_ai_ci'` → decisions/0025.
+- 확인: 새 테스트 `test/connection-collation.e2e.spec.ts`(resetDatabase 없이 동시 트랜잭션 4개, 연결 id 4개 서로 다름). 설정 전 4개 모두 `utf8mb4_unicode_ci`로 실패, 설정 후 모두 `utf8mb4_0900_ai_ci`로 통과.
+- 되돌린 실험: 설정을 넣은 채 JSON_TABLE 열 3곳의 `collate`를 빼고 대조 테스트 3회 → 3회 모두 `Tests 5 passed (5)`. 이제 새 풀 연결도 테이블과 같아 ERROR 1267이 나지 않는다. 열의 `collate`는 방어로 되돌려 두었다(쿼리가 연결 설정에 기대지 않게, 이유는 decisions/0025).
+- "남은 위험"에 적은 "테스트 첫 연결만 운영과 다르다"는 이것으로 없어졌다. 이제 운영·테스트의 모든 연결이 0900_ai_ci다.
+- PAD SPACE(unicode_ci) → NO PAD(0900_ai_ci) 변화: 글자 상수·바인드 값끼리 비교할 때만 영향이 있고 우리 쿼리에는 없다. 전체 테스트에 차이 없음(decisions/0025).

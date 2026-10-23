@@ -34,7 +34,7 @@ export interface SeumConfig {
   shortfall: number;
   /** 명세에 섞을 다른 발주의 시리얼 수 */
   foreignSerials: number;
-  /** 발주 API가 503을 낼 확률(0~1) */
+  /** 발주·납품 명세 API가 503을 낼 확률(0~1) */
   error5xxRate: number;
 }
 

@@ -25,9 +25,12 @@ export function readCellValue(value: unknown, numFmt?: string): CellRead {
     const v = value as Record<string, unknown>;
     if (typeof v.error === 'string') return { ok: false, text: v.error, message: `오류 셀(${v.error})은 받지 않습니다.` };
     if (Array.isArray(v.richText)) return { ok: true, text: richText(v.richText) };
-    if ('formula' in v || 'sharedFormula' in v) {
+    // 수식은 호출하는 쪽(readImportRows)이 { formula: cell.formula, result: cell.result }로 넘긴다. 공유 수식도 cell.formula가
+    // 풀어 쓴 수식을 주므로 sharedFormula 키는 따로 보지 않는다.
+    // 결과가 빈 글자('')인 수식은 빈 글자로 읽는다. 시리얼 칸이면 엔진에서 INVALID_FORMAT(형식 규칙 문구)이 되고, 두 칸 모두 비면 빈 행으로 건너뛴다(decisions/0022).
+    if ('formula' in v) {
       if (v.result === undefined || v.result === null) {
-        const formula = typeof v.formula === 'string' ? v.formula : typeof v.sharedFormula === 'string' ? v.sharedFormula : '';
+        const formula = typeof v.formula === 'string' ? v.formula : '';
         return { ok: false, text: `=${formula}`, message: '계산된 값이 없는 수식 셀입니다. 값으로 붙여 넣으세요.' };
       }
       return readCellValue(v.result, numFmt);
@@ -63,6 +66,7 @@ function readNumber(value: number, numFmt?: string): CellRead {
  * 숫자 서식이 정수 부분을 0으로 채우는가(예: 00000, "SN"000000, 000-0000).
  * 첫 구역(; 앞)에서 따옴표 글자·역슬래시 이스케이프·[] 조건을 지우고, 소수점 앞에 0이 두 개 이상 이어지면 그렇다고 본다.
  * 0 하나(0), 천 단위(#,##0), 소수 자리(0.00)는 채우지 않는다.
+ * 이스케이프 글자를 지운 뒤에 보므로 `0\-0`처럼 0 사이에 글자 하나가 끼인 서식도 0이 이어진 것으로 보고 거절한다(더 많이 거절하는 쪽, 안전한 방향).
  */
 export function padsWithZeros(numFmt: string): boolean {
   const section = numFmt.split(';')[0]

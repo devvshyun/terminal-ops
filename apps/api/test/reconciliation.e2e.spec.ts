@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PurchaseOrder } from '../src/purchase-order/purchase-order.entity.js';
 import { BulkRegistrationService } from '../src/terminal/bulk-registration.service.js';
 import { partners } from './helpers/partners.js';
 import { captureQueries } from './helpers/query-log.js';
@@ -61,6 +62,13 @@ describe('발주 대비 입고 대조·마감 (F10)', () => {
     expect(res.body).toMatchObject({ status: 'ORDERED', ordered: 3, noted: 3, received: 0, shortfall: 0, missing: serials, unexpected: [] });
   });
 
+  it('명세에 같은 시리얼이 두 번 있어도 noted·missing에 한 번만 센다(공장이 그러지 않는다고 보지만 방어)', async () => {
+    const { poNo, serials } = await orderPurchase(t, 2);
+    await t.orm.em.fork().nativeUpdate(PurchaseOrder, { poNo }, { deliveryNote: [serials[0], serials[1], serials[0]] });
+    const res = await reconcile(poNo);
+    expect(res.body).toMatchObject({ ordered: 2, noted: 2, shortfall: 0, missing: [serials[0], serials[1]] });
+  });
+
   it('마감하면 CLOSED와 마감 시점의 대조 결과를 주고, 이후 입고 스캔은 422 PO_CLOSED, 다시 마감하면 422', async () => {
     const { poNo, serials } = await orderPurchase(t, 2);
     await scan('REC-BOX-0101', poNo, [serials[0]]);
@@ -75,6 +83,20 @@ describe('발주 대비 입고 대조·마감 (F10)', () => {
     const again = await close(poNo);
     expect(again.status).toBe(422);
     expect(again.body.code).toBe('PO_ALREADY_CLOSED');
+  });
+
+  it('명세가 없는 발주를 마감할 때 공장이 503이면 502이고 마감하지 않는다(명세를 마감 트랜잭션 전에 받는다)', async () => {
+    const { poNo } = await orderPurchase(t, 2); // 명세는 partners에서 직접 받았고, 앱 DB의 delivery_note는 아직 null
+    await partners.configure({ seum: { error5xxRate: 1 } });
+    const res = await close(poNo);
+    expect(res.status).toBe(502);
+    expect(res.body).toMatchObject({ code: 'PARTNER_ERROR', reason: 'PartnerTransientError' });
+    expect((await t.http().get(`/purchase-orders/${poNo}`)).body).toMatchObject({ status: 'ORDERED', closedAt: null, closedBy: null });
+
+    await partners.configure({ seum: { error5xxRate: 0 } });
+    const retried = await close(poNo);
+    expect(retried.status).toBe(200);
+    expect(retried.body).toMatchObject({ status: 'CLOSED', noted: 2, received: 0 });
   });
 
   it('입고 스캔 트랜잭션이 발주 행을 잠근 동안 마감은 기다렸다가, 스캔이 커밋된 뒤 마감된다', async () => {

@@ -12,3 +12,7 @@
 - 해결: (fix 커밋) `readCellValue`(`src/terminal/import-cells.ts`)로 형식별로 읽는다. 수식은 `cell.result`를 넘긴다. 정확히 못 읽는 셀(날짜·오류·불리언·큰 정수·소수·결과 없는 수식·0 채움 서식 숫자)은 그 행만 INVALID_FORMAT과 이유 message. 0 채움 서식 판단은 서식 첫 구역의 정수 부분에 0이 두 개 이상 이어지는지(따옴표 글자·이스케이프·[] 조건 제외). 고친 뒤 단위 6 + 파일 읽기 1 + e2e 1 통과. decisions/0022 갱신.
 - 남은 것: 결과가 `false`인 수식은 불리언이라 어차피 거절한다. 공유 수식(sharedFormula)도 `cell.type`이 Formula라 `cell.result`로 읽는다(테스트는 안 함).
 - 배운 것: → study/backlog.md
+- 리뷰 반영(2026-10-23, Task 7 리뷰와 같은 fix 커밋):
+  - `padsWithZeros`는 이스케이프 글자(`\-` 등)를 지운 뒤 0이 이어지는지 본다. 그래서 `0\-0`처럼 0 사이에 이스케이프 글자가 끼인 서식도 0 채움으로 보고 거절한다. 실제로는 0이 이어지지 않을 수 있으니 더 많이 거절하는 쪽이다(안전한 방향, 운영자는 텍스트 셀로 다시 넣으면 된다). 그대로 둔다. 함수 주석에 적음.
+  - 결과가 빈 글자(`''`)인 수식은 빈 글자로 읽는다. 시리얼 칸이면 엔진에서 INVALID_FORMAT(형식 규칙 문구)이 되고, 두 칸 다 비면 빈 행으로 건너뛴다. 의도한 동작으로 둔다.
+  - `readCellValue`의 `sharedFormula` 분기를 지웠다. 호출하는 쪽(`readImportRows`)이 수식 셀을 늘 `{ formula: cell.formula, result: cell.result }`로 넘기고, 공유 수식도 exceljs `cell.formula` 게터가 풀어 쓴 수식을 준다(`lib/doc/cell.js` FormulaValue `get formula() { return this.model.formula || this._getTranslatedFormula(); }`). 그 분기에는 올 일이 없었다.

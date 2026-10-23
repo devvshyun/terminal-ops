@@ -51,10 +51,14 @@ export async function seumCreatePurchaseOrder(state: PartnersState, req: Incomin
   sendJson(res, 201, { poNo, modelCode, quantity });
 }
 
-/** GET /seum/v1/purchase-orders/:poNo/delivery-note → { poNo, modelCode, quantity, serials } */
+/** GET /seum/v1/purchase-orders/:poNo/delivery-note → { poNo, modelCode, quantity, serials }. error5xxRate 확률로 503(발주와 같은 설정). */
 export function seumDeliveryNote(state: PartnersState, poNo: string, res: ServerResponse): void {
   state.count('seum.deliveryNote');
   const po = state.seum.get(poNo);
   if (!po) return sendJson(res, 404, { error: 'NOT_FOUND' });
+  if (state.chance(state.config.seum.error5xxRate)) {
+    state.stats.status5xx += 1;
+    return sendJson(res, 503, { error: 'TEMPORARY_UNAVAILABLE' });
+  }
   sendJson(res, 200, { poNo: po.poNo, modelCode: po.modelCode, quantity: po.quantity, serials: po.serials });
 }

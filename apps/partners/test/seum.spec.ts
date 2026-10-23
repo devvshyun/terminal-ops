@@ -93,4 +93,12 @@ describe('세움전자(공장)', () => {
     await p.configure({ seum: { error5xxRate: 1 } });
     expect((await order()).status).toBe(503);
   });
+
+  it('error5xxRate=1이면 납품 명세 조회도 503', async () => {
+    const created = await order();
+    expect(created.status).toBe(201);
+    const { poNo } = (await created.json()) as { poNo: string };
+    await p.configure({ seum: { error5xxRate: 1 } });
+    expect((await note(poNo)).status).toBe(503);
+  });
 });
