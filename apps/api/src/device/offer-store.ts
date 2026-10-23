@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Redis } from 'ioredis';
 import { execOrThrow } from '../redis/redis-exec.js';
 import { REDIS } from '../redis/redis.provider.js';
@@ -33,6 +33,8 @@ return removed`;
  */
 @Injectable()
 export class OfferStore {
+  private readonly logger = new Logger(OfferStore.name);
+
   constructor(@Inject(REDIS) private readonly redis: Redis) {}
 
   async publish(serials: string[], offer: FirmwareOffer): Promise<void> {
@@ -68,7 +70,12 @@ export class OfferStore {
     do {
       const [next, flat] = await this.redis.hscan(deviceKeys().offers, cursor, 'COUNT', CHUNK);
       for (let i = 0; i < flat.length; i += 2) {
-        const { rolloutId } = JSON.parse(flat[i + 1]) as FirmwareOffer;
+        const rolloutId = parseRolloutId(flat[i + 1]);
+        if (rolloutId === null) {
+          // 깨진 값 하나 때문에 맞추기 전체가 멈추지 않게 건너뛴다(값은 남는다. 이 저장소는 JSON.stringify로만 쓴다)
+          this.logger.warn(`제안 값이 깨져 건너뜀: ${flat[i]} = ${flat[i + 1].slice(0, 100)}`);
+          continue;
+        }
         const serials = out.get(rolloutId) ?? [];
         serials.push(flat[i]);
         out.set(rolloutId, serials);
@@ -81,5 +88,15 @@ export class OfferStore {
   /** 제안이 걸린 단말기 수(실험·테스트용) */
   count(): Promise<number> {
     return this.redis.hlen(deviceKeys().offers);
+  }
+}
+
+/** 제안 값의 rolloutId. JSON이 아니거나 rolloutId가 정수가 아니면 null */
+function parseRolloutId(raw: string): number | null {
+  try {
+    const { rolloutId } = JSON.parse(raw) as Partial<FirmwareOffer>;
+    return Number.isInteger(rolloutId) ? (rolloutId as number) : null;
+  } catch {
+    return null;
   }
 }

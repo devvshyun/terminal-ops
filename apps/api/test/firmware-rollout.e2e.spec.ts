@@ -60,7 +60,8 @@ describe('펌웨어 등록·단계 배포 시작·멈춤·재개·중단 (F8, de
     expect(res.body).toMatchObject({ modelCode: 'SN-100', version: '2.0.0', status: 'RUNNING', currentStage: 0, createdBy: 'han' });
     expect(res.body.stageStats[0]).toEqual({ stage: 0, percent: 10, targets: 2, offered: 2, succeeded: 0, failed: 0, timedOut: 0 });
     const picked = rolloutOrder(serials).slice(0, 2); // 운영 중 20대의 10% = 2대, RECEIVED 단말기는 빠진다
-    expect(await targetsOf(res.body.id)).toEqual(picked);
+    // 고르는 건 CRC32 순, 대상 행 INSERT는 단말기 id 순(시드가 시리얼 순으로 만들어 id 순 = 시리얼 순)
+    expect(await targetsOf(res.body.id)).toEqual([...picked].sort());
     const offer = JSON.stringify({ rolloutId: res.body.id, version: '2.0.0' });
     expect(await offers()).toEqual(Object.fromEntries(picked.map((s) => [s, offer])));
   });

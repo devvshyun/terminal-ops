@@ -30,7 +30,7 @@ export interface HeartbeatResponse {
  * 단말기 하트비트(F8). 상태 전이가 아니다 — TransitionService·이력·Outbox를 거치지 않고, MySQL에도 쓰지 않는다(decisions/0027).
  * 쓰는 곳은 Redis뿐이다: 마지막 시각(ZSET lastSeen, 서버 시계)과 펌웨어 버전(HASH firmware).
  * 운영 중(IN_SERVICE) 단말기의 하트비트만 받는다. 그 판단도 MySQL 대신 Redis HASH active로 한다(decisions/0028).
- * 업데이트 제안(HASH offers)이 있으면 응답의 그 행에 update로 싣는다(decisions/0030).
+ * 업데이트 제안(HASH offers)이 있으면 응답의 그 행에 update로 싣는다(decisions/0030). 보낸 버전이 이미 제안 버전이면 싣지 않는다.
  * 왕복은 묶음당 2번: ① active·offers 조회(pipeline) ② lastSeen·firmware 쓰기(pipeline).
  */
 @Injectable()
@@ -69,7 +69,9 @@ export class HeartbeatService {
       await execOrThrow(write);
     }
     for (const r of accepted) {
-      results[r.i] = r.offer ? { serialNo: r.serialNo, result: 'OK', update: JSON.parse(r.offer) as FirmwareOffer } : { serialNo: r.serialNo, result: 'OK' };
+      const offer = r.offer ? (JSON.parse(r.offer) as FirmwareOffer) : null;
+      // 이미 그 버전이면 업데이트 지시를 싣지 않는다(설치 뒤 보고 전 하트비트, 보고가 늦거나 빠진 경우)
+      results[r.i] = offer && offer.version !== r.firmwareVersion ? { serialNo: r.serialNo, result: 'OK', update: offer } : { serialNo: r.serialNo, result: 'OK' };
     }
     return { accepted: accepted.length, results: results as HeartbeatRowResult[] };
   }

@@ -46,7 +46,12 @@ export class FirmwareReportService {
       { status, reportedAt: new Date(), reportedVersion: dto.version },
     );
     await this.offers.withdraw(dto.rolloutId, [dto.serialNo]);
+    // 새로 성공한 보고만 Redis 펌웨어 버전을 바로 바꾼다. TIMED_OUT 뒤에 온 성공 보고(0행)는 바꾸지 않는다 —
+    // 단말기가 다음 하트비트에 새 버전을 실어 보내므로 그때 맞춰진다(하트비트 주기만큼 늦을 뿐).
     if (changed > 0 && dto.success) await this.redis.hset(deviceKeys().firmware, dto.serialNo, dto.version);
-    return { serialNo: dto.serialNo, rolloutId: dto.rolloutId, status: changed > 0 ? status : target.status, alreadyReported: changed === 0 };
+    if (changed > 0) return { serialNo: dto.serialNo, rolloutId: dto.rolloutId, status, alreadyReported: false };
+    // 0행: 처음 읽은 뒤 다른 보고·시간 초과가 먼저 바꿨을 수 있다. 처음 읽은 값(OFFERED일 수 있음) 대신 지금 상태를 돌려준다
+    const [now] = await em.execute<{ status: TargetStatus }[]>('select status from firmware_rollout_target where id = ?', [target.id]);
+    return { serialNo: dto.serialNo, rolloutId: dto.rolloutId, status: now?.status ?? target.status, alreadyReported: true };
   }
 }

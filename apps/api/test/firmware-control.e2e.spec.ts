@@ -1,8 +1,9 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LockMode } from '@mikro-orm/mysql';
 import type { Redis } from 'ioredis';
 import { ActiveSetService } from '../src/device/active-set.service.js';
 import { deviceKeys } from '../src/device/device-keys.js';
+import { OfferStore } from '../src/device/offer-store.js';
 import { FirmwareRollout, FirmwareRolloutTarget, RolloutStatus, TargetStatus } from '../src/firmware/firmware.entities.js';
 import { RolloutService } from '../src/firmware/rollout.service.js';
 import { OutboxEvent } from '../src/outbox/outbox-event.entity.js';
@@ -209,5 +210,123 @@ describe('펌웨어 결과 보고와 배포 판단 — 단계 넘기기·자동 
     } finally {
       await em().nativeUpdate(Terminal, { serialNo: gone }, { status: TerminalStatus.IN_SERVICE });
     }
+  });
+
+  describe('판단과 보고의 경합(Task 7 리뷰 fix, troubleshooting/0019)', () => {
+    /** em.nativeUpdate를 가로챈다(모든 fork가 같은 prototype을 쓴다). before가 참을 돌려주면 원래 UPDATE 전에 race를 한 번 끼운다 */
+    function interceptNativeUpdate(when: (data: Record<string, unknown>) => boolean, race: () => Promise<void>) {
+      const proto = Object.getPrototypeOf(t.orm.em) as { nativeUpdate: (...args: unknown[]) => Promise<number> };
+      const original = proto.nativeUpdate;
+      let done = false;
+      return vi.spyOn(proto, 'nativeUpdate').mockImplementation(async function (this: unknown, ...args: unknown[]) {
+        if (!done && when(args[2] as Record<string, unknown>)) {
+          done = true;
+          await race();
+        }
+        return original.apply(this, args);
+      });
+    }
+
+    it('스냅숏 뒤·TIMED_OUT 갱신 전에 커밋된 FAILED 보고를 놓치지 않는다: 이번 주기는 WAITING, 다음 주기가 센다', async () => {
+      const { id, version: v } = await start({ stages: [15, 100], failureThreshold: 0.2, minSamples: 3, stageTimeoutMs: 1_000 });
+      const [a, b, c] = Object.keys(await offers());
+      expect(Object.keys(await offers())).toHaveLength(3);
+      await report(a, id, true, v);
+      await report(b, id, true, v);
+      // c는 제한 시간이 지났다. 판단이 c를 OFFERED로 읽은 뒤(스냅숏), TIMED_OUT으로 바꾸기 직전에 c의 실패 보고가 커밋된다
+      const spy = interceptNativeUpdate(
+        (data) => data.status === TargetStatus.TIMED_OUT,
+        async () => {
+          expect((await report(c, id, false, v)).status).toBe(200);
+        },
+      );
+      let first;
+      try {
+        first = await rollouts.control(id, new Date(Date.now() + 2_000));
+      } finally {
+        spy.mockRestore();
+      }
+      // 고치기 전: TIMED_OUT 갱신은 0행(이미 FAILED), 통계(스냅숏)는 c를 OFFERED로 봐 실패 0/2 → 남은 대상 없음 → ADVANCED
+      expect(first).toEqual({ rolloutId: id, action: 'WAITING', stage: 0, timedOut: 0 });
+      const target = await em().findOneOrFail(FirmwareRolloutTarget, { rollout: id, terminal: { serialNo: c } });
+      expect(target.status).toBe(TargetStatus.FAILED);
+      expect((await rollouts.control(id, new Date(Date.now() + 2_000))).action).toBe('ABORTED');
+      expect((await em().findOneOrFail(FirmwareRollout, id)).endReason).toBe('자동 중단: 1단계 실패율 33.3% (1/3) > 기준 20%');
+    });
+
+    it('스냅숏 뒤에 보고가 커밋되고 제안을 내려도, 판단의 다시 걸기 뒤 확인이 그 제안을 다시 내린다(실패한 버전을 다시 권하지 않음)', async () => {
+      const { id, version: v } = await start({ stages: [10, 100] });
+      const [x, y] = Object.keys(await offers());
+      const store = t.app.get(OfferStore);
+      const original = store.publish.bind(store);
+      // 판단이 커밋한 뒤, 다시 걸기(publish)가 Redis에 닿기 전에 x의 실패 보고가 커밋하고 제안을 내린다
+      const spy = vi.spyOn(store, 'publish').mockImplementationOnce(async (serials, offer) => {
+        expect((await report(x, id, false, v)).status).toBe(200);
+        return original(serials, offer);
+      });
+      try {
+        expect((await rollouts.control(id)).action).toBe('WAITING');
+      } finally {
+        spy.mockRestore();
+      }
+      const now = await offers();
+      expect(now[x]).toBeUndefined(); // 고치기 전: 다시 걸려 FAILED 단말기가 같은 버전을 또 받는다
+      expect(JSON.parse(now[y])).toEqual({ rolloutId: id, version: v });
+    });
+
+    it('보고의 UPDATE가 0행이면 지금 상태를 다시 읽어 돌려준다(OFFERED + alreadyReported 조합을 내지 않음)', async () => {
+      const { id, version: v } = await start({ stages: [10, 100] });
+      const [x] = Object.keys(await offers());
+      // 첫 보고가 대상을 OFFERED로 읽은 뒤, UPDATE 직전에 같은 단말기의 다른 보고(재전송)가 먼저 커밋된다
+      const spy = interceptNativeUpdate(
+        (data) => data.status === TargetStatus.FAILED,
+        async () => {
+          expect((await report(x, id, true, v)).body.status).toBe('SUCCEEDED');
+        },
+      );
+      let res;
+      try {
+        res = await report(x, id, false, v);
+      } finally {
+        spy.mockRestore();
+      }
+      expect(res.body).toEqual({ serialNo: x, rolloutId: id, status: 'SUCCEEDED', alreadyReported: true });
+    });
+
+    it('하트비트가 이미 제안 버전이면 update를 싣지 않는다', async () => {
+      const { version: v } = await start({ stages: [10, 100] });
+      const [x, y] = Object.keys(await offers());
+      const res = await t
+        .http()
+        .post('/devices/heartbeats')
+        .send({ items: [{ serialNo: x, firmwareVersion: v }, { serialNo: y, firmwareVersion: '1.0.0' }] });
+      expect(res.body.results[0].update).toBeUndefined();
+      expect(res.body.results[1].update).toMatchObject({ version: v });
+    });
+
+    it('controlAll: 한 배포의 판단이 실패해도 결과 ERROR로 남기고 다음 일(제안 맞추기)을 한다', async () => {
+      const { id } = await start({ stages: [10, 100] });
+      const stray = rolloutOrder(serials)[19];
+      await redis.hset(deviceKeys().offers, stray, JSON.stringify({ rolloutId: 99_999, version: '9.9.9' }));
+      const spy = vi.spyOn(rollouts, 'control').mockRejectedValueOnce(new Error('일부러 낸 오류'));
+      let results;
+      try {
+        results = await rollouts.controlAll();
+      } finally {
+        spy.mockRestore();
+      }
+      expect(results.find((r) => r.rolloutId === id)).toEqual({ rolloutId: id, action: 'ERROR', stage: -1, timedOut: 0, error: '일부러 낸 오류' });
+      expect((await offers())[stray]).toBeUndefined();
+    });
+
+    it('Redis 제안 값이 깨져 있으면 byRollout은 그 값을 건너뛴다(맞추기 전체가 멈추지 않음)', async () => {
+      const { id } = await start({ stages: [10, 100] });
+      const stray = rolloutOrder(serials)[19];
+      await redis.hset(deviceKeys().offers, stray, '{oops');
+      const map = await t.app.get(OfferStore).byRollout();
+      expect([...map.keys()]).toEqual([id]);
+      expect(map.get(id)).toHaveLength(2);
+      await redis.hdel(deviceKeys().offers, stray);
+    });
   });
 });

@@ -109,3 +109,4 @@
 - [ ] InnoDB에서 FOR UPDATE와 일반 SELECT의 스냅숏(read view)이 만들어지는 시점 (firmware/rollout.service.ts control·create)
 - [ ] MySQL datetime과 시간대 — UTC 저장, 세션 time_zone, 드라이버 timezone·dateStrings (troubleshooting/0016)
 - [ ] 사본 저장소 맞추기(reconciliation) — 원본(DB)을 기준으로 주기마다 사본(Redis)을 다시 맞추는 방식과 커밋 뒤 부작용의 순서 문제 (firmware/rollout.service.ts controlAll, decisions/0031)
+- [ ] RR에서 consistent read(스냅숏)와 current read(UPDATE·FOR UPDATE)가 한 트랜잭션에서 다른 값을 보는 경우 (troubleshooting/0019)
