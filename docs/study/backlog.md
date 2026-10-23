@@ -70,3 +70,5 @@
 - [ ] 멱등 키(Idempotency-Key) 설계 — 같은 키 다른 내용은 거절 (decisions/0020)
 - [ ] MikroORM 다건 UPDATE가 CASE 문 하나로 나가는 방식과 낙관적 락 (transition.service.ts transitionMany)
 - [ ] 입력 정규화는 경계에서 한 번 — 검사하는 값과 저장하는 값이 달라지는 버그 유형 (troubleshooting/0012)
+- [ ] multipart/form-data와 Content-Disposition filename 인코딩(latin1 기본, RFC 5987 filename*) (terminal.controller.ts, decisions/0022)
+- [ ] CommonJS 패키지를 ESM에서 default import로 쓰기 — named import가 undefined가 되는 이유(cjs-module-lexer) (terminal-import.service.ts)
