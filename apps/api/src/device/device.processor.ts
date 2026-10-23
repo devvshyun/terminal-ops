@@ -3,6 +3,7 @@ import { UnrecoverableError, type Job } from 'bullmq';
 import type { ProjectJobData } from '../outbox/outbox.service.js';
 import { QUEUE } from '../queue/queue-names.js';
 import { ActiveSetService } from './active-set.service.js';
+import { ConnectivityService } from './connectivity.service.js';
 
 /**
  * device 큐. concurrency 1: 한 워커 프로세스 안에서는 active 갱신이 한 번에 하나씩 돈다(읽고 쓰는 사이에 다른 갱신이 끼지 않게).
@@ -10,7 +11,10 @@ import { ActiveSetService } from './active-set.service.js';
  */
 @Processor(QUEUE.DEVICE, { concurrency: 1 })
 export class DeviceProcessor extends WorkerHost {
-  constructor(private readonly activeSet: ActiveSetService) {
+  constructor(
+    private readonly activeSet: ActiveSetService,
+    private readonly connectivity: ConnectivityService,
+  ) {
     super();
   }
 
@@ -21,6 +25,10 @@ export class DeviceProcessor extends WorkerHost {
         return this.activeSet.apply([(job.data as Partial<ProjectJobData>).serialNo]);
       case 'rebuild-active':
         return this.activeSet.rebuild();
+      case 'detect-offline':
+        return this.connectivity.detect();
+      case 'snapshot':
+        return this.connectivity.snapshot();
       default:
         throw new UnrecoverableError(`모르는 device job: ${job.name}`);
     }

@@ -10,6 +10,9 @@ export enum OutboxStatus {
 
 export const OUTBOX_TYPE = {
   TERMINAL_STATUS_CHANGED: 'terminal.status_changed',
+  /** 접속 상태(F8). 상태 전이가 아니라 별도 type이다(decisions/0029) */
+  DEVICE_OFFLINE: 'device.offline',
+  DEVICE_ONLINE: 'device.online',
 } as const;
 
 /**

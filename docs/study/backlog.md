@@ -97,3 +97,6 @@
 - [ ] 이벤트 소비자가 여럿일 때 — 프로젝션(읽기 모델)을 이벤트 값이 아니라 원본을 다시 읽어 만드는 방식, 순서 보장 없이 멱등하게 (outbox.service.ts changesActiveSet, decisions/0028)
 - [ ] 이벤트 기반 갱신 + 주기 재구성(anti-entropy)으로 사본 맞추기 (device/active-set.service.ts)
 - [ ] 한 트랜잭션 안에서 외부 시스템 여러 곳(큐 둘)에 쓸 때 순서 정하기 — 되돌릴 수 없는 부작용(행 상태를 바꾸는 소비자)을 마지막에 (outbox.service.ts relay, troubleshooting/0018)
+- [ ] INSERT … ON DUPLICATE KEY UPDATE의 잠금(기존 행 X 락, 새 행 insert intention)과 여러 행 UPSERT의 순서 (device/connectivity.service.ts)
+- [ ] ORM upsert가 MySQL에서 결과를 다시 SELECT하는 이유(RETURNING 없음) (decisions/0029)
+- [ ] 장애 감지 기준(heartbeat timeout) 정하는 법 — 주기의 몇 배, 감지 지연과 오탐의 균형 (decisions/0029)

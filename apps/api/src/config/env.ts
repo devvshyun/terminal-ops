@@ -48,6 +48,12 @@ export const env = {
   relayIntervalMs: Number(process.env.RELAY_INTERVAL_MS ?? 2_000),
   /** 운영 중 단말기 목록(Redis active)을 MySQL에서 통째로 다시 만드는 주기(decisions/0028) */
   activeRebuildIntervalMs: Number(process.env.ACTIVE_REBUILD_INTERVAL_MS ?? 60_000),
+  /** 마지막 하트비트가 이보다 오래되면 오프라인으로 본다(단말기 하트비트 주기 30초의 3배, decisions/0029) */
+  hbOfflineAfterMs: Number(process.env.HEARTBEAT_OFFLINE_AFTER_MS ?? 90_000),
+  /** 오프라인 판정 주기 */
+  offlineDetectIntervalMs: Number(process.env.OFFLINE_DETECT_INTERVAL_MS ?? 10_000),
+  /** 접속 상태 스냅샷(Redis → MySQL) 주기 */
+  connectivitySnapshotIntervalMs: Number(process.env.CONNECTIVITY_SNAPSHOT_INTERVAL_MS ?? 60_000),
   /** 우리 쪽 호출 속도 제한(초당). 택배사 한도보다 낮게 둔다. */
   bungaeRatePerSec: Number(process.env.BUNGAE_RATE_PER_SEC ?? 10),
   neurimboRatePerSec: Number(process.env.NEURIMBO_RATE_PER_SEC ?? 5),
