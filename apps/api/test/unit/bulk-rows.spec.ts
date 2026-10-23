@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { precheckSerials, summarize } from '../../src/terminal/bulk-rows.js';
+import { normalizeRows, precheckSerials, summarize } from '../../src/terminal/bulk-rows.js';
 
 describe('precheckSerials', () => {
   it('통과한 행은 null, 결과는 입력 순서 그대로', () => {
@@ -32,5 +32,29 @@ describe('summarize', () => {
         { serialNo: 'C', result: 'ALREADY_EXISTS' },
       ]),
     ).toEqual({ CREATED: 2, ALREADY_EXISTS: 1 });
+  });
+});
+
+describe('normalizeRows', () => {
+  it('문자열이 아닌 값은 문자열로, 앞뒤 공백은 지운다. 없는 값은 빈 문자열', () => {
+    const rows = normalizeRows([
+      { serialNo: 12345678, modelCode: ' SN-100 ' },
+      { serialNo: '  A-0001 ', modelCode: undefined },
+      { serialNo: null, modelCode: 'SN-100' },
+    ]);
+    expect(rows).toEqual([
+      { serialNo: '12345678', modelCode: 'SN-100' },
+      { serialNo: 'A-0001', modelCode: '' },
+      { serialNo: '', modelCode: 'SN-100' },
+    ]);
+  });
+
+  it('숫자 12345678과 문자열 "12345678"은 같은 시리얼이다: 두 번째가 DUPLICATE_IN_REQUEST', () => {
+    const rows = normalizeRows([
+      { serialNo: 12345678, modelCode: 'SN-100' },
+      { serialNo: '12345678', modelCode: 'SN-100' },
+      { serialNo: undefined, modelCode: 'SN-100' },
+    ]);
+    expect(precheckSerials(rows.map((r) => r.serialNo)).map((r) => r?.result ?? null)).toEqual([null, 'DUPLICATE_IN_REQUEST', 'INVALID_FORMAT']);
   });
 });

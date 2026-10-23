@@ -53,6 +53,25 @@ describe('일괄 등록 엔진 (F1·F6, decisions/0019)', () => {
     ]);
   });
 
+  it('입력 정규화: 숫자 시리얼과 같은 문자열 시리얼은 중복, 모델 코드가 없으면 UNKNOWN_MODEL, 중복은 첫 행이 결정', async () => {
+    const raw = [
+      { serialNo: 12345678, modelCode: 'SN-100' },
+      { serialNo: '12345678', modelCode: 'SN-100' },
+      { serialNo: ' NM-0001 ', modelCode: undefined },
+      { serialNo: 'NM-0002', modelCode: ' SN-100 ' },
+      { serialNo: 'NM-0001', modelCode: 'SN-100' }, // 첫 행(UNKNOWN_MODEL)이 결정한다
+    ] as unknown as BulkRegisterRow[];
+    const results = await bulk.register(raw, ctx);
+    expect(results.map((r) => [r.serialNo, r.result])).toEqual([
+      ['12345678', 'CREATED'],
+      ['12345678', 'DUPLICATE_IN_REQUEST'],
+      ['NM-0001', 'UNKNOWN_MODEL'],
+      ['NM-0002', 'CREATED'],
+      ['NM-0001', 'DUPLICATE_IN_REQUEST'],
+    ]);
+    expect(await em().count(Terminal, { serialNo: { $in: ['12345678', 'NM-0001', 'NM-0002'] } })).toBe(2);
+  });
+
   it('만든 단말기마다 등록 이력과 알림(Outbox)이 같은 트랜잭션에 남는다', async () => {
     const history = await em().find(TerminalStatusHistory, { terminal: { serialNo: 'BK-0003' } });
     expect(history).toHaveLength(1);
@@ -63,18 +82,24 @@ describe('일괄 등록 엔진 (F1·F6, decisions/0019)', () => {
 
   it('조회 수는 행 수와 상관없다(N+1 없음): 10행과 200행의 select 수가 같다', async () => {
     const small = captureQueries(t.orm);
-    await bulk.register(rowsOf('NQ-A', 10), ctx);
-    small.stop();
+    try {
+      await bulk.register(rowsOf('NQ-A', 10), ctx);
+    } finally {
+      small.stop();
+    }
     const large = captureQueries(t.orm);
-    await bulk.register(rowsOf('NQ-B', 200), ctx);
-    large.stop();
+    try {
+      await bulk.register(rowsOf('NQ-B', 200), ctx);
+    } finally {
+      large.stop();
+    }
     console.log(`[일괄 등록 쿼리] 10행: 전체 ${small.queries.length} select ${small.selects()} / 200행: 전체 ${large.queries.length} select ${large.selects()}`);
     expect(large.selects()).toBe(small.selects());
     expect(large.queries.length).toBeLessThan(30);
     expect(await em().count(Terminal, { serialNo: { $like: 'NQ-B-%' } })).toBe(200);
   });
 
-  it('같은 시리얼이 겹친 두 요청이 동시에 와도 각 시리얼은 한 번만 만들어진다(unique 위반이면 한 번 다시)', async () => {
+  it('같은 시리얼이 겹친 두 요청이 동시에 와도 각 시리얼은 한 번만 만들어진다(unique 위반이면 다시 한다)', async () => {
     const a = rowsOf('CO', 60).slice(0, 40); // CO-0001 ~ CO-0040
     const b = rowsOf('CO', 60).slice(20); // CO-0021 ~ CO-0060
     const [ra, rb] = await Promise.all([bulk.register(a, ctx), bulk.register(b, ctx)]);
@@ -86,5 +111,36 @@ describe('일괄 등록 엔진 (F1·F6, decisions/0019)', () => {
     expect([...createdBy.values()].every((n) => n === 1)).toBe(true);
     expect(overlapResults.filter((r) => r === 'ALREADY_EXISTS')).toHaveLength(20);
     expect(await em().count(Terminal, { serialNo: { $like: 'CO-%' } })).toBe(60);
+  });
+
+  it('겹친 두 요청이 반대 순서로 와도(A 오름차순, B 내림차순) 각 시리얼은 한 번만 만들어진다', async () => {
+    const a = rowsOf('RV', 60).slice(0, 40); // RV-0001 ~ RV-0040
+    const b = rowsOf('RV', 60).slice(20).reverse(); // RV-0060 ~ RV-0021
+    const [ra, rb] = await Promise.all([bulk.register(a, ctx), bulk.register(b, ctx)]);
+    const created = [...ra, ...rb].filter((r) => r.result === 'CREATED').map((r) => r.serialNo);
+    console.log(`[반대 순서 동시 등록] A 생성 ${ra.filter((r) => r.result === 'CREATED').length}, B 생성 ${rb.filter((r) => r.result === 'CREATED').length}`);
+    expect(created).toHaveLength(60);
+    expect(new Set(created).size).toBe(60);
+    expect(await em().count(Terminal, { serialNo: { $like: 'RV-%' } })).toBe(60);
+  });
+
+  it('겹친 세 요청(A, B, C)이 동시에 와도 각 시리얼은 한 번만 만들어지고 Outbox도 한 번만 남는다', async () => {
+    const all = rowsOf('TR3', 60);
+    const a = all.slice(0, 40); // TR3-0001 ~ 0040
+    const b = all.slice(20).reverse(); // TR3-0060 ~ 0021
+    const c = all.slice(10, 50); // TR3-0011 ~ 0050
+    const [ra, rb, rc] = await Promise.all([bulk.register(a, ctx), bulk.register(b, ctx), bulk.register(c, ctx)]);
+    const created = [...ra, ...rb, ...rc].filter((r) => r.result === 'CREATED').map((r) => r.serialNo);
+    const others = [...ra, ...rb, ...rc].filter((r) => r.result !== 'CREATED').map((r) => r.result);
+    const count = (rs: typeof ra) => rs.filter((r) => r.result === 'CREATED').length;
+    console.log(`[세 요청 동시 등록] A 생성 ${count(ra)}, B 생성 ${count(rb)}, C 생성 ${count(rc)}`);
+    expect(created).toHaveLength(60);
+    expect(new Set(created).size).toBe(60);
+    expect(others).toHaveLength(40 + 40 + 40 - 60);
+    expect(others.every((r) => r === 'ALREADY_EXISTS')).toBe(true);
+    expect(await em().count(Terminal, { serialNo: { $like: 'TR3-%' } })).toBe(60);
+    const outbox = (await em().find(OutboxEvent, {})).map((o) => (o.payload as { serialNo: string }).serialNo).filter((s) => s.startsWith('TR3-'));
+    expect(outbox).toHaveLength(60);
+    expect(new Set(outbox).size).toBe(60);
   });
 });

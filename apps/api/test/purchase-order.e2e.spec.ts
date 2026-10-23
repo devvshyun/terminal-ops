@@ -62,7 +62,7 @@ describe('발주 (F10)', () => {
       expect(res.status).toBe(500);
       expect(await factoryCalls()).toBe(1);
       const line = String(logged.mock.calls.map((c) => c[0]).find((m) => String(m).includes('고아 발주')));
-      expect(line).toMatch(/poNo=SE\d+ modelCode=SN-100 quantity=7/);
+      expect(line).toMatch(/poNo=SE\d+ reference=[0-9a-f-]{36} modelCode=SN-100 quantity=7/);
     } finally {
       flush.mockRestore();
       logged.mockRestore();

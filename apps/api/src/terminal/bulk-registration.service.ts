@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/mysql';
 import { retryOnUniqueViolation } from '../common/retry-on-unique.js';
-import { precheckSerials, type RowResult } from './bulk-rows.js';
+import { normalizeRows, precheckSerials, type RowResult } from './bulk-rows.js';
 import { TerminalModel } from './terminal-model.entity.js';
 import { Terminal } from './terminal.entity.js';
 import { TransitionSource } from './terminal-status.js';
 import { TransitionService } from './transition.service.js';
 
+/** 엑셀·JSON에서 온 값은 숫자·공백이 섞일 수 있다. 엔진 입구(normalizeRows)에서 문자열로 맞춘다. */
 export interface BulkRegisterRow {
   serialNo: string;
   modelCode: string;
@@ -33,26 +34,29 @@ export class BulkRegistrationService {
     private readonly transitions: TransitionService,
   ) {}
 
-  /** 자기 트랜잭션을 열어 등록한다. 다른 요청과 같은 시리얼이 겹쳐 unique 위반이 나면 한 번 다시 한다. */
+  /** 자기 트랜잭션을 열어 등록한다. 다른 요청과 같은 시리얼이 겹쳐 unique 위반·데드락이 나면 새 fork·새 트랜잭션으로 다시 한다(3번까지). */
   async register(rows: BulkRegisterRow[], ctx: BulkRegisterContext): Promise<RowResult[]> {
     return retryOnUniqueViolation(() => this.em.fork().transactional((tx) => this.registerMany(tx, rows, ctx)));
   }
 
   /**
    * 열린 트랜잭션(tx) 안에서 행별 결과를 정하고 유효한 행의 엔티티를 만든다(INSERT는 호출자 트랜잭션의 flush·커밋 때).
-   * 결과는 입력과 같은 순서다.
+   * 결과는 입력과 같은 순서다. 같은 시리얼이 두 번 나오면 첫 행이 결정한다(첫 행이 UNKNOWN_MODEL이어도 뒤 행은 DUPLICATE_IN_REQUEST).
    */
-  async registerMany(tx: EntityManager, rows: BulkRegisterRow[], ctx: BulkRegisterContext): Promise<RowResult[]> {
+  async registerMany(tx: EntityManager, input: BulkRegisterRow[], ctx: BulkRegisterContext): Promise<RowResult[]> {
+    // 엑셀·JSON에서 숫자나 공백 섞인 값이 올 수 있다. 문자열로 맞춘 값으로 중복 판단·조회·저장을 모두 한다.
+    const rows = normalizeRows(input);
     const results = precheckSerials(rows.map((r) => r.serialNo));
     const pending = () => rows.flatMap((row, i) => (results[i] ? [] : [{ row, i }]));
 
     // 조회 1: 모델(서로 다른 코드만)
-    const codes = [...new Set(pending().map(({ row }) => row.modelCode))];
+    const codes = [...new Set(pending().map(({ row }) => row.modelCode))].filter((c) => c !== '');
     const models = codes.length ? await tx.find(TerminalModel, { code: { $in: codes } }) : [];
     const modelByCode = new Map(models.map((m) => [m.code, m]));
     for (const { row, i } of pending()) {
       if (!modelByCode.has(row.modelCode)) {
-        results[i] = { serialNo: row.serialNo, result: 'UNKNOWN_MODEL', message: `단말기 모델 ${row.modelCode}이(가) 없습니다.` };
+        const message = row.modelCode ? `단말기 모델 ${row.modelCode}이(가) 없습니다.` : '모델 코드가 비어 있습니다.';
+        results[i] = { serialNo: row.serialNo, result: 'UNKNOWN_MODEL', message };
       }
     }
 

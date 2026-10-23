@@ -24,9 +24,19 @@ export interface RowResult {
 }
 
 /**
+ * 엔진 입구에서 값을 문자열로 맞춘다: 문자열이 아니면 String()으로, 앞뒤 공백은 지우고, 없으면 빈 문자열.
+ * 엑셀·JSON에서 숫자 12345678과 문자열 '12345678'이 섞여 와도 같은 시리얼로 본다(중복 판단과 DB 저장이 같은 값을 쓴다).
+ * 빈 시리얼은 INVALID_FORMAT, 빈 모델 코드는 UNKNOWN_MODEL이 된다.
+ */
+export function normalizeRows(rows: readonly { serialNo?: unknown; modelCode?: unknown }[]): { serialNo: string; modelCode: string }[] {
+  return rows.map((r) => ({ serialNo: String(r.serialNo ?? '').trim(), modelCode: String(r.modelCode ?? '').trim() }));
+}
+
+/**
  * DB를 보지 않고 거를 수 있는 행을 고른다. 결과 배열은 입력과 같은 순서이고, 통과한 행은 null이다.
  * - 형식이 틀리면 INVALID_FORMAT
- * - 같은 요청에 같은 시리얼이 또 나오면 두 번째부터 DUPLICATE_IN_REQUEST(첫 번째만 처리한다)
+ * - 같은 요청에 같은 시리얼이 또 나오면 두 번째부터 DUPLICATE_IN_REQUEST(첫 번째만 처리한다). 첫 행이 뒤에서
+ *   UNKNOWN_MODEL·ALREADY_EXISTS가 되어도 두 번째 행은 DUPLICATE_IN_REQUEST로 남는다(첫 행이 결정한다, decisions/0019).
  */
 export function precheckSerials(serials: string[]): (RowResult | null)[] {
   const seen = new Set<string>();
