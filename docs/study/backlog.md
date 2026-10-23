@@ -113,3 +113,7 @@
 - [ ] 시뮬레이션에서 지연 분포(고정·균등·지수)가 결과(감지 시점)를 바꾸는 방식 (apps/device-sim/src/fleet.ts updateJitterMs)
 - [ ] 세대(generation) 토큰·epoch로 늦게 끝난 비동기 작업 무시하기, 취소(AbortController)와의 차이 (apps/device-sim/src/fleet.ts, decisions/0009)
 - [ ] 시드 난수 재현성 — 난수를 뽑는 시점을 사건 순서가 아니라 입력 순서에 묶기 (apps/device-sim/src/fleet.ts startUpdate)
+- [ ] 쓰기 줄이기 패턴 — write-behind(모아서 쓰기), 바뀐 것만 쓰기, 묶음 요청 (experiments/0008)
+- [ ] InnoDB 행 쓰기 비용(redo log, binlog, 버퍼 풀)과 Com_* / Innodb_rows_* / Innodb_os_log_written 카운터 읽는 법 (test/helpers/metrics.ts)
+- [ ] 닫힌 루프 대 열린 루프 부하 생성, 리틀의 법칙(처리량 = 동시 요청 / 응답 시간)과 coordinated omission (experiments/0008)
+- [ ] HTTP keep-alive와 서버 keepAliveTimeout·클라이언트 유휴 소켓 경합 (decisions/0009, experiments/0008)

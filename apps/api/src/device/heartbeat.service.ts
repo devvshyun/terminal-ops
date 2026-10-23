@@ -1,8 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { EntityManager } from '@mikro-orm/mysql';
 import type { Redis } from 'ioredis';
+import { env } from '../config/env.js';
 import { execOrThrow } from '../redis/redis-exec.js';
 import { REDIS } from '../redis/redis.provider.js';
 import { normalizeValue, SERIAL_NO_MESSAGE, SERIAL_NO_PATTERN } from '../terminal/bulk-rows.js';
+import { upsertConnectivity } from './connectivity.service.js';
 import { deviceKeys } from './device-keys.js';
 import type { FirmwareOffer } from './offer-store.js';
 
@@ -28,14 +31,23 @@ export interface HeartbeatResponse {
 
 /**
  * 단말기 하트비트(F8). 상태 전이가 아니다 — TransitionService·이력·Outbox를 거치지 않고, MySQL에도 쓰지 않는다(decisions/0027).
- * 쓰는 곳은 Redis뿐이다: 마지막 시각(ZSET lastSeen, 서버 시계)과 펌웨어 버전(HASH firmware).
+ * 쓰는 곳은 Redis뿐이다: 마지막 시각(ZSET lastSeen, 서버 시계)과 펌웨어 버전(HASH firmware). (실험 0008 비교용 writeMode mysql만 예외)
  * 운영 중(IN_SERVICE) 단말기의 하트비트만 받는다. 그 판단도 MySQL 대신 Redis HASH active로 한다(decisions/0028).
  * 업데이트 제안(HASH offers)이 있으면 응답의 그 행에 update로 싣는다(decisions/0030). 보낸 버전이 이미 제안 버전이면 싣지 않는다.
  * 왕복은 묶음당 2번: ① active·offers 조회(pipeline) ② lastSeen·firmware 쓰기(pipeline).
  */
 @Injectable()
 export class HeartbeatService {
-  constructor(@Inject(REDIS) private readonly redis: Redis) {}
+  /**
+   * 실험 0008 전용 비교 경로(decisions/0027). 'mysql'이면 lastSeen·firmware를 Redis 대신 하트비트 묶음마다
+   * device_connectivity에 바로 UPSERT한다(active·offers 확인은 그대로 Redis). 운영 기본은 'redis'(HEARTBEAT_WRITE_MODE).
+   */
+  writeMode: 'redis' | 'mysql' = env.heartbeatWriteMode;
+
+  constructor(
+    @Inject(REDIS) private readonly redis: Redis,
+    private readonly em: EntityManager,
+  ) {}
 
   async receive(items: Record<string, unknown>[], now = Date.now()): Promise<HeartbeatResponse> {
     const rows = items.map((item) => ({ serialNo: normalizeValue(item.serialNo), firmwareVersion: normalizeValue(item.firmwareVersion) }));
@@ -55,14 +67,20 @@ export class HeartbeatService {
         ? ((await execOrThrow(this.redis.pipeline().hmget(keys.active, ...serials).hmget(keys.offers, ...serials))) as (string | null)[][])
         : [[], []];
     const accepted = valid
-      .map((r, k) => ({ ...r, offer: offers[k] }))
-      .filter((r, k) => {
-        if (ids[k] !== null) return true;
+      .map((r, k) => ({ ...r, terminalId: ids[k], offer: offers[k] }))
+      .filter((r) => {
+        if (r.terminalId !== null) return true;
         results[r.i] = { serialNo: r.serialNo, result: 'IGNORED_NOT_IN_SERVICE', message: '운영 중(IN_SERVICE)인 단말기의 하트비트만 받습니다.' };
         return false;
       });
 
-    if (accepted.length > 0) {
+    if (accepted.length > 0 && this.writeMode === 'mysql') {
+      const at = new Date(now);
+      const rows = accepted
+        .map((r) => ({ terminalId: Number(r.terminalId), online: true, lastSeenAt: at, firmwareVersion: r.firmwareVersion, changedAt: at }))
+        .sort((a, b) => a.terminalId - b.terminalId);
+      await upsertConnectivity(this.em.fork(), rows, ['online', 'lastSeenAt', 'firmwareVersion']);
+    } else if (accepted.length > 0) {
       const write = this.redis.pipeline();
       write.zadd(keys.lastSeen, ...accepted.flatMap((r) => [now, r.serialNo]));
       write.hset(keys.firmware, Object.fromEntries(accepted.map((r) => [r.serialNo, r.firmwareVersion])));

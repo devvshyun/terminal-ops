@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Redis } from 'ioredis';
 import { ActiveSetService } from '../src/device/active-set.service.js';
+import { DeviceConnectivity } from '../src/device/device-connectivity.entity.js';
 import { deviceKeys } from '../src/device/device-keys.js';
+import { HeartbeatService } from '../src/device/heartbeat.service.js';
 import { REDIS } from '../src/redis/redis.provider.js';
 import { Terminal } from '../src/terminal/terminal.entity.js';
 import { TerminalStatus } from '../src/terminal/terminal-status.js';
@@ -83,6 +85,30 @@ describe('하트비트 (F8, decisions/0027·0028)', () => {
     }
     expect(log.queries).toEqual([]);
     expect((await t.http().get('/terminals/HB-0001/history')).body.at(-1).toStatus).toBe('IN_SERVICE');
+  });
+
+  it('실험용 쓰기 경로(writeMode mysql): Redis 대신 device_connectivity에 바로 UPSERT한다(문장 1개)', async () => {
+    const heartbeats = t.app.get(HeartbeatService);
+    heartbeats.writeMode = 'mysql';
+    const log = captureQueries(t.orm);
+    try {
+      const res = await beat([
+        { serialNo: 'HB-0002', firmwareVersion: '1.0.2' },
+        { serialNo: 'HB-0001', firmwareVersion: '1.0.1' },
+      ]);
+      expect(res.body.accepted).toBe(2);
+    } finally {
+      log.stop();
+      heartbeats.writeMode = 'redis';
+    }
+    expect(log.queries).toHaveLength(1);
+    expect(log.queries[0]).toMatch(/^insert into `device_connectivity`.* on duplicate key update/);
+    expect(await redis.zcard(keys().lastSeen)).toBe(0);
+    const rows = await t.orm.em.fork().find(DeviceConnectivity, {}, { orderBy: { terminalId: 'asc' } });
+    expect(rows.map((r) => [r.terminalId, r.online, r.firmwareVersion])).toEqual([
+      [Number(await idOf('HB-0001')), true, '1.0.1'],
+      [Number(await idOf('HB-0002')), true, '1.0.2'],
+    ]);
   });
 
   it('묶음 모양이 틀리면 400(빈 배열, 500개 초과, 배열 아님, 객체가 아닌 항목, 모르는 필드)', async () => {
