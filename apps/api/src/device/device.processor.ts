@@ -1,5 +1,6 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { UnrecoverableError, type Job } from 'bullmq';
+import { RolloutService } from '../firmware/rollout.service.js';
 import type { ProjectJobData } from '../outbox/outbox.service.js';
 import { QUEUE } from '../queue/queue-names.js';
 import { ActiveSetService } from './active-set.service.js';
@@ -14,6 +15,7 @@ export class DeviceProcessor extends WorkerHost {
   constructor(
     private readonly activeSet: ActiveSetService,
     private readonly connectivity: ConnectivityService,
+    private readonly rollouts: RolloutService,
   ) {
     super();
   }
@@ -29,6 +31,8 @@ export class DeviceProcessor extends WorkerHost {
         return this.connectivity.detect();
       case 'snapshot':
         return this.connectivity.snapshot();
+      case 'rollout-control':
+        return this.rollouts.controlAll();
       default:
         throw new UnrecoverableError(`모르는 device job: ${job.name}`);
     }

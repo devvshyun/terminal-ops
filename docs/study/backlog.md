@@ -105,3 +105,7 @@
 - [ ] Function.prototype.apply·스프레드 인자 수 한도(Math.max(...배열)의 RangeError) (device/connectivity.service.ts snapshotLocked)
 - [ ] 결정적 표본 고르기 — 해시(CRC32) 순서로 비율만큼, 단계 배포(카나리)에서 같은 단말기가 계속 앞 단계에 오는 장단점 (firmware/rollout.service.ts, decisions/0030)
 - [ ] Redis Lua의 cjson, EVAL 안에서 조건부 삭제(비교 후 삭제) (device/offer-store.ts)
+- [ ] 잠금 범위 나누기 — 집계(부모 행)와 개별 결과(자식 행)의 잠금을 분리해 순환 대기를 없애는 방법 (decisions/0031)
+- [ ] InnoDB에서 FOR UPDATE와 일반 SELECT의 스냅숏(read view)이 만들어지는 시점 (firmware/rollout.service.ts control·create)
+- [ ] MySQL datetime과 시간대 — UTC 저장, 세션 time_zone, 드라이버 timezone·dateStrings (troubleshooting/0016)
+- [ ] 사본 저장소 맞추기(reconciliation) — 원본(DB)을 기준으로 주기마다 사본(Redis)을 다시 맞추는 방식과 커밋 뒤 부작용의 순서 문제 (firmware/rollout.service.ts controlAll, decisions/0031)

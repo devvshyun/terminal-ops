@@ -9,6 +9,7 @@ export const JOB_SCHEDULERS = [
   { queue: QUEUE.DEVICE, id: 'active-rebuild', jobName: 'rebuild-active', every: () => env.activeRebuildIntervalMs },
   { queue: QUEUE.DEVICE, id: 'offline-detect', jobName: 'detect-offline', every: () => env.offlineDetectIntervalMs },
   { queue: QUEUE.DEVICE, id: 'connectivity-snapshot', jobName: 'snapshot', every: () => env.connectivitySnapshotIntervalMs },
+  { queue: QUEUE.DEVICE, id: 'rollout-control', jobName: 'rollout-control', every: () => env.rolloutControlIntervalMs },
 ] as const satisfies readonly { queue: QueueName; id: string; jobName: string; every: () => number }[];
 
 /**

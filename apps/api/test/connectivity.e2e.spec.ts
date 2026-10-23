@@ -211,6 +211,15 @@ describe('접속 상태 — 오프라인 판정·스냅샷·조회 (F8, decision
     expect(await redis.get(k().snapshotAt)).toBe(String(older));
   });
 
+  it('스냅샷에 펌웨어 버전이 없으면(null) 이미 있는 값을 지우지 않는다(COALESCE)', async () => {
+    await em().nativeDelete(DeviceConnectivity, {});
+    const before = new Date(Date.now() - 5_000);
+    await em().insert(DeviceConnectivity, { terminalId: await idOf('CN-0002'), online: true, lastSeenAt: before, firmwareVersion: '2.0.0', changedAt: before });
+    await redis.zadd(k().lastSeen, Date.now() - 1_000, 'CN-0002'); // firmware HASH에는 없음 → null
+    expect(await conn.snapshot()).toEqual({ written: 1 });
+    expect((await rowOf('CN-0002'))!.firmwareVersion).toBe('2.0.0');
+  });
+
   describe('대량 변화는 묶음 이벤트 하나로 (relay 줄서기 방지)', () => {
     const many = Array.from({ length: 120 }, (_, i) => `BK-${String(i + 1).padStart(4, '0')}`);
 

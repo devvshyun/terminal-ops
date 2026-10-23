@@ -121,6 +121,8 @@ describe('펌웨어 등록·단계 배포 시작·멈춤·재개·중단 (F8, de
     expect((await createRollout({ stages: [50, 10, 100] })).body.code).toBe('INVALID_STAGES');
     expect((await createRollout({ stages: [10, 50] })).body.code).toBe('INVALID_STAGES');
     expect((await createRollout({ failureThreshold: 2 })).status).toBe(400);
+    // 제한 시간은 하루까지(int 열 범위 안, Task 6 리뷰)
+    expect((await createRollout({ stageTimeoutMs: 24 * 60 * 60_000 + 1 })).status).toBe(400);
     expect((await createRollout({ version: '3.0.0' })).status).toBe(404);
     expect((await t.http().get('/firmware-rollouts/99999')).status).toBe(404);
   });

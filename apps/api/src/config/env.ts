@@ -54,6 +54,8 @@ export const env = {
   offlineDetectIntervalMs: Number(process.env.OFFLINE_DETECT_INTERVAL_MS ?? 10_000),
   /** 접속 상태 스냅샷(Redis → MySQL) 주기 */
   connectivitySnapshotIntervalMs: Number(process.env.CONNECTIVITY_SNAPSHOT_INTERVAL_MS ?? 60_000),
+  /** 펌웨어 배포 판단(단계 넘기기·자동 중단·시간 초과)과 제안 맞추기 주기(decisions/0031) */
+  rolloutControlIntervalMs: Number(process.env.ROLLOUT_CONTROL_INTERVAL_MS ?? 5_000),
   /**
    * 한 번 판정에서 오프라인(또는 온라인)으로 바뀐 단말기가 이보다 많으면 단말기별 알림 대신 묶음 알림 한 건
    * (device.offline_bulk/online_bulk)을 남긴다. 5,000건이 relay 줄(2초에 100건)을 100초 막지 않게(decisions/0029, 실험 0010)

@@ -1,7 +1,11 @@
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsInt, IsNumber, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
 import { FIRMWARE_VERSION_PATTERN } from '../../device/heartbeat.service.js';
+import { SERIAL_NO_MESSAGE, SERIAL_NO_PATTERN } from '../../terminal/bulk-rows.js';
 
 const VERSION_MESSAGE = 'version은 영문·숫자·점·하이픈 1~20자입니다.';
+
+/** 단계 제한 시간 상한(하루). firmware_rollout.stage_timeout_ms는 int(최대 2,147,483,647ms ≈ 24.8일) */
+export const MAX_STAGE_TIMEOUT_MS = 24 * 60 * 60_000;
 
 export class RegisterFirmwareDto {
   @IsString()
@@ -36,9 +40,26 @@ export class CreateRolloutDto {
   @Min(1)
   minSamples!: number;
 
-  /** 단계 안에서 보고를 기다리는 시간(ms). 기본 10분 */
+  /** 단계 안에서 보고를 기다리는 시간(ms). 기본 10분, 최대 하루(열은 int라 약 24.8일까지 담기지만 그 전에 끊는다) */
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(MAX_STAGE_TIMEOUT_MS)
   stageTimeoutMs?: number;
+}
+
+/** 단말기의 업데이트 결과 보고 */
+export class FirmwareReportDto {
+  @Matches(SERIAL_NO_PATTERN, { message: SERIAL_NO_MESSAGE })
+  serialNo!: string;
+
+  @IsInt()
+  @Min(1)
+  rolloutId!: number;
+
+  @IsBoolean()
+  success!: boolean;
+
+  @Matches(FIRMWARE_VERSION_PATTERN, { message: VERSION_MESSAGE })
+  version!: string;
 }

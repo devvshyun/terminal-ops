@@ -61,6 +61,23 @@ export class OfferStore {
     return raw.map((v) => (v ? (JSON.parse(v) as FirmwareOffer) : null));
   }
 
+  /** 지금 걸린 제안 전체를 배포 id별 시리얼로(HSCAN, 판단 job의 제안 맞추기용) */
+  async byRollout(): Promise<Map<number, string[]>> {
+    const out = new Map<number, string[]>();
+    let cursor = '0';
+    do {
+      const [next, flat] = await this.redis.hscan(deviceKeys().offers, cursor, 'COUNT', CHUNK);
+      for (let i = 0; i < flat.length; i += 2) {
+        const { rolloutId } = JSON.parse(flat[i + 1]) as FirmwareOffer;
+        const serials = out.get(rolloutId) ?? [];
+        serials.push(flat[i]);
+        out.set(rolloutId, serials);
+      }
+      cursor = next;
+    } while (cursor !== '0');
+    return out;
+  }
+
   /** 제안이 걸린 단말기 수(실험·테스트용) */
   count(): Promise<number> {
     return this.redis.hlen(deviceKeys().offers);

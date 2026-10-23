@@ -50,16 +50,17 @@ const COLUMN: Record<keyof ConnectivityRow, string> = {
 };
 
 /**
- * 이미 있는 행에서 덮어쓸 식. lastSeenAt만 GREATEST로 — 늦게 커밋된 스냅샷·판정이 들고 있던 더 오래된 값이
- * 더 새 값을 덮지 않게 한다(뒤로 가지 않음). MySQL 8.4에서 VALUES()는 deprecated지만 동작한다(행 별칭 문법은 MikroORM이 만들지 않음).
+ * 이미 있는 행에서 덮어쓸 식. lastSeenAt은 GREATEST로 — 늦게 커밋된 스냅샷·판정이 들고 있던 더 오래된 값이
+ * 더 새 값을 덮지 않게 한다(뒤로 가지 않음). firmwareVersion은 COALESCE로 — Redis firmware HASH에 값이 없어 null로 온 행이
+ * 이미 아는 버전을 지우지 않게 한다(Task 6 리뷰). MySQL 8.4에서 VALUES()는 deprecated지만 동작한다(행 별칭 문법은 MikroORM이 만들지 않음).
  */
 function mergeExpr(merge: (keyof ConnectivityRow)[]) {
-  return Object.fromEntries(
-    merge.map((f) => {
-      const c = `\`${COLUMN[f]}\``;
-      return [f, raw(f === 'lastSeenAt' ? `greatest(${c}, values(${c}))` : `values(${c})`)];
-    }),
-  );
+  const expr = (f: keyof ConnectivityRow, c: string) => {
+    if (f === 'lastSeenAt') return `greatest(${c}, values(${c}))`;
+    if (f === 'firmwareVersion') return `coalesce(values(${c}), ${c})`;
+    return `values(${c})`;
+  };
+  return Object.fromEntries(merge.map((f) => [f, raw(expr(f, `\`${COLUMN[f]}\``))]));
 }
 
 /**

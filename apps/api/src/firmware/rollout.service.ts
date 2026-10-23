@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { EntityManager, LockMode } from '@mikro-orm/mysql';
+import { fromDbDatetime } from '../common/db-datetime.js';
 import { BusinessError } from '../common/domain-errors.js';
 import { OfferStore } from '../device/offer-store.js';
 import { OUTBOX_TYPE, OutboxEvent } from '../outbox/outbox-event.entity.js';
@@ -10,6 +11,27 @@ import { ACTIVE_ROLLOUT_STATUSES, Firmware, FirmwareRollout, FirmwareRolloutTarg
 
 /** 단계 제한 시간 기본값(10분) */
 export const DEFAULT_STAGE_TIMEOUT_MS = 10 * 60_000;
+
+export type ControlAction = 'NONE' | 'WAITING' | 'ADVANCED' | 'COMPLETED' | 'ABORTED';
+
+export interface ControlResult {
+  rolloutId: number;
+  action: ControlAction;
+  /** 판단한 단계(넘어갔으면 새 단계) */
+  stage: number;
+  /** 이번에 제한 시간이 지나 TIMED_OUT으로 바꾼 대상 수 */
+  timedOut: number;
+}
+
+/** 보고를 기다리는 대상 한 건(offeredTargets) */
+interface OfferedTarget {
+  id: number;
+  serialNo: string;
+  stage: number;
+  offeredAt: Date;
+  /** 단말기가 지금 운영 중(IN_SERVICE)인지. 아니면 응답할 수 없어 시간 초과·실패율에서 뺀다 */
+  inService: boolean;
+}
 
 export interface StageStats {
   stage: number;
@@ -48,6 +70,9 @@ export class RolloutService {
 
     const { id, offered } = await this.em.fork().transactional(async (tx) => {
       // 모델 행을 먼저 잠가 같은 모델의 배포 만들기를 줄 세운다. 잠근 뒤에 센 "진행 중 배포"라야 동시에 둘이 생기지 않는다.
+      // 이 FOR UPDATE는 반드시 트랜잭션의 첫 문장이어야 한다. RR에서 스냅숏(read view)은 첫 일반 SELECT에서 만들어진다(FOR UPDATE는
+      // 만들지 않는다). 잠금 앞에 일반 SELECT를 하나라도 두면 스냅숏이 잠금 전으로 고정되어, 아래 count가 앞 트랜잭션이 커밋한 배포를
+      // 보지 못하고 둘이 생길 수 있다. 펌웨어 조회를 트랜잭션 밖(위)에 둔 것도 그래서다(decisions/0031).
       await tx.findOneOrFail(TerminalModel, firmware.model.id, { lockMode: LockMode.PESSIMISTIC_WRITE });
       const active = await tx.count(FirmwareRollout, { firmware: { model: firmware.model.id }, status: { $in: ACTIVE_ROLLOUT_STATUSES } });
       if (active > 0) throw new BusinessError(409, 'ROLLOUT_ALREADY_ACTIVE', `모델 ${dto.modelCode}에 진행 중인 펌웨어 배포가 있습니다.`);
@@ -107,6 +132,104 @@ export class RolloutService {
     });
     await this.offers.withdraw(id, serials);
     return this.get(id);
+  }
+
+  /**
+   * 주기 작업(rollout-control)이 부른다. ① 진행 중(RUNNING)인 배포마다 control(배포마다 따로 트랜잭션, 남은 제안을 다시 건다)
+   * ② Redis에 남은 제안 중 진행 중이 아닌 배포(멈춤·끝남·없음)의 것을 내린다(withdrawStaleOffers).
+   * ①②가 합쳐 Redis 제안을 MySQL(OFFERED)에 다시 맞춘다 — 커밋 뒤 Redis 작업이 빠지거나(그 사이 죽음) 순서가 뒤바뀌어도
+   * (멈춤·재개·중단이 겹침) 한 주기 안에 고쳐진다(decisions/0031).
+   */
+  async controlAll(now = new Date()): Promise<ControlResult[]> {
+    const running = await this.em.fork().find(FirmwareRollout, { status: RolloutStatus.RUNNING }, { fields: ['id'], orderBy: { id: 'asc' } });
+    const results: ControlResult[] = [];
+    for (const r of running) results.push(await this.control(r.id, now));
+    await this.withdrawStaleOffers();
+    return results;
+  }
+
+  /**
+   * Redis 제안 중 진행 중(RUNNING)이 아닌 배포의 것을 내린다(배포 id 비교 Lua라 그사이 같은 단말기에 걸린 다른 배포의 제안은 남는다).
+   * Redis를 훑으므로(HSCAN) 끝난 배포가 쌓여도 일은 지금 걸린 제안 수만큼이다. @returns 내린 수
+   * 상태를 읽은 뒤 재개가 커밋하고 제안을 다시 걸면 여기서 내릴 수 있다 — 그 배포는 RUNNING이라 다음 control이 다시 건다.
+   */
+  async withdrawStaleOffers(): Promise<number> {
+    const byRollout = await this.offers.byRollout();
+    if (byRollout.size === 0) return 0;
+    const running = await this.em.fork().find(FirmwareRollout, { id: { $in: [...byRollout.keys()] }, status: RolloutStatus.RUNNING }, { fields: ['id'] });
+    const keep = new Set(running.map((r) => r.id));
+    let removed = 0;
+    for (const [rolloutId, serials] of byRollout) {
+      if (!keep.has(rolloutId)) removed += await this.offers.withdraw(rolloutId, serials);
+    }
+    return removed;
+  }
+
+  /**
+   * 배포 한 건을 한 번 판단한다(decisions/0031). 잠금 순서: ① 배포 행 FOR UPDATE ② 대상 행(PK로 갱신·새로 INSERT).
+   * 보고 API는 대상 행 하나만 PK로 바꾸고 배포 행은 잠그지 않는다 — 보고는 배포 행을 기다리지 않고, 순환 대기가 생기지 않는다.
+   * 여러 프로세스가 동시에 불러도 배포 행 잠금에서 줄을 서고, 뒤에 온 쪽은 앞쪽이 바꾼 상태(새 단계 등)를 보고 판단한다.
+   * 1. 지금 단계의 OFFERED 중 제한 시간이 지난 것 → TIMED_OUT(id 순, PK 갱신). 단, 단말기가 운영 중(IN_SERVICE)이 아니면 응답할 수 없으니
+   *    TIMED_OUT으로 바꾸지 않고 OFFERED로 남긴 채 실패율·남은 대상에서 뺀다(제외. 제안만 내리고, 늦은 보고는 그대로 받는다).
+   * 2. 실패율 = (FAILED + TIMED_OUT) / (SUCCEEDED + FAILED + TIMED_OUT). 기준을 넘고, 결과가 minSamples 이상이거나 단계가 다 끝났으면
+   *    → ABORTED(Outbox 알림), 남은 제안을 모두 내린다.
+   * 3. 남은 대상(제한 시간 안의 OFFERED)이 없으면 다음 단계(대상 INSERT, 알림) 또는 마지막 단계면 COMPLETED(알림).
+   * Redis 제안 걸기·내리기는 커밋 뒤에 한다(트랜잭션 안에서 외부 저장소를 기다리지 않는다). 계속 진행하면(WAITING·ADVANCED) 남은 대상의
+   * 제안을 매번 다시 건다(HSET은 같은 값이면 그대로) — 걸기 전에 죽었거나 늦게 온 내리기에 지워진 제안을 다음 주기가 되살린다.
+   */
+  async control(id: number, now = new Date()): Promise<ControlResult> {
+    const { result, publish, withdraw, version } = await this.em.fork().transactional(async (tx) => {
+      const rollout = await this.lockRollout(tx, id);
+      const version = rollout.firmware.version;
+      const base = { rolloutId: id, stage: rollout.currentStage, timedOut: 0 };
+      if (rollout.status !== RolloutStatus.RUNNING) return { result: { ...base, action: 'NONE' as const }, publish: [], withdraw: [], version };
+
+      const offered = (await this.offeredTargets(tx, id)).filter((t) => t.stage === rollout.currentStage);
+      const isExpired = (t: OfferedTarget) => t.offeredAt.getTime() + rollout.stageTimeoutMs <= now.getTime();
+      const expired = offered.filter((t) => isExpired(t) && t.inService);
+      // 운영에서 빠진 단말기: 시간 초과로 세지 않고(OFFERED 유지) 남은 대상에서도 뺀다
+      const excluded = offered.filter((t) => isExpired(t) && !t.inService);
+      const waiting = offered.filter((t) => !isExpired(t));
+      if (expired.length > 0) {
+        await tx.nativeUpdate(FirmwareRolloutTarget, { id: { $in: expired.map((t) => t.id) }, status: TargetStatus.OFFERED }, { status: TargetStatus.TIMED_OUT });
+      }
+      const s = (await this.stageStats(rollout, tx))[rollout.currentStage];
+      const failures = s.failed + s.timedOut;
+      const decided = s.succeeded + failures;
+      const timedOut = { ...base, timedOut: expired.length };
+      const expiredSerials = [...expired, ...excluded].map((t) => t.serialNo);
+
+      if (decided > 0 && failures / decided > rollout.failureThreshold && (decided >= rollout.minSamples || waiting.length === 0)) {
+        const pct = (n: number) => Math.round(n * 1000) / 10;
+        this.finish(
+          tx,
+          rollout,
+          RolloutStatus.ABORTED,
+          `자동 중단: ${rollout.currentStage + 1}단계 실패율 ${pct(failures / decided)}% (${failures}/${decided}) > 기준 ${pct(rollout.failureThreshold)}%`,
+        );
+        const remaining = (await this.offeredTargets(tx, id)).map((t) => t.serialNo);
+        return { result: { ...timedOut, action: 'ABORTED' as const }, publish: [], withdraw: [...expiredSerials, ...remaining], version };
+      }
+      if (waiting.length > 0) {
+        return { result: { ...timedOut, action: 'WAITING' as const }, publish: waiting.map((t) => t.serialNo), withdraw: expiredSerials, version };
+      }
+      if (rollout.currentStage === rollout.stages.length - 1) {
+        this.finish(tx, rollout, RolloutStatus.COMPLETED, '마지막 단계 완료');
+        // 앞 단계에서 제외된 대상(OFFERED로 남음)의 제안도 남지 않게 모두 내린다
+        const remaining = (await this.offeredTargets(tx, id)).map((t) => t.serialNo);
+        return { result: { ...timedOut, action: 'COMPLETED' as const }, publish: [], withdraw: [...expiredSerials, ...remaining], version };
+      }
+      const next = rollout.currentStage + 1;
+      const fresh = await this.enterStage(tx, rollout, rollout.firmware.model.id, next, now);
+      tx.create(OutboxEvent, {
+        type: OUTBOX_TYPE.FIRMWARE_STAGE_ADVANCED,
+        payload: { rolloutId: id, version, stage: next, percent: rollout.stages[next], targets: fresh.length },
+      });
+      return { result: { ...timedOut, stage: next, action: 'ADVANCED' as const }, publish: fresh, withdraw: expiredSerials, version };
+    });
+    if (withdraw.length > 0) await this.offers.withdraw(id, withdraw);
+    if (publish.length > 0) await this.offers.publish(publish, { rolloutId: id, version });
+    return result;
   }
 
   async get(id: number): Promise<FirmwareRollout> {
@@ -174,14 +297,21 @@ export class RolloutService {
     return rollout;
   }
 
-  /** 아직 보고가 없는 대상(id 순). 잠그지 않고 읽는다 — 대상 행은 PK로만 갱신한다 */
-  private async offeredTargets(tx: EntityManager, rolloutId: number): Promise<{ id: number; serialNo: string; offeredAt: Date }[]> {
-    const rows = await tx.execute<{ id: number; serial_no: string; offered_at: Date }[]>(
-      `select r.id, t.serial_no, r.offered_at from firmware_rollout_target r join terminal t on t.id = r.terminal_id
+  /** 아직 보고가 없는 대상(id 순)과 그 단말기가 지금 운영 중인지. 잠그지 않고 읽는다 — 대상 행은 PK로만 갱신한다 */
+  private async offeredTargets(tx: EntityManager, rolloutId: number): Promise<OfferedTarget[]> {
+    const rows = await tx.execute<{ id: number; serial_no: string; stage: number; offered_at: string; in_service: number | string }[]>(
+      `select r.id, t.serial_no, r.stage, r.offered_at, t.status = 'IN_SERVICE' as in_service
+         from firmware_rollout_target r join terminal t on t.id = r.terminal_id
         where r.rollout_id = ? and r.status = 'OFFERED' order by r.id`,
       [rolloutId],
     );
-    return rows.map((r) => ({ id: r.id, serialNo: r.serial_no, offeredAt: new Date(r.offered_at) }));
+    return rows.map((r) => ({
+      id: r.id,
+      serialNo: r.serial_no,
+      stage: r.stage,
+      offeredAt: fromDbDatetime(r.offered_at),
+      inService: Number(r.in_service) === 1,
+    }));
   }
 
   private wrongStatus(rollout: FirmwareRollout, code: string): BusinessError {
