@@ -50,3 +50,20 @@ export async function prepareShipped(t: TestApp, serialNo: string, carrier: 'BUN
   await allocateTo(t, serialNo);
   return shipWith(t, serialNo, carrier);
 }
+
+/** 일반 전이 API(MANUAL)로 한 단계 바꾼다. 현재 version을 돌려준다. */
+export async function transitionTo(t: TestApp, serialNo: string, to: string, reason: string): Promise<number> {
+  const version = (await t.http().get(`/terminals/${serialNo}`)).body.version;
+  const res = await t.http().post(`/terminals/${serialNo}/transitions`).set(SCENARIO_OP).send({ to, reason, expectedVersion: version });
+  expect(res.status).toBe(200);
+  return res.body.version;
+}
+
+/** 가맹점에서 운영 중(IN_SERVICE)인 단말기를 만든다: 재고 → 배정 → 출고 → 배송 완료(수동) → 설치 확인(수동) */
+export async function prepareInService(t: TestApp, serialNo: string, merchantCode = 'GANGNAM-KIMBAP'): Promise<number> {
+  await registerInStock(t, serialNo);
+  await allocateTo(t, serialNo, merchantCode);
+  await shipWith(t, serialNo, 'BUNGAE');
+  await transitionTo(t, serialNo, 'DELIVERED', 'delivered');
+  return transitionTo(t, serialNo, 'IN_SERVICE', 'installed');
+}

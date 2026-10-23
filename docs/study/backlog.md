@@ -83,3 +83,4 @@
 - [ ] collation의 PAD SPACE와 NO PAD — `'a' = 'a '`가 unicode_ci에서 참, 0900_ai_ci에서 거짓 (decisions/0025)
 - [ ] mysql2 연결 옵션 charset이 collation 이름을 받는 방식과 ORM 설정이 드라이버로 넘어가는 경로(driverOptions) (mikro-orm.config.ts, decisions/0025)
 - [ ] InnoDB REPEATABLE READ의 일관된 읽기(첫 읽기 시점 스냅숏)와 여러 집계 쿼리를 한 트랜잭션에 묶는 이유 (purchase-order.service.ts reconcile)
+- [ ] "열린 건은 하나만" 규칙을 잠금으로 지키기 vs 부분 unique 인덱스(generated column) (service-ticket.service.ts)
