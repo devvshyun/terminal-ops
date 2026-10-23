@@ -8,7 +8,7 @@ export interface Device {
   firmwareVersion: string;
   /** 하트비트를 보내지 않는 단말기 */
   offline: boolean;
-  /** 펌웨어 업데이트 중(결과를 보고하기 전) */
+  /** 펌웨어 업데이트 중(결과를 보고하기 전). 보기용 — 기준은 Fleet의 시리얼별 updating 목록이다 */
   updating: boolean;
 }
 
@@ -67,7 +67,18 @@ export class Fleet {
   private rng = createRng(this.config.seed);
   /** 진행 중인 업데이트(대기 타이머 + 보고 요청) */
   private updates = new Set<Promise<void>>();
-  private updateTimers = new Set<NodeJS.Timeout>();
+  /** 보고를 기다리는 업데이트 타이머 → 그 업데이트를 끝내는 resolve(close가 타이머를 버릴 때 불러 settleUpdates가 멈추지 않게) */
+  private updateTimers = new Map<NodeJS.Timeout, () => void>();
+  /**
+   * 업데이트 중인 단말기(시리얼 → 시작한 세대). Device 객체와 따로 둔다 — configure가 단말기 목록을 새로 만들거나
+   * 단말기가 목록에서 빠졌다 다시 들어와도 같은 단말기가 업데이트를 두 번 하지 않게.
+   */
+  private updating = new Map<string, number>();
+  /**
+   * 세대. close(reset)가 1 올린다. 보고는 시작할 때의 세대를 들고 가서, 끝났을 때 세대가 바뀌었으면
+   * 통계·단말기에 반영하지 않는다(reset 뒤 새 통계에 이전 보고가 섞이지 않게).
+   */
+  private generation = 0;
 
   constructor(config: SimConfig = defaultConfig()) {
     this.configure(config);
@@ -91,7 +102,7 @@ export class Fleet {
         serialNo,
         firmwareVersion: prev?.firmwareVersion ?? config.firmwareVersion,
         offline: offline.has(serialNo),
-        updating: prev?.updating ?? false,
+        updating: this.updating.has(serialNo),
       });
     }
     const client = new ApiClient(config.targetUrl, config.concurrency, config.requestTimeoutMs);
@@ -135,12 +146,21 @@ export class Fleet {
     this.configure(config);
   }
 
-  /** 멈추고(stop), 보고를 기다리던 업데이트는 버린다(이미 보낸 보고 요청은 끝까지 간다). */
+  /**
+   * 멈추고(stop), 보고를 기다리던 업데이트는 버린다. 세대를 올려, 이미 보낸 보고 요청은 끝나도 통계·단말기에 반영하지 않는다
+   * (연결을 닫으므로 보통 바로 실패한다). 버린 업데이트는 끝난 것으로 쳐 settleUpdates를 기다리던 쪽도 풀린다.
+   * stop()만으로는 업데이트를 버리지 않는다 — 대기 중인 업데이트는 끝까지 가서 보고한다.
+   */
   async close(): Promise<void> {
     await this.stop();
-    for (const timer of this.updateTimers) clearTimeout(timer);
+    this.generation += 1;
+    for (const [timer, resolve] of this.updateTimers) {
+      clearTimeout(timer);
+      resolve();
+    }
     this.updateTimers.clear();
     this.updates.clear();
+    this.updating.clear();
     for (const d of this.devices.values()) d.updating = false;
     this.client?.close();
   }
@@ -207,22 +227,25 @@ export class Fleet {
 
   /**
    * 업데이트 지시: 이미 업데이트 중이거나 이미 그 버전이면 무시한다(성공 보고 직전에 읽힌 하트비트 응답이 지시를 한 번 더 싣고 올 수 있다).
-   * updateDelayMs(+ 0~updateJitterMs) 뒤 결과를 정해 보고한다.
+   * updateDelayMs(+ 0~updateJitterMs) 뒤 결과를 보고한다. 지터와 성공 여부는 여기서(지시를 받은 순서대로) 함께 뽑는다 —
+   * 타이머가 끝날 때 뽑으면 다른 묶음의 응답이 오는 시점에 따라 난수 순서가 바뀌어 같은 시드에서도 단말기별 결과가 달라진다.
    */
   private startUpdate(serialNo: string, offer: UpdateOffer): void {
     const device = this.devices.get(serialNo);
-    if (!device || device.updating || device.firmwareVersion === offer.version) return;
+    if (!device || this.updating.has(serialNo) || device.firmwareVersion === offer.version) return;
+    const generation = this.generation;
+    this.updating.set(serialNo, generation);
     device.updating = true;
     this.stats.updateOffers += 1;
+    // 확률이 0인 설정은 난수를 쓰지 않는다(다른 난수 순서를 흔들지 않게, partners와 같은 규칙)
     const jitter = this.config.updateJitterMs > 0 ? Math.floor(this.rng() * this.config.updateJitterMs) : 0;
+    const success = !(this.config.firmwareFailRate > 0 && this.rng() < this.config.firmwareFailRate);
     const work = new Promise<void>((resolve) => {
       const timer = setTimeout(() => {
         this.updateTimers.delete(timer);
-        // 실패율 0이면 난수를 쓰지 않는다(다른 난수 순서를 흔들지 않게, partners와 같은 규칙)
-        const success = !(this.config.firmwareFailRate > 0 && this.rng() < this.config.firmwareFailRate);
-        void this.report(serialNo, offer, success).finally(resolve);
+        void this.report(serialNo, offer, success, generation).finally(resolve);
       }, this.config.updateDelayMs + jitter);
-      this.updateTimers.add(timer);
+      this.updateTimers.set(timer, resolve);
     });
     this.updates.add(work);
     void work.finally(() => this.updates.delete(work));
@@ -232,8 +255,11 @@ export class Fleet {
    * 결과 보고. 하트비트 통계(requests·latency·errors)에는 넣지 않는다(응답 시간 통계가 하트비트만의 값이 되게).
    * 결과는 끝난 시점의 단말기 목록에서 시리얼로 찾아 반영한다 — 업데이트 중에 configure가 단말기 목록(객체)을 새로 만들면
    * 시작할 때 잡은 객체는 더 쓰이지 않는다(그 객체를 바꾸면 새 목록의 단말기가 updating인 채로 남는다, troubleshooting/0020).
+   * 그사이 close(reset)로 세대가 바뀌었으면 아무것도 반영하지 않는다. 실패 보고(2xx 아님·오류)면 버전은 그대로이고 다시 보내지 않는다
+   * (제안이 남아 있으면 다음 하트비트가 지시를 다시 실어 온다).
    */
-  private async report(serialNo: string, offer: UpdateOffer, success: boolean): Promise<void> {
+  private async report(serialNo: string, offer: UpdateOffer, success: boolean, generation: number): Promise<void> {
+    const current = () => generation === this.generation;
     let reported = false;
     try {
       // 보고 시점의 연결을 쓴다(그사이 configure가 연결을 바꿨으면 새 연결)
@@ -243,6 +269,7 @@ export class Fleet {
         success,
         version: offer.version,
       });
+      if (!current()) return;
       if (res.status < 200 || res.status >= 300) {
         this.stats.reportErrors += 1;
         return;
@@ -251,13 +278,17 @@ export class Fleet {
       if (success) this.stats.reportsSucceeded += 1;
       else this.stats.reportsFailed += 1;
     } catch {
-      this.stats.reportErrors += 1;
+      if (current()) this.stats.reportErrors += 1;
     } finally {
-      const device = this.devices.get(serialNo);
-      if (device) {
-        device.updating = false;
-        if (reported && success) device.firmwareVersion = offer.version;
-      }
+      if (current()) this.finishUpdate(serialNo, offer, reported && success);
     }
+  }
+
+  private finishUpdate(serialNo: string, offer: UpdateOffer, installed: boolean): void {
+    this.updating.delete(serialNo);
+    const device = this.devices.get(serialNo);
+    if (!device) return;
+    device.updating = false;
+    if (installed) device.firmwareVersion = offer.version;
   }
 }

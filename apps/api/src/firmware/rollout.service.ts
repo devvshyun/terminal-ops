@@ -168,7 +168,12 @@ export class RolloutService {
         }
       }
     } finally {
-      await this.withdrawStaleOffers();
+      // 맞추기 실패가 판단 결과나 위에서 난 원래 오류를 덮지 않게 로그로만 남긴다(다음 주기에 다시 맞춘다)
+      try {
+        await this.withdrawStaleOffers();
+      } catch (err) {
+        this.logger.error(`제안 맞추기 실패(다음 주기에 다시): ${err instanceof Error ? err.message : String(err)}`, err instanceof Error ? err.stack : undefined);
+      }
     }
     return results;
   }

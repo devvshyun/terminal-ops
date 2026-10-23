@@ -92,12 +92,19 @@ export async function startDeviceSim(port = TEST_DEVICE_SIM_PORT) {
     reset: () => call<unknown>('POST', '/__admin/reset'),
     stats: () => call<DeviceSimStats>('GET', '/__admin/stats'),
     device: (serialNo: string) => call<{ serialNo: string; firmwareVersion: string; offline: boolean; updating: boolean }>('GET', `/__admin/devices/${serialNo}`),
-    /** 자식 프로세스(이 PID)만 끈다 */
+    /** 자식 프로세스(이 PID)만 끈다. 5초 안에 끝나지 않으면 같은 PID에 SIGKILL(Windows에서는 강제 종료) */
     close: async () => {
-      if (child.exitCode === null) {
-        child.kill();
-        await once(child, 'exit');
-      }
+      if (child.exitCode !== null || child.signalCode !== null) return;
+      const exited = once(child, 'exit').then(() => true);
+      child.kill();
+      let timer: NodeJS.Timeout | undefined;
+      const timeout = new Promise<false>((r) => (timer = setTimeout(() => r(false), 5_000)));
+      const ok = await Promise.race([exited, timeout]);
+      clearTimeout(timer);
+      if (ok) return;
+      console.warn(`device-sim(PID ${child.pid})이 5초 안에 끝나지 않아 SIGKILL을 보냅니다.`);
+      child.kill('SIGKILL');
+      await exited;
     },
   };
 }

@@ -111,3 +111,5 @@
 - [ ] 사본 저장소 맞추기(reconciliation) — 원본(DB)을 기준으로 주기마다 사본(Redis)을 다시 맞추는 방식과 커밋 뒤 부작용의 순서 문제 (firmware/rollout.service.ts controlAll, decisions/0031)
 - [ ] RR에서 consistent read(스냅숏)와 current read(UPDATE·FOR UPDATE)가 한 트랜잭션에서 다른 값을 보는 경우 (troubleshooting/0019)
 - [ ] 시뮬레이션에서 지연 분포(고정·균등·지수)가 결과(감지 시점)를 바꾸는 방식 (apps/device-sim/src/fleet.ts updateJitterMs)
+- [ ] 세대(generation) 토큰·epoch로 늦게 끝난 비동기 작업 무시하기, 취소(AbortController)와의 차이 (apps/device-sim/src/fleet.ts, decisions/0009)
+- [ ] 시드 난수 재현성 — 난수를 뽑는 시점을 사건 순서가 아니라 입력 순서에 묶기 (apps/device-sim/src/fleet.ts startUpdate)

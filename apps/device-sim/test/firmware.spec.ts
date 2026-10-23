@@ -136,4 +136,66 @@ describe('펌웨어 업데이트 흉내', () => {
     await fleet.settleUpdates();
     expect(fleet.devices.get('HB-0001')).toMatchObject({ firmwareVersion: '2.0.0', updating: false });
   });
+  it('보고가 가는 중에 reset하면 그 보고는 새 통계·새 단말기에 반영되지 않는다(세대 토큰)', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    api.setHandler(async (req, res) => {
+      if (req.path === '/devices/firmware-reports') {
+        await gate;
+        return sendJson(res, 200, {});
+      }
+      return offeringHandler(req, res);
+    });
+    fleet = new Fleet(config({ updateDelayMs: 0 }));
+    await fleet.tick();
+    while (reports().length === 0) await sleep(5); // 보고 요청이 서버에 닿았다(응답은 gate에서 멈춤)
+    await fleet.reset(config({ updateDelayMs: 0 }));
+    release();
+    await sleep(50);
+    expect(fleet.stats.view()).toMatchObject({ updateOffers: 0, reportsSucceeded: 0, reportsFailed: 0, reportErrors: 0 });
+    expect(fleet.devices.get('HB-0001')).toMatchObject({ firmwareVersion: '1.0.0', updating: false });
+  });
+
+  it('close는 settleUpdates를 기다리던 쪽을 풀어 준다(버린 업데이트 타이머)', async () => {
+    fleet = new Fleet(config({ updateDelayMs: 10_000 }));
+    await fleet.tick();
+    const settled = fleet.settleUpdates().then(() => 'settled');
+    await fleet.close();
+    expect(await Promise.race([settled, sleep(500).then(() => 'hang')])).toBe('settled');
+  });
+
+  it('지터·실패율이 있어도 같은 시드면 단말기별 결과가 같다(타이머가 끝나는 순서와 상관없이)', async () => {
+    // 두 번째 묶음의 응답만 늦춘 실행과 늦추지 않은 실행: 지시를 받는 단말기 순서는 같고, 첫 묶음 타이머가 끝나는 시점만 다르다
+    const run = async (delaySecondBatchMs: number) => {
+      let batch = 0;
+      api.setHandler(async (req, res) => {
+        if (req.path === '/devices/firmware-reports') return sendJson(res, 200, {});
+        batch += 1;
+        if (batch === 2) await sleep(delaySecondBatchMs);
+        const items = req.body.items as { serialNo: string }[];
+        sendJson(res, 200, { results: items.map((i) => ({ serialNo: i.serialNo, result: 'OK', update: { rolloutId: 1, version: '2.0.0' } })) });
+      });
+      api.received.length = 0;
+      const f = new Fleet(config({ count: 20, batchSize: 10, concurrency: 1, updateDelayMs: 50, updateJitterMs: 30, firmwareFailRate: 0.5, seed: 7 }));
+      await f.tick();
+      await f.settleUpdates();
+      await f.close();
+      return Object.fromEntries(reports().map((r) => [r.serialNo as string, r.success as boolean]));
+    };
+    const fast = await run(0);
+    expect(Object.keys(fast)).toHaveLength(20);
+    expect(await run(200)).toEqual(fast);
+  });
+
+  it('업데이트 중인 단말기가 목록에서 빠졌다 다시 들어와도 업데이트를 두 번 하지 않는다', async () => {
+    fleet = new Fleet(config({ updateDelayMs: 100 }));
+    await fleet.tick();
+    fleet.configure({ ...fleet.config, serials: ['HB-0002'] });
+    fleet.configure({ ...fleet.config, serials: ['HB-0001', 'HB-0002'] });
+    expect(fleet.devices.get('HB-0001')!.updating).toBe(true);
+    await fleet.tick();
+    await fleet.settleUpdates();
+    expect(fleet.stats.view().updateOffers).toBe(1);
+    expect(reports()).toHaveLength(1);
+  });
 });

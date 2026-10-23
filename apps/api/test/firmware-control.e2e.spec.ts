@@ -319,6 +319,23 @@ describe('펌웨어 결과 보고와 배포 판단 — 단계 넘기기·자동 
       expect((await offers())[stray]).toBeUndefined();
     });
 
+    it('controlAll: 제안 맞추기(finally)가 실패해도 판단 결과를 돌려주고 오류는 로그로만 남긴다', async () => {
+      const { id } = await start({ stages: [10, 100] });
+      const withdraw = vi.spyOn(rollouts, 'withdrawStaleOffers').mockRejectedValueOnce(new Error('맞추기 오류'));
+      const logged = vi.spyOn((rollouts as unknown as { logger: { error: (...a: unknown[]) => void } }).logger, 'error').mockImplementation(() => undefined);
+      let results;
+      let messages: string[] = [];
+      try {
+        results = await rollouts.controlAll();
+        messages = logged.mock.calls.map((c) => String(c[0]));
+      } finally {
+        withdraw.mockRestore();
+        logged.mockRestore();
+      }
+      expect(results.find((r) => r.rolloutId === id)?.action).toBe('WAITING');
+      expect(messages.join(' | ')).toContain('맞추기 오류');
+    });
+
     it('Redis 제안 값이 깨져 있으면 byRollout은 그 값을 건너뛴다(맞추기 전체가 멈추지 않음)', async () => {
       const { id } = await start({ stages: [10, 100] });
       const stray = rolloutOrder(serials)[19];
