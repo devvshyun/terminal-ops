@@ -226,4 +226,46 @@ describe('알림 Outbox (F5)', () => {
     await waitForQueuesIdle(t.app);
     expect(Object.values((await partners.toktok()).byKey).every((n) => n === 1)).toBe(true);
   });
+
+  it('addBulk가 일부만 넣고 실패하면 행은 PENDING으로 남고, 다음 relay가 같은 jobId로 다시 넣어 한 번씩만 보낸다(decisions/0024)', async () => {
+    await drain();
+    for (let i = 0; i < 6; i++) {
+      await t.http().post('/terminals').set(OP).send({ serialNo: `OB-5${String(i).padStart(3, '0')}`, modelCode: 'SN-100' });
+    }
+    await partners.reset();
+    const queue = t.app.get<Queue>(getQueueToken(QUEUE.OUTBOX));
+    const jobsInQueue = async () => (await queue.getJobs(['waiting'])).map((j) => j.id).sort();
+    const pending = (await rows()).filter((r) => r.status === OutboxStatus.PENDING).map((r) => r.id);
+    expect(pending).toHaveLength(6);
+
+    // BullMQ 6.4.0 addBulk는 pipeline(MULTI 아님)이라 앞쪽 명령은 들어가고 뒤에서 실패할 수 있다. 그 모양을 흉내 낸다:
+    // 진짜 addBulk로 앞 절반만 넣고 throw. 워커가 먼저 처리하지 않게 큐를 멈춰 둔다(들어간 job을 세려고. BullMQ 6은 멈춘 큐의 job도 waiting으로 센다).
+    await queue.pause();
+    const original = queue.addBulk.bind(queue);
+    const spy = vi.spyOn(queue, 'addBulk').mockImplementationOnce(async (jobs) => {
+      await original(jobs.slice(0, Math.ceil(jobs.length / 2)));
+      throw new Error('주입한 실패: addBulk 중간');
+    });
+    try {
+      await expect(outbox.relay()).rejects.toThrow('주입한 실패');
+      const afterFail = await jobsInQueue();
+      const statuses = await Promise.all(pending.map(statusOf));
+      console.log(`[addBulk 부분 실패] 큐에 남은 job=${JSON.stringify(afterFail)} 행 상태=${JSON.stringify(statuses)}`);
+      expect(statuses.every((s) => s === OutboxStatus.PENDING)).toBe(true); // relay 트랜잭션 롤백
+      expect(afterFail).toEqual(pending.slice(0, 3).map((id) => `outbox-${id}`).sort()); // 앞 절반은 Redis에 남음
+
+      const { queued } = await outbox.relay(); // 다음 relay: 같은 jobId 6개를 다시 넣는다
+      expect(queued).toEqual(pending);
+      const afterRetry = await jobsInQueue();
+      console.log(`[addBulk 부분 실패] 다시 relay 뒤 job=${JSON.stringify(afterRetry)}`);
+      expect(afterRetry).toEqual(pending.map((id) => `outbox-${id}`).sort()); // 이미 있던 3개는 중복으로 들어가지 않음
+    } finally {
+      spy.mockRestore();
+      await queue.resume();
+    }
+    await waitForQueuesIdle(t.app);
+    const toktok = await partners.toktok();
+    expect(toktok.byKey).toEqual(Object.fromEntries(pending.map((id) => [`outbox-${id}`, 1])));
+    expect(await Promise.all(pending.map(statusOf))).toEqual(pending.map(() => OutboxStatus.SENT));
+  });
 });

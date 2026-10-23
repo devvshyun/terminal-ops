@@ -56,6 +56,7 @@ export class OutboxService {
         { lockMode: LockMode.PESSIMISTIC_PARTIAL_WRITE, limit, orderBy: { id: 'asc' } },
       );
       // jobId가 같으면 BullMQ가 한 번만 받는다(addBulk도 같다). 커밋 전에 죽어 이 행이 다시 relay돼도 job이 남아 있으면 중복으로 들어가지 않는다.
+      // addBulk는 MULTI가 아니라 pipeline이라 일부만 넣고 throw할 수 있다 → 이 트랜잭션이 롤백돼 행은 PENDING, 다음 relay가 같은 jobId로 다시 넣는다(decisions/0024).
       const jobs = rows.map((row) => ({
         name: 'notify',
         data: { outboxId: row.id },

@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { getQueueToken } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
+import { FlushMode } from '@mikro-orm/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { OUTBOX_TYPE, OutboxEvent, OutboxStatus } from '../../src/outbox/outbox-event.entity.js';
 import { OutboxService } from '../../src/outbox/outbox.service.js';
@@ -78,31 +79,61 @@ describe(`실험 0006: 대량 처리 (박스 ${BOX}대, 엑셀 ${EXCEL_ROWS}행,
     await t.app.close();
   });
 
-  it(`A. 신규 등록 ${BOX}건: 행마다 findOne(N+1) vs 일괄 엔진`, async () => {
+  it(`A. 신규 등록 ${BOX}건: N+1(행마다 flush) / 행마다 조회만(flush 1번) / 한 번에 조회(flush 1번) / 일괄 엔진`, async () => {
     const transitions = t.app.get(TransitionService);
     const bulk = t.app.get(BulkRegistrationService);
-    // 행마다 존재 확인(findOne) 후 만들기. 같은 트랜잭션 하나, 이력·Outbox도 같이 쌓는다.
-    const naive = await measure(t, () =>
-      t.orm.em.fork().transactional(async (tx) => {
-        const model = await tx.findOneOrFail(TerminalModel, { code: 'SN-100' });
-        for (const serialNo of serialsOf('EXN', BOX)) {
-          if (await tx.findOne(Terminal, { serialNo })) continue;
-          const terminal = tx.create(Terminal, { serialNo, model });
-          transitions.recordRegistration(terminal, 'exp6', TransitionSource.SCAN, tx);
-        }
-      }),
-    );
-    const engine = await measure(t, () =>
-      bulk.register(serialsOf('EXB', BOX).map((serialNo) => ({ serialNo, modelCode: 'SN-100' })), { actor: 'exp6', source: TransitionSource.SCAN }),
-    );
-    console.log(
-      `[실험 0006/A] ${BOX}건 N+1: ${naive.ms}ms 쿼리 ${naive.queries}(select ${naive.selects}, insert ${naive.inserts}) / ` +
-        `일괄: ${engine.ms}ms 쿼리 ${engine.queries}(select ${engine.selects}, insert ${engine.inserts})`,
-    );
-    expect(await t.orm.em.fork().count(Terminal, { serialNo: { $like: 'EXN-%' } })).toBe(BOX);
-    expect(await t.orm.em.fork().count(Terminal, { serialNo: { $like: 'EXB-%' } })).toBe(BOX);
-    expect(naive.selects).toBeGreaterThanOrEqual(BOX);
-    expect(engine.selects).toBeLessThanOrEqual(5);
+    // 변형마다 시리얼 접두사가 달라 서로 겹치지 않는다. 모두 한 트랜잭션, 이력·Outbox도 같이 쌓는다.
+    // - naive: 행마다 findOne → create. FlushMode AUTO라 다음 findOne 전에 flush가 일어나 INSERT도 행마다 나간다.
+    // - lookup: 행마다 findOne(flushMode COMMIT) → create, flush는 커밋 때 1번. "행마다 조회"만 남긴 것.
+    // - preload: find($in) 1번으로 기존 시리얼을 읽고 행마다 create, flush 1번. 조회도 flush도 한 번.
+    // - engine: BulkRegistrationService.register(source SCAN).
+    type Variant = 'naive' | 'lookup' | 'preload' | 'engine';
+    const run: Record<Variant, () => Promise<unknown>> = {
+      naive: () =>
+        t.orm.em.fork().transactional(async (tx) => {
+          const model = await tx.findOneOrFail(TerminalModel, { code: 'SN-100' });
+          for (const serialNo of serialsOf('EXN', BOX)) {
+            if (await tx.findOne(Terminal, { serialNo })) continue;
+            const terminal = tx.create(Terminal, { serialNo, model });
+            transitions.recordRegistration(terminal, 'exp6', TransitionSource.SCAN, tx);
+          }
+        }),
+      lookup: () =>
+        t.orm.em.fork().transactional(async (tx) => {
+          const model = await tx.findOneOrFail(TerminalModel, { code: 'SN-100' });
+          for (const serialNo of serialsOf('EXL', BOX)) {
+            if (await tx.findOne(Terminal, { serialNo }, { flushMode: FlushMode.COMMIT })) continue;
+            const terminal = tx.create(Terminal, { serialNo, model });
+            transitions.recordRegistration(terminal, 'exp6', TransitionSource.SCAN, tx);
+          }
+        }),
+      preload: () =>
+        t.orm.em.fork().transactional(async (tx) => {
+          const model = await tx.findOneOrFail(TerminalModel, { code: 'SN-100' });
+          const serials = serialsOf('EXP', BOX);
+          const existing = new Set((await tx.find(Terminal, { serialNo: { $in: serials } })).map((x) => x.serialNo));
+          for (const serialNo of serials) {
+            if (existing.has(serialNo)) continue;
+            const terminal = tx.create(Terminal, { serialNo, model });
+            transitions.recordRegistration(terminal, 'exp6', TransitionSource.SCAN, tx);
+          }
+        }),
+      engine: () =>
+        bulk.register(serialsOf('EXB', BOX).map((serialNo) => ({ serialNo, modelCode: 'SN-100' })), { actor: 'exp6', source: TransitionSource.SCAN }),
+    };
+    // 처음 도는 변형이 준비 비용(연결·JIT 등)을 낼 수 있어 EXP_A_ORDER=reverse로 순서를 뒤집어 본다.
+    const order: Variant[] = process.env.EXP_A_ORDER === 'reverse' ? ['engine', 'preload', 'lookup', 'naive'] : ['naive', 'lookup', 'preload', 'engine'];
+    const result: Partial<Record<Variant, { ms: number; queries: number; select: number; insert: number }>> = {};
+    for (const v of order) {
+      const m = await measure(t, run[v]);
+      result[v] = { ms: m.ms, queries: m.queries, select: m.selects, insert: m.inserts };
+    }
+    console.log(`[실험 0006/A] ${BOX}건 순서=${order.join('>')} ${JSON.stringify(result)}`);
+    for (const prefix of ['EXN', 'EXL', 'EXP', 'EXB']) {
+      expect(await t.orm.em.fork().count(Terminal, { serialNo: { $like: `${prefix}-%` } })).toBe(BOX);
+    }
+    expect(result.naive!.select).toBeGreaterThanOrEqual(BOX);
+    expect(result.engine!.select).toBeLessThanOrEqual(5);
   }, 300_000);
 
   it(`B. 박스 스캔 API로 발주분 ${BOX}대 입고(HTTP, 명세 확인·발주 잠금 포함)`, async () => {
