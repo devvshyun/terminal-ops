@@ -86,3 +86,5 @@
 - [ ] SHOW ENGINE INNODB STATUS의 LATEST DETECTED DEADLOCK 읽는 법, `information_schema.innodb_metrics`의 lock_deadlocks로 데드락 수 세기 (experiments/0007)
 - [ ] Nest 생명주기 훅 순서 — onModuleDestroy, beforeApplicationShutdown, onApplicationShutdown과 공용 자원(연결)을 닫는 자리 (redis/redis.module.ts, decisions/0026)
 - [ ] ioredis 연결 상태(connecting·connect·ready·end)와 quit·disconnect, 'error' 리스너가 없을 때의 동작 (redis/redis.provider.ts)
+- [ ] HTTP keep-alive와 Node http.Agent(maxSockets·maxFreeSockets), TIME_WAIT와 임시 포트 고갈 (apps/device-sim/src/client.ts)
+- [ ] 백분위(p50·p95) 계산 방법 — 가장 가까운 순위 vs 보간, 표본 상한 (apps/device-sim/src/stats.ts)
