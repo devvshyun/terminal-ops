@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/mysql';
 import { TerminalModel } from '../terminal/terminal-model.entity.js';
 import type { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto.js';
@@ -8,6 +8,8 @@ import { SeumClient } from './seum.client.js';
 
 @Injectable()
 export class PurchaseOrderService {
+  private readonly logger = new Logger(PurchaseOrderService.name);
+
   constructor(
     private readonly em: EntityManager,
     private readonly seum: SeumClient,
@@ -15,7 +17,8 @@ export class PurchaseOrderService {
 
   /**
    * 발주: ① 모델 확인 ② 트랜잭션 밖에서 세움전자에 발주(HTTP) ③ 받은 발주번호로 저장.
-   * ③이 실패하면 공장 쪽에 발주가 남는다(운송장과 같은 한계, decisions/0012). 확인할 수 있는 실패(없는 모델)는 ①에서 거른다.
+   * ③이 실패하면 공장 쪽에 발주가 남는다(운송장과 같은 한계, decisions/0012). 추적할 수 있도록 발주번호를 로그에 남기고 다시 던진다.
+   * 확인할 수 있는 실패(없는 모델)는 ①에서 거른다.
    */
   async create(dto: CreatePurchaseOrderDto, actor: string): Promise<PurchaseOrder> {
     const model = await this.em.findOne(TerminalModel, { code: dto.modelCode });
@@ -24,7 +27,12 @@ export class PurchaseOrderService {
     const poNo = await this.seum.createPurchaseOrder({ modelCode: model.code, quantity: dto.quantity, reference: randomUUID() });
 
     const po = this.em.create(PurchaseOrder, { poNo, model, quantity: dto.quantity, orderedBy: actor });
-    await this.em.flush();
+    try {
+      await this.em.flush();
+    } catch (error) {
+      this.logger.error(`공장 발주 후 저장 실패(고아 발주): poNo=${poNo} modelCode=${model.code} quantity=${dto.quantity} actor=${actor}`, error instanceof Error ? error.stack : String(error));
+      throw error;
+    }
     return po;
   }
 

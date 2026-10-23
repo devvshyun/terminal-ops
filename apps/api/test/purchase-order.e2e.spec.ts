@@ -1,4 +1,6 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { Logger } from '@nestjs/common';
+import { EntityManager } from '@mikro-orm/mysql';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PurchaseOrder, PurchaseOrderStatus } from '../src/purchase-order/purchase-order.entity.js';
 import { partners } from './helpers/partners.js';
 import { createTestApp, resetDatabase, type TestApp } from './helpers/test-app.js';
@@ -50,6 +52,21 @@ describe('발주 (F10)', () => {
     expect(res.status).toBe(502);
     expect(res.body).toMatchObject({ code: 'PARTNER_ERROR', reason: 'PartnerTransientError' });
     expect(await t.orm.em.fork().count(PurchaseOrder)).toBe(before);
+  });
+
+  it('공장 발주 뒤 저장이 실패하면 발주번호를 로그에 남기고 500으로 알린다(고아 발주 추적)', async () => {
+    const flush = vi.spyOn(EntityManager.prototype, 'flush').mockRejectedValueOnce(new Error('db down'));
+    const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+    try {
+      const res = await t.http().post('/purchase-orders').set(OP).send({ modelCode: 'SN-100', quantity: 7 });
+      expect(res.status).toBe(500);
+      expect(await factoryCalls()).toBe(1);
+      const line = String(logged.mock.calls.map((c) => c[0]).find((m) => String(m).includes('고아 발주')));
+      expect(line).toMatch(/poNo=SE\d+ modelCode=SN-100 quantity=7/);
+    } finally {
+      flush.mockRestore();
+      logged.mockRestore();
+    }
   });
 
   it('수량은 1~5000, 작업자 헤더 필수', async () => {
