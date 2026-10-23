@@ -94,3 +94,5 @@
 - [ ] 닫힌 루프 vs 열린 루프 부하 생성기, coordinated omission(응답이 느리면 요청도 늦게 보내져 지연이 낮게 보이는 문제) (decisions/0009 갱신, apps/device-sim/src/fleet.ts)
 - [ ] 로그 간격 히스토그램(HdrHistogram 방식)과 reservoir sampling의 백분위 오차 차이 (apps/device-sim/src/stats.ts, troubleshooting/0017)
 - [ ] Node http 서버 keepAliveTimeout·headersTimeout과 클라이언트 에이전트의 끊긴 소켓 재사용 경쟁 (decisions/0009 갱신)
+- [ ] 이벤트 소비자가 여럿일 때 — 프로젝션(읽기 모델)을 이벤트 값이 아니라 원본을 다시 읽어 만드는 방식, 순서 보장 없이 멱등하게 (outbox.service.ts changesActiveSet, decisions/0028)
+- [ ] 이벤트 기반 갱신 + 주기 재구성(anti-entropy)으로 사본 맞추기 (device/active-set.service.ts)

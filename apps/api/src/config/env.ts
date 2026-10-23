@@ -46,6 +46,8 @@ export const env = {
   runSchedulers: flag('RUN_SCHEDULERS', !isTest),
   sweepIntervalMs: Number(process.env.SWEEP_INTERVAL_MS ?? 30_000),
   relayIntervalMs: Number(process.env.RELAY_INTERVAL_MS ?? 2_000),
+  /** 운영 중 단말기 목록(Redis active)을 MySQL에서 통째로 다시 만드는 주기(decisions/0028) */
+  activeRebuildIntervalMs: Number(process.env.ACTIVE_REBUILD_INTERVAL_MS ?? 60_000),
   /** 우리 쪽 호출 속도 제한(초당). 택배사 한도보다 낮게 둔다. */
   bungaeRatePerSec: Number(process.env.BUNGAE_RATE_PER_SEC ?? 10),
   neurimboRatePerSec: Number(process.env.NEURIMBO_RATE_PER_SEC ?? 5),

@@ -37,12 +37,15 @@ describe('하트비트 (F8, decisions/0027·0028)', () => {
   it('active는 MySQL의 IN_SERVICE 단말기(serialNo → id)로 다시 만들고, TTL이 없다', async () => {
     expect(await redis.hgetall(keys().active)).toEqual({ 'HB-0001': await idOf('HB-0001'), 'HB-0002': await idOf('HB-0002') });
     expect(await redis.pttl(keys().active)).toBe(-1);
-    // 다시 만들면 바뀐 상태를 따라간다(남은 임시 키 없음)
+    // 다시 만들면 바뀐 상태를 따라간다(남은 임시 키 없음). 단언이 실패해도 HB-0002를 되돌린다.
     await t.orm.em.fork().nativeUpdate(Terminal, { serialNo: 'HB-0002' }, { status: TerminalStatus.RETURN_REQUESTED });
-    expect(await t.app.get(ActiveSetService).rebuild()).toBe(1);
-    expect(await redis.hkeys(keys().active)).toEqual(['HB-0001']);
-    expect(await redis.keys(`${keys().active}:rebuild:*`)).toEqual([]);
-    await t.orm.em.fork().nativeUpdate(Terminal, { serialNo: 'HB-0002' }, { status: TerminalStatus.IN_SERVICE });
+    try {
+      expect(await t.app.get(ActiveSetService).rebuild()).toBe(1);
+      expect(await redis.hkeys(keys().active)).toEqual(['HB-0001']);
+      expect(await redis.keys(`${keys().active}:rebuild:*`)).toEqual([]);
+    } finally {
+      await t.orm.em.fork().nativeUpdate(Terminal, { serialNo: 'HB-0002' }, { status: TerminalStatus.IN_SERVICE });
+    }
   });
 
   it('묶음의 행마다 결과: 운영 중이면 OK, 아니면 IGNORED_NOT_IN_SERVICE, 형식이 틀리면 INVALID_FORMAT', async () => {
@@ -88,5 +91,17 @@ describe('하트비트 (F8, decisions/0027·0028)', () => {
     expect((await t.http().post('/devices/heartbeats').send({ items: 'x' })).status).toBe(400);
     expect((await beat(['HB-0001'])).status).toBe(400);
     expect((await t.http().post('/devices/heartbeats').send({ items: [{}], extra: 1 })).status).toBe(400);
+  });
+
+  it('한 묶음에 같은 시리얼이 두 번 있으면 행마다 OK를 주고, 마지막 값이 이긴다', async () => {
+    // 마지막 값이 이긴다: 묶음 안 순서대로 pipeline에 쌓이므로 lastSeen은 멤버 하나(점수는 나중 것), firmware는 뒤 항목의 값이다.
+    const res = await beat([
+      { serialNo: 'HB-0001', firmwareVersion: '1.0.0' },
+      { serialNo: 'HB-0001', firmwareVersion: '2.0.0' },
+    ]);
+    expect(res.status).toBe(200);
+    expect(res.body.results.map((r: { result: string }) => r.result)).toEqual(['OK', 'OK']);
+    expect(await redis.zcard(keys().lastSeen)).toBe(1);
+    expect(await redis.hget(keys().firmware, 'HB-0001')).toBe('2.0.0');
   });
 });

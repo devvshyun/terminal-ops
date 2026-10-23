@@ -49,4 +49,25 @@ export class ActiveSetService {
     await execOrThrow(this.redis.multi().persist(tmp).rename(tmp, active));
     return rows.length;
   }
+
+  /**
+   * 몇 대만 MySQL의 **지금** 상태로 맞춘다(Outbox 이벤트 프로젝터가 부른다). 이벤트에 적힌 상태(toStatus)를 쓰지 않고
+   * 다시 읽으므로, 같은 단말기의 이벤트가 늦게·뒤바뀐 순서로 와도 결과는 마지막 커밋 상태다. 없는 시리얼은 지운다.
+   */
+  async apply(serials: string[]): Promise<void> {
+    if (serials.length === 0) return;
+    const rows: { id: number; serialNo: string; status: TerminalStatus }[] = await this.em
+      .fork()
+      .createQueryBuilder(Terminal)
+      .select(['id', 'serialNo', 'status'])
+      .where({ serialNo: { $in: serials } })
+      .execute('all');
+    const inService = rows.filter((r) => r.status === TerminalStatus.IN_SERVICE);
+    const gone = serials.filter((s) => !inService.some((r) => r.serialNo === s));
+    const { active } = deviceKeys();
+    const batch = this.redis.pipeline();
+    if (inService.length > 0) batch.hset(active, Object.fromEntries(inService.map((r) => [r.serialNo, String(r.id)])));
+    if (gone.length > 0) batch.hdel(active, ...gone);
+    await execOrThrow(batch);
+  }
 }

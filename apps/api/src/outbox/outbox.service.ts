@@ -4,7 +4,7 @@ import { UnrecoverableError, type JobsOptions, type Queue } from 'bullmq';
 import { EntityManager, IsolationLevel, LockMode } from '@mikro-orm/mysql';
 import { PartnerPermanentError } from '../common/partner-errors.js';
 import { QUEUE } from '../queue/queue-names.js';
-import { OutboxEvent, OutboxStatus } from './outbox-event.entity.js';
+import { OUTBOX_TYPE, OutboxEvent, OutboxStatus } from './outbox-event.entity.js';
 import { ToktokClient } from './toktok.client.js';
 
 export interface NotifyJobData {
@@ -17,6 +17,25 @@ export const NOTIFY_JOB_OPTIONS: JobsOptions = {
   removeOnComplete: true,
   removeOnFail: true,
 };
+
+/** active 갱신(project) job 옵션. 실패하면 몇 번 다시 하고, 그래도 안 되면 주기 재구성이 맞춘다(decisions/0028). */
+export const PROJECT_JOB_OPTIONS: JobsOptions = {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 200 },
+  removeOnComplete: true,
+  removeOnFail: true,
+};
+
+export interface ProjectJobData {
+  serialNo: string;
+}
+
+/** 운영 중 단말기 목록(Redis active)을 바꾸는 이벤트인가: IN_SERVICE로 들어오거나 IN_SERVICE에서 나가는 상태 변경 */
+export function changesActiveSet(row: OutboxEvent): boolean {
+  if (row.type !== OUTBOX_TYPE.TERMINAL_STATUS_CHANGED) return false;
+  const p = row.payload as { fromStatus?: string | null; toStatus?: string };
+  return p.toStatus === 'IN_SERVICE' || p.fromStatus === 'IN_SERVICE';
+}
 
 /** 메신저가 같은 알림을 한 번으로 볼 수 있게 보내는 키. outbox 행마다 하나 */
 export function idempotencyKeyOf(id: number): string {
@@ -42,6 +61,7 @@ export class OutboxService {
     private readonly em: EntityManager,
     private readonly toktok: ToktokClient,
     @InjectQueue(QUEUE.OUTBOX) private readonly queue: Queue,
+    @InjectQueue(QUEUE.DEVICE) private readonly deviceQueue: Queue,
   ) {}
 
   /**
@@ -67,6 +87,14 @@ export class OutboxService {
       } else if (jobs.length > 0) {
         await this.queue.addBulk(jobs);
       }
+      // 두 번째 소비자: IN_SERVICE 진입·이탈 이벤트는 active 갱신 job도 넣는다(decisions/0028). jobId가 행마다 하나라
+      // 이 트랜잭션이 롤백돼 다시 relay돼도 한 번만 들어간다(notify와 같은 규칙).
+      const projections = rows.filter(changesActiveSet).map((row) => ({
+        name: 'project',
+        data: { serialNo: (row.payload as { serialNo: string }).serialNo } satisfies ProjectJobData,
+        opts: { ...PROJECT_JOB_OPTIONS, jobId: `project-${row.id}` },
+      }));
+      if (projections.length > 0) await this.deviceQueue.addBulk(projections);
       for (const row of rows) row.status = OutboxStatus.QUEUED;
       return rows.map((r) => r.id);
     }, { isolationLevel: IsolationLevel.READ_COMMITTED });
