@@ -25,7 +25,7 @@ describe('발주 (F10)', () => {
   it('발주하면 세움전자에 발주하고 그 발주번호로 저장한다(ORDERED)', async () => {
     const res = await t.http().post('/purchase-orders').set(OP).send({ modelCode: 'SN-100', quantity: 20 });
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ modelCode: 'SN-100', quantity: 20, status: 'ORDERED', orderedBy: 'jung', closedAt: null });
+    expect(res.body).toMatchObject({ modelCode: 'SN-100', quantity: 20, status: 'ORDERED', orderedBy: 'jung', closedAt: null, closedBy: null });
     expect(res.body.poNo).toMatch(/^SE\d+$/);
     expect(await factoryCalls()).toBe(1);
 

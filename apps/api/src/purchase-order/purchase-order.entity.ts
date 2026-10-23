@@ -11,7 +11,7 @@ export enum PurchaseOrderStatus {
 /** 세움전자(가상 공장)에 낸 발주. 발주번호(poNo)는 공장이 정한다. */
 @Entity({ tableName: 'purchase_order' })
 export class PurchaseOrder {
-  [OptionalProps]?: 'status' | 'deliveryNote' | 'createdAt' | 'closedAt';
+  [OptionalProps]?: 'status' | 'deliveryNote' | 'createdAt' | 'closedAt' | 'closedBy';
 
   @PrimaryKey()
   id!: number;
@@ -41,4 +41,7 @@ export class PurchaseOrder {
   // 유니온 타입(Date | null)은 데코레이터 메타데이터가 Object라 type을 꼭 적는다.
   @Property({ type: 'datetime', nullable: true })
   closedAt: Date | null = null;
+
+  @Property({ type: 'varchar', length: 50, nullable: true })
+  closedBy: string | null = null;
 }

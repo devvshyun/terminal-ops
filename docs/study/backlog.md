@@ -76,3 +76,7 @@
 - [ ] zip 폭탄과 압축 해제 크기 — 업로드 크기 제한이 메모리를 막지 못하는 이유, zip 중앙 디렉터리로 풀린 크기 미리 보기 (decisions/0022)
 - [ ] 엑셀 일괄 등록을 exceljs 스트리밍 WorkbookReader로 바꿔 5001행째에서 멈추기 — 메모리 한계 해결 후보 (decisions/0022, 실험 0006에서 5000행 가져오기 측정)
 - [ ] Nest 인터셉터 실행 순서와 오류가 나는 단계(인터셉터 앞부분 vs next.handle() Observable) (common/upload.interceptor.ts)
+- [ ] MySQL collation 우선순위(EXPLICIT·IMPLICIT·COERCIBLE)와 연결 collation, mysql2 기본값 (troubleshooting/0008)
+- [ ] JSON_TABLE — JSON 배열을 행으로 펼쳐 조인하기, FOR ORDINALITY (purchase-order.service.ts)
+- [ ] 같은 행을 잠그는 두 기능(입고 스캔·마감)이 줄을 서는 방식 — 잠금으로 상태 검사를 직렬화 (reconciliation.e2e.spec.ts)
+- [ ] 연결 풀의 세션 변수가 연결마다 다를 수 있다 — schema.refresh의 `set names`가 테스트 연결 하나만 바꿔 오류를 가림. 테스트 연결을 운영과 맞추는 방법 (troubleshooting/0008)

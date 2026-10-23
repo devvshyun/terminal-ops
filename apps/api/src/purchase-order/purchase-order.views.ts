@@ -10,5 +10,6 @@ export function toPurchaseOrderView(po: PurchaseOrder) {
     orderedBy: po.orderedBy,
     createdAt: po.createdAt.toISOString(),
     closedAt: po.closedAt?.toISOString() ?? null,
+    closedBy: po.closedBy,
   };
 }

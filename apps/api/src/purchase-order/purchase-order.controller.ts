@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { Operator } from '../common/operator.decorator.js';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto.js';
 import { PurchaseOrderService } from './purchase-order.service.js';
@@ -11,6 +11,17 @@ export class PurchaseOrderController {
   @Post()
   async create(@Body() dto: CreatePurchaseOrderDto, @Operator() actor: string) {
     return toPurchaseOrderView(await this.orders.create(dto, actor));
+  }
+
+  @Get(':poNo/reconciliation')
+  async reconciliation(@Param('poNo') poNo: string) {
+    return this.orders.reconcile(poNo);
+  }
+
+  @Post(':poNo/close')
+  @HttpCode(200)
+  async close(@Param('poNo') poNo: string, @Operator() actor: string) {
+    return this.orders.close(poNo, actor);
   }
 
   @Get(':poNo')
