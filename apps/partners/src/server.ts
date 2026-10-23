@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { bungaeCreateWaybill, bungaeTrack } from './bungae.js';
 import { BadJsonError, readJson, sendJson } from './http.js';
 import { neurimboCreateInvoice, neurimboTrack } from './neurimbo.js';
+import { seumCreatePurchaseOrder, seumDeliveryNote } from './seum.js';
 import { PartnersState, type ConfigPatch } from './state.js';
 import { toktokHook, toktokSummary } from './toktok.js';
 
@@ -33,6 +34,12 @@ async function route(state: PartnersState, req: IncomingMessage, res: ServerResp
   // 느림보물류(XML)
   if (method === 'POST' && path === '/neurimbo/api/invoice') return neurimboCreateInvoice(state, req, res);
   if (method === 'GET' && path === '/neurimbo/api/track') return neurimboTrack(state, url.searchParams.get('invoiceNo') ?? '', res);
+
+  // 세움전자(공장): 발주, 납품 명세
+  if (method === 'POST' && path === '/seum/v1/purchase-orders') return seumCreatePurchaseOrder(state, req, res);
+  if (method === 'GET' && (m = path.match(/^\/seum\/v1\/purchase-orders\/([^/]+)\/delivery-note$/))) {
+    return seumDeliveryNote(state, decodeURIComponent(m[1]), res);
+  }
 
   // 톡톡메신저 웹훅
   if (method === 'POST' && (m = path.match(/^\/toktok\/hooks\/([^/]+)$/))) {

@@ -29,11 +29,21 @@ export interface ToktokConfig {
   failRate: number;
 }
 
+export interface SeumConfig {
+  /** 발주보다 덜 보내는 대수 */
+  shortfall: number;
+  /** 명세에 섞을 다른 발주의 시리얼 수 */
+  foreignSerials: number;
+  /** 발주 API가 503을 낼 확률(0~1) */
+  error5xxRate: number;
+}
+
 export interface PartnersConfig {
   seed: number;
   bungae: BungaeConfig;
   neurimbo: NeurimboConfig;
   toktok: ToktokConfig;
+  seum: SeumConfig;
 }
 
 export interface ConfigPatch {
@@ -41,6 +51,7 @@ export interface ConfigPatch {
   bungae?: Partial<BungaeConfig>;
   neurimbo?: Partial<NeurimboConfig>;
   toktok?: Partial<ToktokConfig>;
+  seum?: Partial<SeumConfig>;
 }
 
 export function defaultConfig(): PartnersConfig {
@@ -49,6 +60,7 @@ export function defaultConfig(): PartnersConfig {
     bungae: { advancePerPoll: 1, duplicateRate: 0, rateLimitPerSec: 20, force429Rate: 0, retryAfterSec: 1, delayMs: 0 },
     neurimbo: { advancePerPoll: 1, delayMs: 0, error5xxRate: 0, shuffle: false },
     toktok: { failRate: 0 },
+    seum: { shortfall: 0, foreignSerials: 0, error5xxRate: 0 },
   };
 }
 
@@ -56,6 +68,15 @@ export function defaultConfig(): PartnersConfig {
 export interface Parcel {
   createdAt: number;
   polls: number;
+}
+
+/** 세움전자 발주 한 건과 납품 명세 */
+export interface SeumPurchaseOrder {
+  poNo: string;
+  modelCode: string;
+  quantity: number;
+  reference: string;
+  serials: string[];
 }
 
 export interface ToktokMessage {
@@ -100,6 +121,7 @@ export class PartnersState {
   seq = 0;
   bungae = new Map<string, Parcel>();
   neurimbo = new Map<string, Parcel>();
+  seum = new Map<string, SeumPurchaseOrder>();
   /** 번개 추적 조회가 받아들여진 시각(최근 1초) */
   bungaeWindow: number[] = [];
   messages: ToktokMessage[] = [];
@@ -113,6 +135,7 @@ export class PartnersState {
     this.seq = 0;
     this.bungae.clear();
     this.neurimbo.clear();
+    this.seum.clear();
     this.bungaeWindow = [];
     this.messages = [];
     this.stats = emptyStats();
@@ -126,6 +149,7 @@ export class PartnersState {
       bungae: { ...this.config.bungae, ...patch.bungae },
       neurimbo: { ...this.config.neurimbo, ...patch.neurimbo },
       toktok: { ...this.config.toktok, ...patch.toktok },
+      seum: { ...this.config.seum, ...patch.seum },
     };
     if (patch.seed !== undefined) this.rng = createRng(patch.seed);
     return this.config;
