@@ -84,3 +84,5 @@
 - [ ] mysql2 연결 옵션 charset이 collation 이름을 받는 방식과 ORM 설정이 드라이버로 넘어가는 경로(driverOptions) (mikro-orm.config.ts, decisions/0025)
 - [ ] InnoDB REPEATABLE READ의 일관된 읽기(첫 읽기 시점 스냅숏)와 여러 집계 쿼리를 한 트랜잭션에 묶는 이유 (purchase-order.service.ts reconcile)
 - [ ] "열린 건은 하나만" 규칙을 잠금으로 지키기 vs 부분 unique 인덱스(generated column) (service-ticket.service.ts)
+- [ ] 여러 행 잠금 순서와 데드락 — 순환 대기 조건(공유 자원이 둘 이상이어야 한다) (decisions/0023, experiments/0007)
+- [ ] 잠금 읽기(FOR UPDATE)는 스냅샷을 만들지 않고 최신 커밋을 읽는다 — RR에서 일반 SELECT와 다른 점 (replacement.service.ts)

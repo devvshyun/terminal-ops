@@ -8,5 +8,6 @@ import { ShipmentService } from './shipment.service.js';
   imports: [TerminalModule, CarrierModule],
   controllers: [ShipmentController],
   providers: [ShipmentService],
+  exports: [ShipmentService],
 })
 export class ShipmentModule {}

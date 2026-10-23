@@ -1,4 +1,5 @@
-import { IsBoolean, IsString, Length, Matches } from 'class-validator';
+import { IsBoolean, IsEnum, IsString, Length, Matches } from 'class-validator';
+import { Carrier } from '../../carrier/carrier.types.js';
 import { SERIAL_NO_MESSAGE, SERIAL_NO_PATTERN } from '../../terminal/bulk-rows.js';
 
 export class OpenTicketDto {
@@ -20,4 +21,12 @@ export class RemoteCheckDto {
   @Length(1, 500)
   @Matches(/\S/, { message: 'note는 공백만으로 쓸 수 없습니다.' })
   note!: string;
+}
+
+export class ReplaceDto {
+  @Matches(SERIAL_NO_PATTERN, { message: SERIAL_NO_MESSAGE })
+  replacementSerialNo!: string;
+
+  @IsEnum(Carrier)
+  carrier!: Carrier;
 }
