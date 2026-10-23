@@ -1,6 +1,6 @@
 import { ApiClient, RequestError } from './client.js';
 import { defaultConfig, serialsOf, type SimConfig } from './config.js';
-import { createRng } from './rng.js';
+import { createRng, hashUniform } from './rng.js';
 import { SimStats } from './stats.js';
 
 export interface Device {
@@ -63,8 +63,6 @@ export class Fleet {
   private inTick: Promise<void> | null = null;
   /** stop이 요청됐다. 새 묶음을 시작하지 않는다. start가 지운다 */
   private stopping = false;
-  /** 업데이트 지연·실패를 정하는 시드 난수. configure가 seed로 다시 시작한다 */
-  private rng = createRng(this.config.seed);
   /** 진행 중인 업데이트(대기 타이머 + 보고 요청) */
   private updates = new Set<Promise<void>>();
   /** 보고를 기다리는 업데이트 타이머 → 그 업데이트를 끝내는 resolve(close가 타이머를 버릴 때 불러 settleUpdates가 멈추지 않게) */
@@ -90,7 +88,7 @@ export class Fleet {
 
   /**
    * 설정을 바꾸고 단말기 목록을 다시 만든다. 이미 있던 단말기의 펌웨어는 유지한다.
-   * 새 단말기 목록·연결을 모두 만든 뒤에 한꺼번에 바꾼다(중간에 던지면 이전 상태 그대로). 난수는 seed로 다시 시작한다.
+   * 새 단말기 목록·연결을 모두 만든 뒤에 한꺼번에 바꾼다(중간에 던지면 이전 상태 그대로).
    */
   configure(config: SimConfig): void {
     const serials = serialsOf(config);
@@ -106,12 +104,10 @@ export class Fleet {
       });
     }
     const client = new ApiClient(config.targetUrl, config.concurrency, config.requestTimeoutMs);
-    const rng = createRng(config.seed);
     this.client?.close();
     this.client = client;
     this.config = config;
     this.devices = next;
-    this.rng = rng;
   }
 
   start(): void {
@@ -227,8 +223,9 @@ export class Fleet {
 
   /**
    * 업데이트 지시: 이미 업데이트 중이거나 이미 그 버전이면 무시한다(성공 보고 직전에 읽힌 하트비트 응답이 지시를 한 번 더 싣고 올 수 있다).
-   * updateDelayMs(+ 0~updateJitterMs) 뒤 결과를 보고한다. 지터와 성공 여부는 여기서(지시를 받은 순서대로) 함께 뽑는다 —
-   * 타이머가 끝날 때 뽑으면 다른 묶음의 응답이 오는 시점에 따라 난수 순서가 바뀌어 같은 시드에서도 단말기별 결과가 달라진다.
+   * updateDelayMs(+ 0~updateJitterMs) 뒤 결과를 보고한다. 지터와 성공 여부는 공유 난수가 아니라 (시드, 시리얼, 배포 id, 버전)의
+   * 해시로 정한다 — 공유 난수를 지시 받은 순서대로 쓰면 concurrency > 1에서 묶음 응답이 오는 순서에 따라 단말기별 결과가 달라진다.
+   * 그래서 같은 시드면 응답 순서·동시성과 상관없이 단말기마다 같은 결과다(decisions/0009).
    */
   private startUpdate(serialNo: string, offer: UpdateOffer): void {
     const device = this.devices.get(serialNo);
@@ -237,9 +234,9 @@ export class Fleet {
     this.updating.set(serialNo, generation);
     device.updating = true;
     this.stats.updateOffers += 1;
-    // 확률이 0인 설정은 난수를 쓰지 않는다(다른 난수 순서를 흔들지 않게, partners와 같은 규칙)
-    const jitter = this.config.updateJitterMs > 0 ? Math.floor(this.rng() * this.config.updateJitterMs) : 0;
-    const success = !(this.config.firmwareFailRate > 0 && this.rng() < this.config.firmwareFailRate);
+    const { seed, updateJitterMs, firmwareFailRate } = this.config;
+    const jitter = Math.floor(hashUniform(seed, 'jitter', serialNo, offer.rolloutId, offer.version) * updateJitterMs);
+    const success = !(hashUniform(seed, 'fail', serialNo, offer.rolloutId, offer.version) < firmwareFailRate);
     const work = new Promise<void>((resolve) => {
       const timer = setTimeout(() => {
         this.updateTimers.delete(timer);

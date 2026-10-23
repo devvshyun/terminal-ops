@@ -187,6 +187,47 @@ describe('펌웨어 업데이트 흉내', () => {
     expect(await run(200)).toEqual(fast);
   });
 
+  it('concurrency 8·응답 지연이 무작위여도 같은 시드면 단말기별 결과가 같다((시드, 시리얼, 배포)의 결정적 함수)', async () => {
+    const run = async () => {
+      api.setHandler(async (req, res) => {
+        if (req.path === '/devices/firmware-reports') return sendJson(res, 200, {});
+        await sleep(Math.floor(Math.random() * 40)); // 묶음마다 응답 순서가 실행마다 달라진다
+        const items = req.body.items as { serialNo: string }[];
+        sendJson(res, 200, { results: items.map((i) => ({ serialNo: i.serialNo, result: 'OK', update: { rolloutId: 3, version: '2.0.0' } })) });
+      });
+      api.received.length = 0;
+      const f = new Fleet(config({ count: 80, batchSize: 5, concurrency: 8, updateDelayMs: 0, updateJitterMs: 30, firmwareFailRate: 0.5, seed: 9 }));
+      await f.tick();
+      await f.settleUpdates();
+      await f.close();
+      return Object.fromEntries(reports().map((r) => [r.serialNo as string, r.success as boolean]));
+    };
+    const first = await run();
+    expect(Object.keys(first)).toHaveLength(80);
+    const failed = Object.values(first).filter((s) => !s).length;
+    expect(failed).toBeGreaterThan(20);
+    expect(failed).toBeLessThan(60);
+    expect(await run()).toEqual(first);
+    expect(await run()).toEqual(first);
+  });
+
+  it('다른 배포(rolloutId)면 같은 단말기라도 결과를 따로 정한다', async () => {
+    const run = async (rolloutId: number) => {
+      api.setHandler((req, res) => {
+        if (req.path === '/devices/firmware-reports') return sendJson(res, 200, {});
+        const items = req.body.items as { serialNo: string }[];
+        sendJson(res, 200, { results: items.map((i) => ({ serialNo: i.serialNo, result: 'OK', update: { rolloutId, version: '2.0.0' } })) });
+      });
+      api.received.length = 0;
+      const f = new Fleet(config({ count: 40, batchSize: 40, updateDelayMs: 0, firmwareFailRate: 0.5, seed: 9 }));
+      await f.tick();
+      await f.settleUpdates();
+      await f.close();
+      return Object.fromEntries(reports().map((r) => [r.serialNo as string, r.success as boolean]));
+    };
+    expect(await run(1)).not.toEqual(await run(2));
+  });
+
   it('업데이트 중인 단말기가 목록에서 빠졌다 다시 들어와도 업데이트를 두 번 하지 않는다', async () => {
     fleet = new Fleet(config({ updateDelayMs: 100 }));
     await fleet.tick();
