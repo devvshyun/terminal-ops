@@ -61,3 +61,6 @@
 - [ ] MikroORM 트랜잭션 컨텍스트(AsyncLocalStorage)가 테스트 hook 안의 HTTP 요청으로 새는 현상 (troubleshooting/0010)
 - [ ] 외부 업체 발주의 멱등 — reference를 고정 키로 보내 재시도해도 발주가 하나만 생기게. 단 공장이 reference로 중복을 거르지 않으면 소용없다(seum.ts는 저장만 함) (purchase-order.service.ts, decisions/0012)
 - [ ] MySQL datetime 정밀도(초)와 JS Date 밀리초 — 저장 후 다시 읽으면 값이 다른 이유 (purchase-order.e2e.spec.ts)
+- [ ] MikroORM batchSize와 다중 행 INSERT, version 컬럼이 있으면 INSERT 뒤 select id, version을 하는 이유 (bulk-registration.service.ts)
+- [ ] FlushMode AUTO — 쿼리 전에 자동 flush가 일어나는 조건 (실험 0006 N+1)
+- [ ] unique 위반 재시도와 INSERT 순서 — 같은 키를 넣는 트랜잭션끼리 기다리는 방식 (decisions/0019)

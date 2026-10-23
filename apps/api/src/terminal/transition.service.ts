@@ -67,8 +67,13 @@ export class TransitionService {
    * 새로 만든 단말기의 첫 이력(null → 현재 상태)을 남긴다. 등록 트랜잭션 안에서 부른다(decisions/0008).
    * 단말기 INSERT와 이력 INSERT가 같은 트랜잭션이고 부모 행은 이 트랜잭션이 막 만든 행이라 S→X 승격이 생기지 않는다.
    */
-  recordRegistration(terminal: Terminal, actor: string, source: TransitionSource, em: EntityManager): TerminalStatusHistory {
-    const reason = '신규 등록';
+  recordRegistration(
+    terminal: Terminal,
+    actor: string,
+    source: TransitionSource,
+    em: EntityManager,
+    reason = '신규 등록',
+  ): TerminalStatusHistory {
     const history = em.create(TerminalStatusHistory, {
       terminal,
       fromStatus: null,
