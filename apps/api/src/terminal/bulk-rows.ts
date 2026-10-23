@@ -29,7 +29,12 @@ export interface RowResult {
  * 빈 시리얼은 INVALID_FORMAT, 빈 모델 코드는 UNKNOWN_MODEL이 된다.
  */
 export function normalizeRows(rows: readonly { serialNo?: unknown; modelCode?: unknown }[]): { serialNo: string; modelCode: string }[] {
-  return rows.map((r) => ({ serialNo: String(r.serialNo ?? '').trim(), modelCode: String(r.modelCode ?? '').trim() }));
+  return rows.map((r) => ({ serialNo: normalizeValue(r.serialNo), modelCode: normalizeValue(r.modelCode) }));
+}
+
+/** 값 하나를 normalizeRows와 같은 규칙으로 맞춘다. 박스 스캔은 요청 입구에서 시리얼 목록 전체에 이것을 쓴다(troubleshooting/0012). */
+export function normalizeValue(value: unknown): string {
+  return String(value ?? '').trim();
 }
 
 /**

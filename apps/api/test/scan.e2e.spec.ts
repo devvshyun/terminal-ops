@@ -71,6 +71,23 @@ describe('박스 일괄 스캔 (F6)', () => {
       expect(await noteCalls()).toBe(before);
     });
 
+    it('앞뒤 공백·\\r이 붙은 시리얼도 다듬은 값으로 명세를 검사한다(명세 밖이면 NOT_IN_DELIVERY_NOTE)', async () => {
+      const { poNo, serials } = await orderPurchase(t, 2);
+      const body = { scanId: 'BOX-RCV-0020', kind: 'RECEIVE', poNo, serials: ['SE0-9998 ', 'SE0-9997\r', ` ${serials[0]}\r`] };
+      const res = await scan(body);
+      expect(res.status).toBe(201);
+      expect(res.body.results.map((r: { serialNo: string; result: string }) => [r.serialNo, r.result])).toEqual([
+        ['SE0-9998', 'NOT_IN_DELIVERY_NOTE'],
+        ['SE0-9997', 'NOT_IN_DELIVERY_NOTE'],
+        [serials[0], 'CREATED'],
+      ]);
+      expect(await em().count(Terminal, { serialNo: { $in: ['SE0-9998', 'SE0-9997'] } })).toBe(0);
+      // 요청 해시도 다듬은 값으로 만든다: 공백 없이 같은 박스를 다시 보내면 같은 요청이다.
+      const again = await scan({ ...body, serials: ['SE0-9998', 'SE0-9997', serials[0]] });
+      expect(again.status).toBe(200);
+      expect(again.body.replayed).toBe(true);
+    });
+
     it('poNo가 없으면 400, 없는 발주는 404, 마감된 발주는 422 PO_CLOSED, 501개 이상은 400', async () => {
       expect((await scan({ scanId: 'BOX-RCV-0010', kind: 'RECEIVE', serials: ['A-0001'] })).status).toBe(400);
       expect((await scan({ scanId: 'BOX-RCV-0011', kind: 'RECEIVE', poNo: 'SE0', serials: ['A-0001'] })).status).toBe(404);
@@ -172,6 +189,38 @@ describe('박스 일괄 스캔 (F6)', () => {
       expect((await em().findOneOrFail(Terminal, { serialNo: 'RT-0003' })).status).toBe(TerminalStatus.IN_STOCK);
       const history = await t.http().get('/terminals/RT-0001/history');
       expect(history.body.at(-1)).toMatchObject({ fromStatus: 'RETURNING', toStatus: 'RETURNED', source: 'SCAN', actor: 'choi', reason: '박스 회수 입고' });
+    });
+
+    it('앞뒤 공백이 붙은 시리얼도 다듬은 값으로 처리한다', async () => {
+      await registerWithStatus('RT-0011', TerminalStatus.RETURNING);
+      const res = await scan({ scanId: 'BOX-RET-0002', kind: 'RETURN_IN', serials: ['RT-0011 ', 'RT-0011\r'] });
+      expect(res.status).toBe(201);
+      expect(res.body.results.map((r: { serialNo: string; result: string }) => [r.serialNo, r.result])).toEqual([
+        ['RT-0011', 'RETURNED'],
+        ['RT-0011', 'DUPLICATE_IN_REQUEST'],
+      ]);
+      expect((await em().findOneOrFail(Terminal, { serialNo: 'RT-0011' })).status).toBe(TerminalStatus.RETURNED);
+    });
+
+    it('회수 입고에 poNo를 보내면 400(쓰지 않는 값이 요청 해시에 섞이지 않게)', async () => {
+      const res = await scan({ scanId: 'BOX-RET-0003', kind: 'RETURN_IN', poNo: 'SE0', serials: ['RT-0001'] });
+      expect(res.status).toBe(400);
+      expect(await em().count(ScanBatch, { scanId: 'BOX-RET-0003' })).toBe(0);
+    });
+  });
+
+  describe('잠금 해제 실패', () => {
+    it('반영이 커밋된 뒤 잠금 해제가 실패해도 201과 결과를 준다(잠금은 TTL로 풀린다)', async () => {
+      const { poNo, serials } = await orderPurchase(t, 1);
+      const spy = vi.spyOn(t.app.get(ScanLock), 'release').mockRejectedValueOnce(new Error('Connection is closed.'));
+      try {
+        const res = await scan({ scanId: 'BOX-LOCK-0001', kind: 'RECEIVE', poNo, serials });
+        expect(res.status).toBe(201);
+        expect(res.body.results).toEqual([{ serialNo: serials[0], result: 'CREATED' }]);
+        expect(spy).toHaveBeenCalledTimes(1);
+      } finally {
+        spy.mockRestore();
+      }
     });
   });
 });

@@ -69,3 +69,4 @@
 - [ ] Redis 분산 잠금(SET NX PX + 토큰 비교 해제)과 그 한계 — TTL보다 오래 걸리면? Redlock 논쟁 (scan-lock.ts, decisions/0020)
 - [ ] 멱등 키(Idempotency-Key) 설계 — 같은 키 다른 내용은 거절 (decisions/0020)
 - [ ] MikroORM 다건 UPDATE가 CASE 문 하나로 나가는 방식과 낙관적 락 (transition.service.ts transitionMany)
+- [ ] 입력 정규화는 경계에서 한 번 — 검사하는 값과 저장하는 값이 달라지는 버그 유형 (troubleshooting/0012)

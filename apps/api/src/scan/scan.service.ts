@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EntityManager, LockMode, UniqueConstraintViolationException } from '@mikro-orm/mysql';
 import { BusinessError } from '../common/domain-errors.js';
 import { retryOnUniqueViolation } from '../common/retry-on-unique.js';
 import { PurchaseOrder, PurchaseOrderStatus } from '../purchase-order/purchase-order.entity.js';
 import { PurchaseOrderService } from '../purchase-order/purchase-order.service.js';
 import { BulkRegistrationService } from '../terminal/bulk-registration.service.js';
-import { precheckSerials, SERIAL_NO_PATTERN, type RowResult } from '../terminal/bulk-rows.js';
+import { normalizeValue, precheckSerials, SERIAL_NO_PATTERN, type RowResult } from '../terminal/bulk-rows.js';
 import { Terminal } from '../terminal/terminal.entity.js';
 import { TerminalStatus, TransitionSource } from '../terminal/terminal-status.js';
 import { TransitionService } from '../terminal/transition.service.js';
@@ -14,6 +14,7 @@ import type { CreateScanDto } from './dto/create-scan.dto.js';
 import { ScanBatch, ScanKind } from './scan-batch.entity.js';
 import { ScanLock } from './scan-lock.js';
 
+/** 요청 해시. serials는 다듬은 값을 입력 순서 그대로 넣는다(같은 박스라도 순서가 다르면 다른 요청, decisions/0020). */
 export function requestHashOf(dto: Pick<CreateScanDto, 'kind' | 'poNo' | 'serials'>): string {
   return createHash('sha256')
     .update(JSON.stringify([dto.kind, dto.poNo ?? null, dto.serials]))
@@ -26,6 +27,8 @@ export function requestHashOf(dto: Pick<CreateScanDto, 'kind' | 'poNo' | 'serial
  */
 @Injectable()
 export class ScanService {
+  private readonly logger = new Logger(ScanService.name);
+
   constructor(
     private readonly em: EntityManager,
     private readonly lock: ScanLock,
@@ -34,7 +37,13 @@ export class ScanService {
     private readonly transitions: TransitionService,
   ) {}
 
-  async scan(dto: CreateScanDto, actor: string): Promise<{ batch: ScanBatch; replayed: boolean }> {
+  async scan(input: CreateScanDto, actor: string): Promise<{ batch: ScanBatch; replayed: boolean }> {
+    // 회수 입고는 발주와 상관없다. 쓰지 않는 값이 요청 해시에 섞이지 않게 받지 않는다(decisions/0020).
+    if (input.kind === ScanKind.RETURN_IN && input.poNo !== undefined && input.poNo !== null) {
+      throw new BadRequestException('회수 입고(RETURN_IN)에는 poNo를 보내지 않습니다.');
+    }
+    // 시리얼은 입구에서 한 번 다듬고(앞뒤 공백·CR), 요청 해시·명세 검사·등록·회수 입고 모두 이 값을 쓴다(troubleshooting/0012).
+    const dto: CreateScanDto = { ...input, serials: input.serials.map(normalizeValue) };
     const hash = requestHashOf(dto);
     const done = await this.findBatch(dto.scanId);
     if (done) return this.replay(done, hash);
@@ -55,7 +64,12 @@ export class ScanService {
       }
       throw error;
     } finally {
-      await this.lock.release(dto.scanId, token);
+      // 반영은 이미 커밋됐을 수 있다. 해제 실패로 결과를 500으로 바꾸지 않는다. 잠금은 TTL(SCAN_LOCK_TTL_MS)이 지나면 풀린다.
+      try {
+        await this.lock.release(dto.scanId, token);
+      } catch (error) {
+        this.logger.warn(`스캔 잠금 해제 실패(TTL이 지나면 풀린다) scanId=${dto.scanId}: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
   }
 
@@ -126,8 +140,9 @@ export class ScanService {
   }
 
   /**
-   * 회수 입고: RETURNING → RETURNED(source SCAN)를 한 트랜잭션에서. 단말기는 한 번의 조회로 id 순서대로 읽고,
-   * 상태가 다르면 그 행만 INVALID_STATE. version이 그사이 바뀐 행이 있으면 박스 전체가 409로 롤백된다(같은 scanId로 다시 보내면 된다).
+   * 회수 입고: RETURNING → RETURNED(source SCAN)를 한 트랜잭션에서. 단말기는 한 번의 조회로 읽고(잠금 없는 SELECT라
+   * orderBy는 잠금 순서와 상관없다), 상태가 다르면 그 행만 INVALID_STATE. 행 잠금은 transitionMany의 UPDATE 한 문장이
+   * PK(id)로 잡는다. version이 그사이 바뀐 행이 있으면 박스 전체가 409로 롤백된다(같은 scanId로 다시 보내면 된다).
    */
   private async returnIn(dto: CreateScanDto, actor: string, hash: string): Promise<ScanBatch> {
     return this.em.fork().transactional(async (tx) => {
