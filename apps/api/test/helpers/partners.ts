@@ -37,4 +37,7 @@ export const partners = {
   configure: (patch: Record<string, unknown>) => call<unknown>('POST', '/__admin/config', patch),
   stats: () => call<PartnersStats>('GET', '/__admin/stats'),
   toktok: () => call<ToktokSummary>('GET', '/__admin/toktok/messages'),
+  /** 세움전자 납품 명세(테스트가 "공장이 보낸 박스"를 만들 때 쓴다). 호출 수(seum.deliveryNote)에 더해진다. */
+  deliveryNote: (poNo: string) =>
+    call<{ poNo: string; serials: string[] }>('GET', `/seum/v1/purchase-orders/${encodeURIComponent(poNo)}/delivery-note`),
 };

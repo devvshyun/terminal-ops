@@ -1,4 +1,5 @@
 import { expect } from 'vitest';
+import { partners } from './partners.js';
 import type { TestApp } from './test-app.js';
 
 /** 시나리오 준비용 작업자 */
@@ -33,6 +34,14 @@ export async function shipWith(t: TestApp, serialNo: string, carrier: 'BUNGAE' |
   const res = await t.http().post('/shipments').set(SCENARIO_OP).send({ serialNo, carrier, expectedVersion: version });
   expect(res.status).toBe(201);
   return { shipmentId: res.body.id as number, trackingNo: res.body.trackingNo as string };
+}
+
+/** 발주를 내고 공장의 납품 명세(시리얼 목록)를 함께 돌려준다. partners 설정(shortfall 등)은 미리 해 둔다. */
+export async function orderPurchase(t: TestApp, quantity: number, modelCode = 'SN-100') {
+  const res = await t.http().post('/purchase-orders').set(SCENARIO_OP).send({ modelCode, quantity });
+  expect(res.status).toBe(201);
+  const poNo = res.body.poNo as string;
+  return { poNo, serials: (await partners.deliveryNote(poNo)).serials };
 }
 
 /** 등록부터 출고까지 한 번에. 수집 테스트·실험 준비용 */

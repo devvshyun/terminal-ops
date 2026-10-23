@@ -66,3 +66,6 @@
 - [ ] unique 위반 재시도와 INSERT 순서 — 같은 키를 넣는 트랜잭션끼리 기다리는 방식 (decisions/0019)
 - [ ] InnoDB INSERT의 duplicate 검사 락 — 커밋 전 같은 키가 있으면 S 락을 기다리는 이유, 반대 순서 INSERT 데드락 (troubleshooting/0011)
 - [ ] 재시도 jitter — 같은 순간에 진 요청들이 다시 같은 순간에 부딪히지 않게 흩는 방법, 지수 백오프와 차이 (decisions/0019)
+- [ ] Redis 분산 잠금(SET NX PX + 토큰 비교 해제)과 그 한계 — TTL보다 오래 걸리면? Redlock 논쟁 (scan-lock.ts, decisions/0020)
+- [ ] 멱등 키(Idempotency-Key) 설계 — 같은 키 다른 내용은 거절 (decisions/0020)
+- [ ] MikroORM 다건 UPDATE가 CASE 문 하나로 나가는 방식과 낙관적 락 (transition.service.ts transitionMany)

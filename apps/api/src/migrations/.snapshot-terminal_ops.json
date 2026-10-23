@@ -1057,6 +1057,186 @@
       "comment": null
     },
     {
+      "name": "scan_batch",
+      "columns": {
+        "actor": {
+          "name": "actor",
+          "type": "varchar(50)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": 50,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "string"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "datetime",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "datetime"
+        },
+        "id": {
+          "name": "id",
+          "type": "int",
+          "unsigned": true,
+          "autoincrement": true,
+          "primary": true,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "integer"
+        },
+        "kind": {
+          "name": "kind",
+          "type": "enum('receive','return_in')",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [
+            "RECEIVE",
+            "RETURN_IN"
+          ],
+          "mappedType": "enum"
+        },
+        "po_no": {
+          "name": "po_no",
+          "type": "varchar(30)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": 30,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "string"
+        },
+        "request_hash": {
+          "name": "request_hash",
+          "type": "varchar(64)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": 64,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "string"
+        },
+        "results": {
+          "name": "results",
+          "type": "json",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "json"
+        },
+        "scan_id": {
+          "name": "scan_id",
+          "type": "varchar(64)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": true,
+          "length": 64,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "string"
+        }
+      },
+      "indexes": [
+        {
+          "columnNames": [
+            "id"
+          ],
+          "composite": false,
+          "constraint": true,
+          "keyName": "PRIMARY",
+          "primary": true,
+          "unique": true
+        },
+        {
+          "columnNames": [
+            "po_no"
+          ],
+          "composite": false,
+          "constraint": false,
+          "keyName": "scan_batch_po_no_index",
+          "primary": false,
+          "unique": false
+        },
+        {
+          "columnNames": [
+            "scan_id"
+          ],
+          "composite": false,
+          "constraint": true,
+          "keyName": "scan_batch_scan_id_unique",
+          "primary": false,
+          "unique": true
+        }
+      ],
+      "checks": [],
+      "triggers": [],
+      "foreignKeys": {},
+      "comment": null
+    },
+    {
       "name": "shipment",
       "columns": {
         "carrier": {
@@ -1581,6 +1761,23 @@
           "enumItems": [],
           "mappedType": "integer"
         },
+        "purchase_order_id": {
+          "name": "purchase_order_id",
+          "type": "int",
+          "unsigned": true,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "integer"
+        },
         "serial_no": {
           "name": "serial_no",
           "type": "varchar(32)",
@@ -1696,6 +1893,16 @@
         },
         {
           "columnNames": [
+            "purchase_order_id"
+          ],
+          "composite": false,
+          "constraint": false,
+          "keyName": "terminal_purchase_order_id_index",
+          "primary": false,
+          "unique": false
+        },
+        {
+          "columnNames": [
             "serial_no"
           ],
           "composite": false,
@@ -1740,6 +1947,18 @@
             "id"
           ],
           "referencedTableName": "terminal_model"
+        },
+        "terminal_purchase_order_id_foreign": {
+          "columnNames": [
+            "purchase_order_id"
+          ],
+          "constraintName": "terminal_purchase_order_id_foreign",
+          "localTableName": "terminal",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "purchase_order",
+          "deleteRule": "set null"
         }
       },
       "comment": null

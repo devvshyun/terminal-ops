@@ -37,6 +37,18 @@ export class PurchaseOrderService {
     return po;
   }
 
+  /**
+   * 납품 명세를 돌려준다. 아직 안 받았으면 트랜잭션 밖에서 세움전자에 물어 저장한다(처음 한 번).
+   * 동시에 두 요청이 받아 와도 내용이 같고, delivery_note가 null일 때만 쓰므로 덮어쓰지 않는다.
+   */
+  async ensureDeliveryNote(po: PurchaseOrder): Promise<string[]> {
+    if (po.deliveryNote) return po.deliveryNote;
+    const { serials } = await this.seum.getDeliveryNote(po.poNo);
+    await this.em.fork().nativeUpdate(PurchaseOrder, { id: po.id, deliveryNote: null }, { deliveryNote: serials });
+    po.deliveryNote = serials;
+    return serials;
+  }
+
   async get(poNo: string): Promise<PurchaseOrder> {
     const po = await this.em.findOne(PurchaseOrder, { poNo }, { populate: ['model'] });
     if (!po) throw new NotFoundException(`발주 ${poNo}이(가) 없습니다.`);
