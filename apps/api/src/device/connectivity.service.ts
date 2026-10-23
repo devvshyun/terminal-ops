@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { raw } from '@mikro-orm/core';
 import { EntityManager } from '@mikro-orm/mysql';
 import type { Redis } from 'ioredis';
 import { env } from '../config/env.js';
@@ -36,15 +37,40 @@ export type ConnectivityRow = Pick<DeviceConnectivity, 'terminalId' | 'online' |
 /** UPSERT 한 문장에 담는 행 수 */
 const UPSERT_CHUNK = 500;
 
+/** 묶음 알림(device.offline_bulk/online_bulk) payload에 담는 시리얼 수. 나머지는 count와 truncated로만 */
+const BULK_EVENT_SERIALS = 100;
+
+/** merge 필드 → 컬럼 */
+const COLUMN: Record<keyof ConnectivityRow, string> = {
+  terminalId: 'terminal_id',
+  online: 'online',
+  lastSeenAt: 'last_seen_at',
+  firmwareVersion: 'firmware_version',
+  changedAt: 'changed_at',
+};
+
+/**
+ * 이미 있는 행에서 덮어쓸 식. lastSeenAt만 GREATEST로 — 늦게 커밋된 스냅샷·판정이 들고 있던 더 오래된 값이
+ * 더 새 값을 덮지 않게 한다(뒤로 가지 않음). MySQL 8.4에서 VALUES()는 deprecated지만 동작한다(행 별칭 문법은 MikroORM이 만들지 않음).
+ */
+function mergeExpr(merge: (keyof ConnectivityRow)[]) {
+  return Object.fromEntries(
+    merge.map((f) => {
+      const c = `\`${COLUMN[f]}\``;
+      return [f, raw(f === 'lastSeenAt' ? `greatest(${c}, values(${c}))` : `values(${c})`)];
+    }),
+  );
+}
+
 /**
  * device_connectivity UPSERT(`insert … on duplicate key update`). 행은 terminal_id 오름차순으로 넘긴다(여러 행 잠금 순서).
  * em.upsertMany를 쓰지 않는 이유: MikroORM 7.2.5는 MySQL에서 UPSERT 뒤에 관리 엔티티를 만들려고 같은 행을
  * `select … where terminal_id = ? or …`로 다시 읽는다(사전 검증, decisions/0029). 여기서는 엔티티가 필요 없어 QueryBuilder로 한 문장만 보낸다.
- * @param merge 이미 있는 행에서 덮어쓸 필드
+ * @param merge 이미 있는 행에서 덮어쓸 필드(lastSeenAt은 GREATEST로, mergeExpr)
  */
 export async function upsertConnectivity(tx: EntityManager, rows: ConnectivityRow[], merge: (keyof ConnectivityRow)[]): Promise<void> {
   for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
-    await tx.createQueryBuilder(DeviceConnectivity).insert(rows.slice(i, i + UPSERT_CHUNK)).onConflict('terminalId').merge(merge).execute();
+    await tx.createQueryBuilder(DeviceConnectivity).insert(rows.slice(i, i + UPSERT_CHUNK)).onConflict('terminalId').merge(mergeExpr(merge)).execute();
   }
 }
 
@@ -104,7 +130,9 @@ export class ConnectivityService {
     }
     const row = await em.findOne(DeviceConnectivity, { terminalId: terminal.id });
     if (row) {
-      return { serialNo, source: 'snapshot', online: row.online, lastSeenAt: row.lastSeenAt.toISOString(), firmwareVersion: row.firmwareVersion };
+      // 방어: 판정 job이 online을 못 내린 행(운영 이탈 직후 등)도 lastSeen이 기준보다 오래되면 오프라인으로 보인다
+      const online = row.online && row.lastSeenAt.getTime() > now - env.hbOfflineAfterMs;
+      return { serialNo, source: 'snapshot', online, lastSeenAt: row.lastSeenAt.toISOString(), firmwareVersion: row.firmwareVersion };
     }
     return { serialNo, source: 'none', online: false, lastSeenAt: null, firmwareVersion: null };
   }
@@ -150,10 +178,14 @@ export class ConnectivityService {
       }
     });
 
-    if (changes.length > 0) {
+    if (changes.length > 0 || notActive.length > 0) {
       changes.sort((a, b) => a.terminalId - b.terminalId);
       const changedAt = new Date(now);
       await this.em.fork().transactional(async (tx) => {
+        // 운영에서 빠진 단말기: 알림 없이 online=false만(행이 online=true일 때). Redis 기록은 아래에서 지운다.
+        // 이걸 안 하면 GET이 스냅샷 대체값으로 영영 online=true를 보였다.
+        if (notActive.length > 0) await this.markOfflineSilently(tx, notActive, changedAt);
+        if (changes.length === 0) return;
         await upsertConnectivity(
           tx,
           changes.map((c) => ({
@@ -165,11 +197,28 @@ export class ConnectivityService {
           })),
           ['online', 'lastSeenAt', 'firmwareVersion', 'changedAt'],
         );
-        for (const c of changes) {
-          tx.create(OutboxEvent, {
-            type: c.online ? OUTBOX_TYPE.DEVICE_ONLINE : OUTBOX_TYPE.DEVICE_OFFLINE,
-            payload: { serialNo: c.serialNo, lastSeenAt: new Date(c.lastSeen).toISOString(), detectedAt: changedAt.toISOString() },
-          });
+        // 방향(오프라인·온라인)마다 기준보다 많으면 묶음 한 행. 5,000행이면 relay(2초에 100행) 줄이 100초가 되어
+        // 그 뒤의 terminal.status_changed 알림과 project job까지 밀렸다(실험 0010).
+        for (const online of [false, true]) {
+          const group = changes.filter((c) => c.online === online);
+          if (group.length > env.connectivityBulkEventThreshold) {
+            tx.create(OutboxEvent, {
+              type: online ? OUTBOX_TYPE.DEVICE_ONLINE_BULK : OUTBOX_TYPE.DEVICE_OFFLINE_BULK,
+              payload: {
+                count: group.length,
+                serials: group.slice(0, BULK_EVENT_SERIALS).map((c) => c.serialNo),
+                truncated: group.length > BULK_EVENT_SERIALS,
+                detectedAt: changedAt.toISOString(),
+              },
+            });
+            continue;
+          }
+          for (const c of group) {
+            tx.create(OutboxEvent, {
+              type: online ? OUTBOX_TYPE.DEVICE_ONLINE : OUTBOX_TYPE.DEVICE_OFFLINE,
+              payload: { serialNo: c.serialNo, lastSeenAt: new Date(c.lastSeen).toISOString(), detectedAt: changedAt.toISOString() },
+            });
+          }
         }
       });
     }
@@ -213,8 +262,25 @@ export class ConnectivityService {
     if (rows.length > 0) {
       await this.em.fork().transactional((tx) => upsertConnectivity(tx, rows, ['lastSeenAt', 'firmwareVersion']));
     }
-    await this.redis.set(k.snapshotAt, String(Math.max(...changed.map(([, s]) => s))));
+    // Math.max(...배열)은 인자 수 한도(수만~수십만)에서 RangeError가 날 수 있어 reduce로
+    await this.redis.set(k.snapshotAt, String(changed.reduce((max, [, s]) => (s > max ? s : max), from)));
     return { written: rows.length };
+  }
+
+  /** 시리얼들의 device_connectivity 행 중 online=true인 것만 false로(알림 없음). terminal_id 오름차순 */
+  private async markOfflineSilently(tx: EntityManager, serials: string[], changedAt: Date): Promise<void> {
+    const ids: { id: number }[] = await tx
+      .createQueryBuilder(Terminal)
+      .select(['id'])
+      .where({ serialNo: { $in: serials } })
+      .orderBy({ id: 'asc' })
+      .execute('all');
+    if (ids.length === 0) return;
+    await tx
+      .createQueryBuilder(DeviceConnectivity)
+      .update({ online: false, changedAt })
+      .where({ terminalId: { $in: ids.map((r) => r.id) }, online: true })
+      .execute();
   }
 
   /** Redis 잠금을 잡고 fn을 돌린다. 이미 누가 돌리고 있으면 null */

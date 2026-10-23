@@ -13,6 +13,9 @@ export const OUTBOX_TYPE = {
   /** 접속 상태(F8). 상태 전이가 아니라 별도 type이다(decisions/0029) */
   DEVICE_OFFLINE: 'device.offline',
   DEVICE_ONLINE: 'device.online',
+  /** 한 번 판정에서 기준보다 많이 바뀌면 묶음 한 건(decisions/0029) */
+  DEVICE_OFFLINE_BULK: 'device.offline_bulk',
+  DEVICE_ONLINE_BULK: 'device.online_bulk',
 } as const;
 
 /**

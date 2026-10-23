@@ -54,6 +54,11 @@ export const env = {
   offlineDetectIntervalMs: Number(process.env.OFFLINE_DETECT_INTERVAL_MS ?? 10_000),
   /** 접속 상태 스냅샷(Redis → MySQL) 주기 */
   connectivitySnapshotIntervalMs: Number(process.env.CONNECTIVITY_SNAPSHOT_INTERVAL_MS ?? 60_000),
+  /**
+   * 한 번 판정에서 오프라인(또는 온라인)으로 바뀐 단말기가 이보다 많으면 단말기별 알림 대신 묶음 알림 한 건
+   * (device.offline_bulk/online_bulk)을 남긴다. 5,000건이 relay 줄(2초에 100건)을 100초 막지 않게(decisions/0029, 실험 0010)
+   */
+  connectivityBulkEventThreshold: Number(process.env.CONNECTIVITY_BULK_EVENT_THRESHOLD ?? 50),
   /** 우리 쪽 호출 속도 제한(초당). 택배사 한도보다 낮게 둔다. */
   bungaeRatePerSec: Number(process.env.BUNGAE_RATE_PER_SEC ?? 10),
   neurimboRatePerSec: Number(process.env.NEURIMBO_RATE_PER_SEC ?? 5),

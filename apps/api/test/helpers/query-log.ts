@@ -16,12 +16,16 @@ export function captureQueries(orm: MikroORM) {
   const conn = orm.em.getConnection() as unknown as LoggingConnection;
   const original = conn.logQuery;
   const queries: string[] = [];
+  /** 값까지 채워 실제로 보낸 SQL(MikroORM이 context.formatted로 넘김). raw() 값이 어떻게 들어갔는지 볼 때 쓴다 */
+  const formatted: string[] = [];
   conn.logQuery = function (query: string, context?: unknown) {
     queries.push(query);
+    formatted.push((context as { formatted?: string } | undefined)?.formatted ?? query);
     return original.call(this, query, context);
   };
   return {
     queries,
+    formatted,
     /** select로 시작하는 쿼리 수 */
     selects: () => queries.filter((q) => /^select /i.test(q)).length,
     stop: () => {

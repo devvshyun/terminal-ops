@@ -7,13 +7,16 @@ import { deviceKeys } from '../src/device/device-keys.js';
 import { OutboxEvent } from '../src/outbox/outbox-event.entity.js';
 import { RedisLock } from '../src/redis/redis-lock.js';
 import { REDIS } from '../src/redis/redis.provider.js';
+import { TerminalModel } from '../src/terminal/terminal-model.entity.js';
 import { Terminal } from '../src/terminal/terminal.entity.js';
+import { TerminalStatus } from '../src/terminal/terminal-status.js';
 import { captureQueries } from './helpers/query-log.js';
 import { deleteTestKeys } from './helpers/redis-keys.js';
 import { prepareInService } from './helpers/scenario.js';
 import { createTestApp, resetDatabase, type TestApp } from './helpers/test-app.js';
 
 const AFTER = 90_000; // 오프라인 기준(ms)
+const BULK = 50; // 묶음 이벤트 기준(CONNECTIVITY_BULK_EVENT_THRESHOLD 기본값)
 
 describe('접속 상태 — 오프라인 판정·스냅샷·조회 (F8, decisions/0029)', () => {
   let t: TestApp;
@@ -151,5 +154,109 @@ describe('접속 상태 — 오프라인 판정·스냅샷·조회 (F8, decision
     });
     expect((await t.http().get('/terminals/CN-0001/connectivity')).body).toMatchObject({ source: 'none', online: false, lastSeenAt: null });
     expect((await t.http().get('/terminals/NONE-0001/connectivity')).status).toBe(404);
+  });
+  it('운영에서 빠진 단말기(online=true 행)의 lastSeen이 오래되면 판정이 알림 없이 online=false로 바꾼다 → GET이 온라인이라 하지 않는다', async () => {
+    const id = String(await idOf('CN-0002'));
+    await em().nativeDelete(DeviceConnectivity, {});
+    await beat('CN-0002');
+    expect(await conn.snapshot()).toEqual({ written: 1 }); // 첫 스냅샷: online=true 행
+    expect(await rowOf('CN-0002')).toMatchObject({ online: true });
+    const offlineBefore = (await events('device.offline')).length;
+
+    await redis.hdel(k().active, 'CN-0002'); // IN_SERVICE에서 나감(project job이 하는 일)
+    try {
+      const now = Date.now();
+      await redis.zadd(k().lastSeen, now - 120_000, 'CN-0002');
+      expect(await conn.detect(now, AFTER)).toEqual({ offline: [], online: [] });
+      expect(await rowOf('CN-0002')).toMatchObject({ online: false, changedAt: new Date(now) });
+      expect(await events('device.offline')).toHaveLength(offlineBefore); // 알림 없음
+      expect(await redis.zscore(k().lastSeen, 'CN-0002')).toBeNull();
+      expect((await t.http().get('/terminals/CN-0002/connectivity')).body).toMatchObject({ source: 'snapshot', online: false });
+    } finally {
+      await redis.hset(k().active, 'CN-0002', id);
+    }
+  });
+
+  it('GET 스냅샷 대체값: 행이 online=true여도 lastSeenAt이 기준보다 오래되면 online=false(방어)', async () => {
+    await em().nativeDelete(DeviceConnectivity, {});
+    await em().insert(DeviceConnectivity, {
+      terminalId: await idOf('CN-0003'),
+      online: true,
+      lastSeenAt: new Date(Date.now() - 10 * 60_000),
+      changedAt: new Date(Date.now() - 20 * 60_000),
+    });
+    expect((await t.http().get('/terminals/CN-0003/connectivity')).body).toMatchObject({ source: 'snapshot', online: false });
+    await em().nativeUpdate(DeviceConnectivity, { terminalId: await idOf('CN-0003') }, { lastSeenAt: new Date(Date.now() - 1_000) });
+    expect((await t.http().get('/terminals/CN-0003/connectivity')).body).toMatchObject({ source: 'snapshot', online: true });
+  });
+
+  it('lastSeenAt은 뒤로 가지 않는다: 늦게 도착한 스냅샷의 더 오래된 값이 더 새 값을 덮지 않는다(GREATEST)', async () => {
+    await em().nativeDelete(DeviceConnectivity, {});
+    const newer = new Date(Date.now() - 1_000);
+    const older = Date.now() - 5_000;
+    await em().insert(DeviceConnectivity, { terminalId: await idOf('CN-0001'), online: true, lastSeenAt: newer, changedAt: newer });
+    await redis.zadd(k().lastSeen, older, 'CN-0001');
+    await redis.hset(k().firmware, 'CN-0001', '3.0.0');
+
+    const log = captureQueries(t.orm);
+    try {
+      expect(await conn.snapshot()).toEqual({ written: 1 });
+    } finally {
+      log.stop();
+    }
+    const insert = log.formatted.find((q) => /^insert/i.test(q)) ?? '';
+    console.log(`[GREATEST 쿼리] ${insert}`);
+    expect(insert).toMatch(/`last_seen_at` = greatest\(`last_seen_at`, values\(`last_seen_at`\)\)/i);
+    expect((await rowOf('CN-0001'))!.lastSeenAt).toEqual(newer);
+    expect(await redis.get(k().snapshotAt)).toBe(String(older));
+  });
+
+  describe('대량 변화는 묶음 이벤트 하나로 (relay 줄서기 방지)', () => {
+    const many = Array.from({ length: 120 }, (_, i) => `BK-${String(i + 1).padStart(4, '0')}`);
+
+    beforeAll(async () => {
+      const e = em();
+      const model = await e.findOneOrFail(TerminalModel, { code: 'SN-100' });
+      await e.insertMany(
+        Terminal,
+        many.map((serialNo) => ({ serialNo, model: model.id, status: TerminalStatus.IN_SERVICE, version: 1, createdAt: new Date(), updatedAt: new Date() })),
+      );
+      await t.app.get(ActiveSetService).rebuild();
+    });
+
+    it(`기준(${BULK}대)을 넘으면 device.offline_bulk / device.online_bulk 한 행(count, 앞 100대, truncated)`, async () => {
+      const offlineBefore = (await events('device.offline')).length;
+      const now = Date.now();
+      await redis.zadd(k().lastSeen, ...many.flatMap((s) => [now - 120_000, s]));
+
+      const off = await conn.detect(now, AFTER);
+      expect(off.offline).toHaveLength(120);
+      const bulk = await events('device.offline_bulk');
+      expect(bulk).toHaveLength(1);
+      expect(bulk[0].payload).toMatchObject({ count: 120, truncated: true, detectedAt: new Date(now).toISOString() });
+      expect(bulk[0].payload.serials).toEqual(many.slice(0, 100));
+      expect(await events('device.offline')).toHaveLength(offlineBefore); // 단말기별 행은 없다
+      // MySQL·Redis 상태는 단말기별로 그대로 맞춘다
+      expect(await rowOf('BK-0120')).toMatchObject({ online: false });
+      expect(await redis.scard(k().offline)).toBe(120);
+
+      await redis.zadd(k().lastSeen, ...many.flatMap((s) => [now + 1_000, s]));
+      const on = await conn.detect(now + 2_000, AFTER);
+      expect(on.online).toHaveLength(120);
+      const onBulk = await events('device.online_bulk');
+      expect(onBulk).toHaveLength(1);
+      expect(onBulk[0].payload).toMatchObject({ count: 120, truncated: true });
+      expect(await rowOf('BK-0001')).toMatchObject({ online: true });
+    });
+
+    it(`기준(${BULK}대) 이하면 지금처럼 단말기마다 device.offline`, async () => {
+      const bulkBefore = (await events('device.offline_bulk')).length;
+      const offlineBefore = (await events('device.offline')).length;
+      const now = Date.now();
+      await redis.zadd(k().lastSeen, ...many.slice(0, BULK).flatMap((s) => [now - 120_000, s]));
+      expect((await conn.detect(now, AFTER)).offline).toHaveLength(BULK);
+      expect(await events('device.offline')).toHaveLength(offlineBefore + BULK);
+      expect(await events('device.offline_bulk')).toHaveLength(bulkBefore);
+    });
   });
 });
