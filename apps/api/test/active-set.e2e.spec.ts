@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { getQueueToken } from '@nestjs/bullmq';
-import type { Queue } from 'bullmq';
+import { UnrecoverableError, type Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { ActiveSetService } from '../src/device/active-set.service.js';
 import { deviceKeys } from '../src/device/device-keys.js';
-import { OutboxService } from '../src/outbox/outbox.service.js';
+import { OutboxEvent, OutboxStatus } from '../src/outbox/outbox-event.entity.js';
+import { OutboxService, PROJECT_JOB_OPTIONS } from '../src/outbox/outbox.service.js';
 import { QUEUE } from '../src/queue/queue-names.js';
 import { REDIS } from '../src/redis/redis.provider.js';
 import { Terminal } from '../src/terminal/terminal.entity.js';
@@ -91,5 +92,38 @@ describe('운영 중 단말기 목록(active) 유지 — Outbox 두 번째 소�
     expect(await redis.exists(deviceKeys().active)).toBe(1); // 직전 테스트가 남긴 값
     expect(await t.app.get(ActiveSetService).rebuild()).toBe(0);
     expect(await redis.exists(deviceKeys().active)).toBe(0);
+  });
+  it('device 큐 addBulk가 실패해도(notify는 이미 들어감) 다음 relay가 project job을 넣는다(troubleshooting/0018)', async () => {
+    await prepareInService(t, 'AC-0101');
+    const deviceQueue = t.app.get<Queue>(getQueueToken(QUEUE.DEVICE));
+    const spy = vi.spyOn(deviceQueue, 'addBulk').mockImplementationOnce(async () => {
+      throw new Error('주입한 실패: device addBulk');
+    });
+    try {
+      await expect(outbox.relay()).rejects.toThrow('주입한 실패');
+      // 실패한 relay가 넣은 job(있다면)이 다 처리되게 둔다. 고치기 전에는 notify가 행을 SENT로 바꿔 버린다.
+      await waitForQueuesIdle(t.app);
+      const rows = await t.orm.em.fork().find(OutboxEvent, {}, { orderBy: { id: 'asc' } });
+      const entering = rows.find((r) => r.payload.serialNo === 'AC-0101' && r.payload.toStatus === 'IN_SERVICE')!;
+      console.log(`[project 유실] 실패한 relay 뒤 IN_SERVICE 진입 행 ${entering.id} 상태=${entering.status}`);
+      await relayAll();
+    } finally {
+      spy.mockRestore();
+    }
+    const id = (await t.orm.em.fork().findOneOrFail(Terminal, { serialNo: 'AC-0101' })).id;
+    expect(await redis.hget(deviceKeys().active, 'AC-0101')).toBe(String(id));
+    const statuses = (await t.orm.em.fork().find(OutboxEvent, {}, { orderBy: { id: 'asc' } })).map((r) => r.status);
+    expect(statuses.every((s) => s === OutboxStatus.SENT)).toBe(true);
+  });
+
+  it('project job의 serialNo가 글자가 아니면 재시도 없이 실패한다(UnrecoverableError)', async () => {
+    await expect(t.app.get(ActiveSetService).apply([123 as unknown as string])).rejects.toBeInstanceOf(UnrecoverableError);
+    const deviceQueue = t.app.get<Queue>(getQueueToken(QUEUE.DEVICE));
+    const job = await deviceQueue.add('project', {}, { ...PROJECT_JOB_OPTIONS, removeOnFail: false, jobId: 'project-bad-payload' });
+    await waitForQueuesIdle(t.app);
+    const failed = await deviceQueue.getJob(job.id!);
+    expect(await failed!.getState()).toBe('failed');
+    expect(failed!.attemptsMade).toBe(1);
+    expect(failed!.failedReason).toContain('serialNo');
   });
 });

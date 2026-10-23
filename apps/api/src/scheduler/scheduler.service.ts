@@ -23,7 +23,10 @@ export class SchedulerService implements OnApplicationBootstrap {
 
   async onApplicationBootstrap(): Promise<void> {
     for (const s of JOB_SCHEDULERS) {
-      await this.queues[s.queue]!.upsertJobScheduler(
+      const queue = this.queues[s.queue];
+      // 목록에 큐를 더하고 생성자 주입을 빠뜨리면 undefined 접근 TypeError 대신 무엇이 빠졌는지 알려 준다
+      if (!queue) throw new Error(`주기 작업 ${s.id}: 주입되지 않은 큐: ${s.queue} (SchedulerService 생성자에 @InjectQueue를 더하세요)`);
+      await queue.upsertJobScheduler(
         s.id,
         { every: s.every() },
         { name: s.jobName, data: {}, opts: { removeOnComplete: true, removeOnFail: 100 } },

@@ -17,7 +17,8 @@ export class DeviceProcessor extends WorkerHost {
   async process(job: Job) {
     switch (job.name) {
       case 'project':
-        return this.activeSet.apply([(job.data as ProjectJobData).serialNo]);
+        // payload가 깨져 serialNo가 없으면 apply가 UnrecoverableError를 던진다(재시도 없음, troubleshooting/0018)
+        return this.activeSet.apply([(job.data as Partial<ProjectJobData>).serialNo]);
       case 'rebuild-active':
         return this.activeSet.rebuild();
       default:

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/mysql';
+import { UnrecoverableError } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { execOrThrow } from '../redis/redis-exec.js';
 import { REDIS } from '../redis/redis.provider.js';
@@ -53,17 +54,21 @@ export class ActiveSetService {
   /**
    * 몇 대만 MySQL의 **지금** 상태로 맞춘다(Outbox 이벤트 프로젝터가 부른다). 이벤트에 적힌 상태(toStatus)를 쓰지 않고
    * 다시 읽으므로, 같은 단말기의 이벤트가 늦게·뒤바뀐 순서로 와도 결과는 마지막 커밋 상태다. 없는 시리얼은 지운다.
+   * 시리얼이 글자가 아니면(이벤트 payload가 깨짐) UnrecoverableError — 몇 번 다시 해도 같으므로 재시도하지 않는다.
+   * 그대로 두면 숫자는 조용히 HDEL만 하고 성공으로 끝났다(troubleshooting/0018).
    */
-  async apply(serials: string[]): Promise<void> {
+  async apply(serials: unknown[]): Promise<void> {
+    const bad = serials.filter((s) => typeof s !== 'string' || s.length === 0);
+    if (bad.length > 0) throw new UnrecoverableError(`project: serialNo가 글자가 아닙니다: ${JSON.stringify(bad)}`);
     if (serials.length === 0) return;
     const rows: { id: number; serialNo: string; status: TerminalStatus }[] = await this.em
       .fork()
       .createQueryBuilder(Terminal)
       .select(['id', 'serialNo', 'status'])
-      .where({ serialNo: { $in: serials } })
+      .where({ serialNo: { $in: serials as string[] } })
       .execute('all');
     const inService = rows.filter((r) => r.status === TerminalStatus.IN_SERVICE);
-    const gone = serials.filter((s) => !inService.some((r) => r.serialNo === s));
+    const gone = (serials as string[]).filter((s) => !inService.some((r) => r.serialNo === s));
     const { active } = deviceKeys();
     const batch = this.redis.pipeline();
     if (inService.length > 0) batch.hset(active, Object.fromEntries(inService.map((r) => [r.serialNo, String(r.id)])));
