@@ -118,3 +118,4 @@
 - [ ] InnoDB 행 쓰기 비용(redo log, binlog, 버퍼 풀)과 Com_* / Innodb_rows_* / Innodb_os_log_written 카운터 읽는 법 (test/helpers/metrics.ts)
 - [ ] 닫힌 루프 대 열린 루프 부하 생성, 리틀의 법칙(처리량 = 동시 요청 / 응답 시간)과 coordinated omission (experiments/0008)
 - [ ] HTTP keep-alive와 서버 keepAliveTimeout·클라이언트 유휴 소켓 경합 (decisions/0009, experiments/0008)
+- [ ] 카나리·단계 배포의 중단 기준 — 최소 표본, 신뢰구간, 기준을 넘는 순간 vs 단계 끝 (experiments/0009, decisions/0031)
