@@ -4,6 +4,8 @@ export const QUEUE = {
   TRACK_NEURIMBO: 'track-neurimbo',
   CARRIER_SWEEP: 'carrier-sweep',
   OUTBOX: 'outbox',
+  /** 접속 상태·펌웨어 배포의 주기 작업과 active 갱신(decisions/0028) */
+  DEVICE: 'device',
 } as const;
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getQueueToken } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import { QUEUE, type QueueName } from '../src/queue/queue-names.js';
-import { clearJobSchedulers } from '../src/scheduler/job-schedulers.js';
+import { clearJobSchedulers, JOB_SCHEDULERS } from '../src/scheduler/job-schedulers.js';
 import { SchedulerService } from '../src/scheduler/scheduler.service.js';
 import { resetQueues, waitForQueuesIdle } from './helpers/queues.js';
 import { createTestApp, resetDatabase, type TestApp } from './helpers/test-app.js';
@@ -24,12 +24,14 @@ describe('주기 작업 삭제 (scheduler:clear, decisions/0015)', () => {
 
   it('등록된 주기 작업을 지우면 다음 주기 job이 더 생기지 않는다. 다시 지우면 지울 것이 없다', async () => {
     // 테스트 앱에는 스케줄러가 없으므로(schedulers: false) 직접 등록한다. 접두사가 test-라 개발 Redis 키는 건드리지 않는다.
-    await new SchedulerService(queueOf(QUEUE.CARRIER_SWEEP), queueOf(QUEUE.OUTBOX)).onApplicationBootstrap();
-    expect(await queueOf(QUEUE.CARRIER_SWEEP).getJobSchedulersCount()).toBe(1);
-    expect(await queueOf(QUEUE.OUTBOX).getJobSchedulersCount()).toBe(1);
+    await new SchedulerService(queueOf(QUEUE.CARRIER_SWEEP), queueOf(QUEUE.OUTBOX), queueOf(QUEUE.DEVICE)).onApplicationBootstrap();
+    const queues = [...new Set(JOB_SCHEDULERS.map((s) => s.queue))];
+    for (const name of queues) {
+      expect(await queueOf(name).getJobSchedulersCount()).toBe(JOB_SCHEDULERS.filter((s) => s.queue === name).length);
+    }
 
-    expect(await clearJobSchedulers(queueOf)).toEqual(['carrier-sweep', 'outbox-relay']);
-    for (const name of [QUEUE.CARRIER_SWEEP, QUEUE.OUTBOX]) {
+    expect(await clearJobSchedulers(queueOf)).toEqual(JOB_SCHEDULERS.map((s) => s.id));
+    for (const name of queues) {
       expect(await queueOf(name).getJobSchedulersCount()).toBe(0);
       expect(await queueOf(name).getJobCountByTypes('delayed')).toBe(0);
     }

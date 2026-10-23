@@ -10,6 +10,16 @@ export enum OutboxStatus {
 
 export const OUTBOX_TYPE = {
   TERMINAL_STATUS_CHANGED: 'terminal.status_changed',
+  /** 접속 상태(F8). 상태 전이가 아니라 별도 type이다(decisions/0029) */
+  DEVICE_OFFLINE: 'device.offline',
+  DEVICE_ONLINE: 'device.online',
+  /** 한 번 판정에서 기준보다 많이 바뀌면 묶음 한 건(decisions/0029) */
+  DEVICE_OFFLINE_BULK: 'device.offline_bulk',
+  DEVICE_ONLINE_BULK: 'device.online_bulk',
+  /** 펌웨어 배포(F8, decisions/0030·0031) */
+  FIRMWARE_STAGE_ADVANCED: 'firmware.stage_advanced',
+  FIRMWARE_ROLLOUT_COMPLETED: 'firmware.rollout_completed',
+  FIRMWARE_ROLLOUT_ABORTED: 'firmware.rollout_aborted',
 } as const;
 
 /**

@@ -1,11 +1,16 @@
 import type { Queue } from 'bullmq';
+import { env } from '../config/env.js';
 import { QUEUE, type QueueName } from '../queue/queue-names.js';
 
-/** 주기 작업 목록. 등록(SchedulerService)과 삭제(scheduler:clear)가 같은 id를 쓴다. */
+/** 주기 작업 목록. 등록(SchedulerService)과 삭제(scheduler:clear)가 같은 id를 쓴다. every는 등록할 때 읽는 주기(ms)다. */
 export const JOB_SCHEDULERS = [
-  { queue: QUEUE.CARRIER_SWEEP, id: 'carrier-sweep', jobName: 'sweep' },
-  { queue: QUEUE.OUTBOX, id: 'outbox-relay', jobName: 'relay' },
-] as const satisfies readonly { queue: QueueName; id: string; jobName: string }[];
+  { queue: QUEUE.CARRIER_SWEEP, id: 'carrier-sweep', jobName: 'sweep', every: () => env.sweepIntervalMs },
+  { queue: QUEUE.OUTBOX, id: 'outbox-relay', jobName: 'relay', every: () => env.relayIntervalMs },
+  { queue: QUEUE.DEVICE, id: 'active-rebuild', jobName: 'rebuild-active', every: () => env.activeRebuildIntervalMs },
+  { queue: QUEUE.DEVICE, id: 'offline-detect', jobName: 'detect-offline', every: () => env.offlineDetectIntervalMs },
+  { queue: QUEUE.DEVICE, id: 'connectivity-snapshot', jobName: 'snapshot', every: () => env.connectivitySnapshotIntervalMs },
+  { queue: QUEUE.DEVICE, id: 'rollout-control', jobName: 'rollout-control', every: () => env.rolloutControlIntervalMs },
+] as const satisfies readonly { queue: QueueName; id: string; jobName: string; every: () => number }[];
 
 /**
  * 주기 작업을 Redis에서 지운다. job scheduler는 등록한 프로세스가 끝나도 Redis에 남아 계속 job을 만든다

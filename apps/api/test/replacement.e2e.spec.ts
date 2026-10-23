@@ -93,6 +93,12 @@ describe('A/S 교체 출고·설치 확인 (F7)', () => {
     expect(otherModel.body.code).toBe('MODEL_MISMATCH');
     expect((await replace(id, 'RP-9999')).status).toBe(404);
     expect(await waybillCalls()).toBe(0);
+    // 실패해도 교체 예약은 풀린다: 같은 교체 단말기로 다시 보내면 409(예약 중)가 아니라 같은 422(decisions/0026)
+    expect((await replace(id, 'RP-0201')).body.code).toBe('MODEL_MISMATCH');
+    // 교체 출고 전(OPEN) 설치 확인은 TICKET_NOT_REPLACING(Day 3 리뷰 Minor 4)
+    const notReplacing = await install(id);
+    expect(notReplacing.status).toBe(422);
+    expect(notReplacing.body.code).toBe('TICKET_NOT_REPLACING');
 
     await t.http().post(`/service-tickets/${id}/remote-checks`).set(OP).send({ resolved: true, note: '해결' });
     const closed = await replace(id, 'RP-0102');
@@ -124,16 +130,42 @@ describe('A/S 교체 출고·설치 확인 (F7)', () => {
     expect(await waybillCalls()).toBe(1); // 발급된 운송장 1장은 저장되지 않았다(decisions/0012 한계)
   });
 
-  it('두 접수가 같은 교체 단말기를 동시에 요청하면 1건만 성공, 나머지는 422', async () => {
+  it('두 접수가 같은 교체 단말기를 동시에 요청하면 1건만 성공, 진 쪽은 운송장 없이 409 REPLACEMENT_RESERVED(decisions/0026)', async () => {
     const [a, b] = [await openTicket('RP-0004'), await openTicket('RP-0005')];
-    const results = await Promise.all([replace(a, 'RP-0105'), replace(b, 'RP-0105')]);
-    const statuses = results.map((r) => r.status).sort();
-    console.log(`[같은 교체 단말기 동시 요청] 응답=${JSON.stringify(statuses)} 코드=${JSON.stringify(results.map((r) => r.body.code ?? null))} 운송장발급=${await waybillCalls()}`);
-    expect(statuses).toEqual([201, 422]);
+    // 첫 요청이 교체 예약을 쥔 채 운송장 발급에서 멈추게 한다
+    const adapter = t.app.get(CarrierAdapters).get(Carrier.BUNGAE);
+    const original = adapter.createWaybill.bind(adapter);
+    let release!: () => void;
+    let markEntered!: () => void;
+    const released = new Promise<void>((r) => (release = r));
+    const entered = new Promise<void>((r) => (markEntered = r));
+    const spy = vi.spyOn(adapter, 'createWaybill').mockImplementationOnce(async (input) => {
+      markEntered();
+      await released;
+      return original(input);
+    });
+    try {
+      const first = replace(a, 'RP-0105').then((r) => r);
+      await entered;
+      const second = await replace(b, 'RP-0105');
+      console.log(`[같은 교체 단말기 동시 요청] 둘째=${second.status} ${second.body.code} 운송장발급(첫째 대기 중)=${await waybillCalls()}`);
+      expect(second.status).toBe(409);
+      expect(second.body.code).toBe('REPLACEMENT_RESERVED');
+      release();
+      expect((await first).status).toBe(201);
+    } finally {
+      release();
+      spy.mockRestore();
+    }
+    expect(await waybillCalls()).toBe(1); // 진 쪽은 운송장을 발급받지 않았다(고아 0)
     expect(await em().count(Shipment, { terminal: { serialNo: 'RP-0105' } })).toBe(1);
-    const loser = results.find((r) => r.status === 422)!;
-    const loserTicket = loser === results[0] ? a : b;
-    expect((await t.http().get(`/service-tickets/${loserTicket}`)).body.status).toBe('OPEN');
+    expect((await t.http().get(`/service-tickets/${b}`)).body.status).toBe('OPEN');
+
+    // 끝나면 예약이 풀린다. 다시 요청하면 409가 아니라 사전 확인(이미 출고)에서 422, 운송장은 그대로 1장
+    const again = await replace(b, 'RP-0105');
+    expect(again.status).toBe(422);
+    expect(again.body.code).toBe('REPLACEMENT_NOT_IN_STOCK');
+    expect(await waybillCalls()).toBe(1);
   });
 
   it('서로 다른 단말기의 교체 출고 2건을 동시에 하면 둘 다 201(운송장 gap 락 데드락 없음, troubleshooting/0014)', async () => {
