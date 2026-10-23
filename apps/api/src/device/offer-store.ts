@@ -15,14 +15,18 @@ const CHUNK = 1000;
 
 /**
  * 그 배포의 제안일 때만 지운다. 중단된 배포의 제안을 늦게 지우다가, 그사이 같은 단말기에 생긴 다른 배포의 제안을 지우지 않게.
+ * 깨진 값(JSON 아님·객체 아님)은 건너뛴다(pcall) — 하나 때문에 묶음 전체가 오류가 나지 않게(byRollout과 같은 규칙, 값은 남는다).
  * KEYS[1] = offers HASH, ARGV[1] = rolloutId, ARGV[2..] = serialNo
  */
 const WITHDRAW_SCRIPT = `
 local removed = 0
 for i = 2, #ARGV do
   local v = redis.call('hget', KEYS[1], ARGV[i])
-  if v and cjson.decode(v).rolloutId == tonumber(ARGV[1]) then
-    removed = removed + redis.call('hdel', KEYS[1], ARGV[i])
+  if v then
+    local ok, o = pcall(cjson.decode, v)
+    if ok and type(o) == 'table' and o.rolloutId == tonumber(ARGV[1]) then
+      removed = removed + redis.call('hdel', KEYS[1], ARGV[i])
+    end
   end
 end
 return removed`;

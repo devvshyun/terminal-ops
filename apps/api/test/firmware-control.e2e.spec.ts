@@ -346,4 +346,56 @@ describe('펌웨어 결과 보고와 배포 판단 — 단계 넘기기·자동 
       await redis.hdel(deviceKeys().offers, stray);
     });
   });
+
+  describe('최종 리뷰 fix(troubleshooting/0021): 이미 목표 버전인 대상, 제안 내리기의 깨진 값, 끝난 시각', () => {
+    it('하트비트로 이미 목표 버전을 보낸 대상은 제한 시간이 지나면 관측으로 SUCCEEDED(시간 초과·실패로 세지 않음)', async () => {
+      const { id, version: v } = await start({ stages: [10, 100], failureThreshold: 0.2, minSamples: 1, stageTimeoutMs: 1_000 });
+      const [same, other] = Object.keys(await offers());
+      // same은 이미 v를 돌리고 있다(같은 버전 재배포, 설치 뒤 보고 유실 등): 하트비트 응답에 update가 없고 단말기는 보고하지 않는다
+      const beat = await t.http().post('/devices/heartbeats').send({ items: [{ serialNo: same, firmwareVersion: v }] });
+      expect(beat.body.results[0].update).toBeUndefined();
+      expect((await report(other, id, true, v)).status).toBe(200);
+      const now = new Date(Date.now() + 2_000);
+      // 고치기 전: same이 TIMED_OUT → 실패율 1/2 = 50% > 20%, 결과 2 ≥ minSamples 1 → ABORTED
+      expect(await rollouts.control(id, now)).toEqual({ rolloutId: id, action: 'ADVANCED', stage: 1, timedOut: 0 });
+      const target = await em().findOneOrFail(FirmwareRolloutTarget, { rollout: id, terminal: { serialNo: same } });
+      expect(target).toMatchObject({ status: TargetStatus.SUCCEEDED, reportedVersion: v });
+      expect(target.reportedAt?.getTime()).toBe(now.getTime());
+      expect((await offers())[same]).toBeUndefined();
+      const stats = (await t.http().get(`/firmware-rollouts/${id}`)).body.stageStats[0];
+      expect(stats).toMatchObject({ targets: 2, succeeded: 2, failed: 0, timedOut: 0 });
+    });
+
+    it('목표 버전이 아닌 하트비트를 보낸 대상은 그대로 TIMED_OUT', async () => {
+      const { id, version: v } = await start({ stages: [10, 100], failureThreshold: 1, stageTimeoutMs: 1_000 });
+      const [old, ok] = Object.keys(await offers());
+      await t.http().post('/devices/heartbeats').send({ items: [{ serialNo: old, firmwareVersion: '1.0.0' }] });
+      expect((await report(ok, id, true, v)).status).toBe(200);
+      expect(await rollouts.control(id, new Date(Date.now() + 2_000))).toEqual({ rolloutId: id, action: 'ADVANCED', stage: 1, timedOut: 1 });
+      const target = await em().findOneOrFail(FirmwareRolloutTarget, { rollout: id, terminal: { serialNo: old } });
+      expect(target.status).toBe(TargetStatus.TIMED_OUT);
+    });
+
+    it('제안 내리기(Lua)는 깨진 값을 건너뛰고 나머지를 내린다(byRollout과 같은 규칙)', async () => {
+      const { id } = await start({ stages: [10, 100] });
+      const [x] = Object.keys(await offers());
+      const stray = rolloutOrder(serials)[19];
+      await redis.hset(deviceKeys().offers, stray, '{oops');
+      try {
+        expect(await t.app.get(OfferStore).withdraw(id, [stray, x])).toBe(1);
+        const now = await offers();
+        expect(now[x]).toBeUndefined();
+        expect(now[stray]).toBe('{oops');
+      } finally {
+        await redis.hdel(deviceKeys().offers, stray);
+      }
+    });
+
+    it('판단이 배포를 끝내면 finishedAt은 control(id, now)의 now다', async () => {
+      const { id } = await start({ stages: [10, 100], failureThreshold: 0.2, minSamples: 1, stageTimeoutMs: 1_000 });
+      const now = new Date(Math.ceil(Date.now() / 1000) * 1000 + 3_600_000); // finishedAt은 초 단위
+      expect((await rollouts.control(id, now)).action).toBe('ABORTED');
+      expect((await em().findOneOrFail(FirmwareRollout, id)).finishedAt?.getTime()).toBe(now.getTime());
+    });
+  });
 });

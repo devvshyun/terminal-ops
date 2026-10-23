@@ -1,8 +1,11 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EntityManager, LockMode } from '@mikro-orm/mysql';
+import type { Redis } from 'ioredis';
 import { fromDbDatetime } from '../common/db-datetime.js';
 import { BusinessError } from '../common/domain-errors.js';
+import { deviceKeys } from '../device/device-keys.js';
 import { OfferStore } from '../device/offer-store.js';
+import { REDIS } from '../redis/redis.provider.js';
 import { OUTBOX_TYPE, OutboxEvent } from '../outbox/outbox-event.entity.js';
 import { Terminal } from '../terminal/terminal.entity.js';
 import { TerminalModel } from '../terminal/terminal-model.entity.js';
@@ -22,7 +25,7 @@ export interface ControlResult {
   action: ControlAction;
   /** 판단한 단계(넘어갔으면 새 단계). ERROR면 -1(판단하지 못함) */
   stage: number;
-  /** 이번에 제한 시간이 지나 TIMED_OUT으로 바꾼 대상 수(실제로 바뀐 행 수) */
+  /** 이번에 제한 시간이 지나 TIMED_OUT으로 바꾼 대상 수(실제로 바뀐 행 수). 이미 목표 버전이라 SUCCEEDED로 바꾼 대상은 들어가지 않는다 */
   timedOut: number;
   /** ERROR일 때 오류 메시지 */
   error?: string;
@@ -73,6 +76,7 @@ export class RolloutService {
   constructor(
     private readonly em: EntityManager,
     private readonly offers: OfferStore,
+    @Inject(REDIS) private readonly redis: Redis,
   ) {}
 
   async create(dto: CreateRolloutDto, actor: string): Promise<FirmwareRollout> {
@@ -140,7 +144,7 @@ export class RolloutService {
     const serials = await this.em.fork().transactional(async (tx) => {
       const rollout = await this.lockRollout(tx, id);
       if (!ACTIVE_ROLLOUT_STATUSES.includes(rollout.status)) throw this.wrongStatus(rollout, 'ROLLOUT_FINISHED');
-      this.finish(tx, rollout, RolloutStatus.ABORTED, `운영자 중단: ${actor}`);
+      this.finish(tx, rollout, RolloutStatus.ABORTED, `운영자 중단: ${actor}`, new Date());
       return (await this.offeredTargets(tx, id)).map((t) => t.serialNo);
     });
     await this.offers.withdraw(id, serials);
@@ -201,6 +205,8 @@ export class RolloutService {
    * 여러 프로세스가 동시에 불러도 배포 행 잠금에서 줄을 서고, 뒤에 온 쪽은 앞쪽이 바꾼 상태(새 단계 등)를 보고 판단한다.
    * 1. 지금 단계의 OFFERED 중 제한 시간이 지난 것 → TIMED_OUT(id 순, PK 갱신). 단, 단말기가 운영 중(IN_SERVICE)이 아니면 응답할 수 없으니
    *    TIMED_OUT으로 바꾸지 않고 OFFERED로 남긴 채 실패율·남은 대상에서 뺀다(제외. 제안만 내리고, 늦은 보고는 그대로 받는다).
+   *    또 하트비트가 Redis에 남긴 지금 버전(hb:fw)이 이미 목표 버전이면 SUCCEEDED로 바꾼다(관측으로 성공, troubleshooting/0021).
+   *    하트비트는 이미 그 버전인 단말기에 update를 싣지 않고 단말기도 보고하지 않으므로, 이 규칙이 없으면 같은 버전 재배포가 시간 초과로 중단된다.
    * 2. 실패율 = (FAILED + TIMED_OUT) / (SUCCEEDED + FAILED + TIMED_OUT). 기준을 넘고, 결과가 minSamples 이상이거나 단계가 다 끝났으면
    *    → ABORTED(Outbox 알림), 남은 제안을 모두 내린다.
    * 3. 남은 대상(제한 시간 안의 OFFERED)이 없으면 다음 단계(대상 INSERT, 알림) 또는 마지막 단계면 COMPLETED(알림).
@@ -224,18 +230,34 @@ export class RolloutService {
       const excluded = offered.filter((t) => isExpired(t) && !t.inService);
       const waiting = offered.filter((t) => !isExpired(t));
       let changed = 0;
+      let timedOutCount = 0;
       if (expired.length > 0) {
-        changed = await tx.nativeUpdate(
-          FirmwareRolloutTarget,
-          { id: { $in: expired.map((t) => t.id) }, status: TargetStatus.OFFERED },
-          { status: TargetStatus.TIMED_OUT },
-        );
+        // 이미 목표 버전을 돌리는 대상(하트비트가 남긴 지금 버전)은 관측으로 성공 처리한다(troubleshooting/0021).
+        // 트랜잭션 안의 Redis 왕복 1번이지만 제한 시간이 지난 대상이 있는 주기에만 한다(decisions/0031 정정)
+        const current = await this.redis.hmget(deviceKeys().firmware, ...expired.map((t) => t.serialNo));
+        const atTarget = expired.filter((_, k) => current[k] === version);
+        const notAtTarget = expired.filter((_, k) => current[k] !== version);
+        if (atTarget.length > 0) {
+          changed += await tx.nativeUpdate(
+            FirmwareRolloutTarget,
+            { id: { $in: atTarget.map((t) => t.id) }, status: TargetStatus.OFFERED },
+            { status: TargetStatus.SUCCEEDED, reportedAt: now, reportedVersion: version },
+          );
+        }
+        if (notAtTarget.length > 0) {
+          timedOutCount = await tx.nativeUpdate(
+            FirmwareRolloutTarget,
+            { id: { $in: notAtTarget.map((t) => t.id) }, status: TargetStatus.OFFERED },
+            { status: TargetStatus.TIMED_OUT },
+          );
+          changed += timedOutCount;
+        }
       }
-      const timedOut = { ...base, timedOut: changed };
+      const timedOut = { ...base, timedOut: timedOutCount };
       const expiredSerials = [...expired, ...excluded].map((t) => t.serialNo);
       // UPDATE는 지금 값(current read)을 보고, 아래 통계는 스냅숏을 본다. 덜 바뀌었다면 스냅숏 뒤에 커밋된 보고가 있다:
       // 그 보고는 통계에서는 OFFERED, 남은 대상(waiting)에서는 빠져 어디에도 세이지 않는다. 이번 주기는 판단을 미루고 다음 주기(새 스냅숏)에 센다.
-      // 바뀐 TIMED_OUT은 그대로 커밋한다(그 대상은 정말 시간 초과다). 보고된 대상의 제안은 보고 API가 커밋 뒤에 내린다.
+      // 바뀐 TIMED_OUT·관측 SUCCEEDED는 그대로 커밋한다(그 대상은 정말 시간 초과·이미 목표 버전이다). 보고된 대상의 제안은 보고 API가 커밋 뒤에 내린다.
       if (changed < expired.length) {
         return { result: { ...timedOut, action: 'WAITING' as const }, publish: waiting, withdraw: expiredSerials, version };
       }
@@ -250,6 +272,7 @@ export class RolloutService {
           rollout,
           RolloutStatus.ABORTED,
           `자동 중단: ${rollout.currentStage + 1}단계 실패율 ${pct(failures / decided)}% (${failures}/${decided}) > 기준 ${pct(rollout.failureThreshold)}%`,
+          now,
         );
         const remaining = (await this.offeredTargets(tx, id)).map((t) => t.serialNo);
         return { result: { ...timedOut, action: 'ABORTED' as const }, publish: [], withdraw: [...expiredSerials, ...remaining], version };
@@ -258,7 +281,7 @@ export class RolloutService {
         return { result: { ...timedOut, action: 'WAITING' as const }, publish: waiting, withdraw: expiredSerials, version };
       }
       if (rollout.currentStage === rollout.stages.length - 1) {
-        this.finish(tx, rollout, RolloutStatus.COMPLETED, '마지막 단계 완료');
+        this.finish(tx, rollout, RolloutStatus.COMPLETED, '마지막 단계 완료', now);
         // 앞 단계에서 제외된 대상(OFFERED로 남음)의 제안도 남지 않게 모두 내린다
         const remaining = (await this.offeredTargets(tx, id)).map((t) => t.serialNo);
         return { result: { ...timedOut, action: 'COMPLETED' as const }, publish: [], withdraw: [...expiredSerials, ...remaining], version };
@@ -354,10 +377,16 @@ export class RolloutService {
     return created.map((c) => ({ id: c.target.id, serialNo: c.serialNo }));
   }
 
-  /** 배포를 끝낸다(완료·중단). 알림은 같은 트랜잭션의 Outbox로 */
-  private finish(tx: EntityManager, rollout: FirmwareRollout, status: RolloutStatus.COMPLETED | RolloutStatus.ABORTED, reason: string): void {
+  /** 배포를 끝낸다(완료·중단). 끝난 시각은 판단 시각(control의 now). 알림은 같은 트랜잭션의 Outbox로 */
+  private finish(
+    tx: EntityManager,
+    rollout: FirmwareRollout,
+    status: RolloutStatus.COMPLETED | RolloutStatus.ABORTED,
+    reason: string,
+    now: Date,
+  ): void {
     rollout.status = status;
-    rollout.finishedAt = new Date();
+    rollout.finishedAt = now;
     rollout.endReason = reason;
     tx.create(OutboxEvent, {
       type: status === RolloutStatus.COMPLETED ? OUTBOX_TYPE.FIRMWARE_ROLLOUT_COMPLETED : OUTBOX_TYPE.FIRMWARE_ROLLOUT_ABORTED,

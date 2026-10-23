@@ -107,3 +107,4 @@
 - [ ] 쓰기 줄이기 패턴 — write-behind(모아서 쓰기), 바뀐 것만 쓰기, 묶음 요청 (experiments/0008)
 - [ ] InnoDB 행 쓰기 비용(redo log, binlog, 버퍼 풀)과 Com_* / Innodb_rows_* / Innodb_os_log_written 카운터 읽는 법 (test/helpers/metrics.ts)
 - [ ] 카나리·단계 배포의 중단 기준 — 최소 표본, 신뢰구간, 기준을 넘는 순간 vs 단계 끝 (experiments/0009, decisions/0031)
+- [ ] 원하는 상태(desired)와 관측한 상태(observed)를 비교해 결과를 정하기 — 보고가 없을 때 관측으로 성공 판정(troubleshooting/0021, decisions/0031)
