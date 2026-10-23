@@ -26,18 +26,18 @@ describe('알림 Outbox (F5)', () => {
   }
 
   /**
-   * 첫 번째 queue.add 호출에서 멈추게 한다. relay 트랜잭션이 열린 채로 있는 상태를 만들려는 것. 그 뒤 호출은 그대로 통과한다.
-   * entered: relay가 add에 들어옴(= SELECT ... FOR UPDATE를 끝내고 락을 쥔 상태), release(): 이어서 진행.
+   * 첫 번째 queue.addBulk 호출에서 멈추게 한다. relay 트랜잭션이 열린 채로 있는 상태를 만들려는 것. 그 뒤 호출은 그대로 통과한다.
+   * entered: relay가 addBulk에 들어옴(= SELECT ... FOR UPDATE를 끝내고 락을 쥔 상태), release(): 이어서 진행.
    */
   function holdRelayEnqueue() {
     const queue = t.app.get<Queue>(getQueueToken(QUEUE.OUTBOX));
-    const original = queue.add.bind(queue);
+    const original = queue.addBulk.bind(queue);
     let release!: () => void;
     let markEntered!: () => void;
     const released = new Promise<void>((r) => (release = r));
     const entered = new Promise<void>((r) => (markEntered = r));
     let calls = 0;
-    const spy = vi.spyOn(queue, 'add').mockImplementation(async (...args: Parameters<Queue['add']>) => {
+    const spy = vi.spyOn(queue, 'addBulk').mockImplementation(async (...args: Parameters<Queue['addBulk']>) => {
       calls += 1;
       if (calls === 1) {
         markEntered();
@@ -167,7 +167,7 @@ describe('알림 Outbox (F5)', () => {
       hold.release();
       await relaying;
       const [reg, tr] = await Promise.all([register, transition]);
-      console.log(`[relay 중 쓰기] 등록 ${reg.res.status} ${reg.ms}ms, 전이 ${tr.res.status} ${tr.ms}ms (relay가 add에서 멈춘 동안, 한도 ${LIMIT_MS}ms)`);
+      console.log(`[relay 중 쓰기] 등록 ${reg.res.status} ${reg.ms}ms, 전이 ${tr.res.status} ${tr.ms}ms (relay가 addBulk에서 멈춘 동안, 한도 ${LIMIT_MS}ms)`);
       expect(doneInTime).toBe(true);
       expect(reg.res.status).toBe(201);
       expect(tr.res.status).toBe(200);
@@ -187,7 +187,7 @@ describe('알림 Outbox (F5)', () => {
     try {
       let firstDone = false;
       const first = outbox.relay(5).then((r) => ((firstDone = true), r));
-      await hold.entered; // 첫 relay가 5건을 잠그고 add에서 멈춤
+      await hold.entered; // 첫 relay가 5건을 잠그고 addBulk에서 멈춤
       const second = await timed(outbox.relay(5));
       const firstStillHolding = !firstDone;
       hold.release();
@@ -203,5 +203,27 @@ describe('알림 Outbox (F5)', () => {
       hold.restore();
     }
     await waitForQueuesIdle(t.app);
+  });
+
+  it('relay는 잡은 행을 addBulk 한 번으로 큐에 넣는다(행마다 add하지 않는다, decisions/0024)', async () => {
+    await drain();
+    for (let i = 0; i < 5; i++) {
+      await t.http().post('/terminals').set(OP).send({ serialNo: `OB-4${String(i).padStart(3, '0')}`, modelCode: 'SN-100' });
+    }
+    const queue = t.app.get<Queue>(getQueueToken(QUEUE.OUTBOX));
+    const add = vi.spyOn(queue, 'add');
+    const addBulk = vi.spyOn(queue, 'addBulk');
+    try {
+      const { queued } = await outbox.relay();
+      expect(queued).toHaveLength(5);
+      expect(addBulk).toHaveBeenCalledTimes(1);
+      expect(addBulk.mock.calls[0][0].map((j) => j.opts?.jobId)).toEqual(queued.map((id) => `outbox-${id}`));
+      expect(add).not.toHaveBeenCalled();
+    } finally {
+      add.mockRestore();
+      addBulk.mockRestore();
+    }
+    await waitForQueuesIdle(t.app);
+    expect(Object.values((await partners.toktok()).byKey).every((n) => n === 1)).toBe(true);
   });
 });

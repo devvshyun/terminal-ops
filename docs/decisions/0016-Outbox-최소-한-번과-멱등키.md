@@ -19,3 +19,4 @@
   → 나중에 복구 sweep으로 고친다("QUEUED이고 X분보다 오래된 행 → PENDING"; jobId가 같아 job이 아직 살아 있으면 중복으로 들어가지 않는다). 워커 강제 종료 실험(Day 7)에서 실제로 남는지 관찰하고 X를 정한다.
 - relay와 notify가 같은 `outbox` 큐·같은 워커 concurrency(5)를 나눠 쓴다. notify가 느리면(메신저 지연) relay job도 슬롯을 기다린다. 지금 규모에서는 문제 삼지 않고, 알림 지연을 재게 되면 큐를 나눈다.
 - 다시 볼 조건: 알림 종류가 늘면 type별 채널·문구를 분리한다.
+- 갱신(2026-10-23 Day 3): relay가 행마다 add하던 것을 addBulk 한 번으로 바꿨다 → decisions/0024, experiments/0006
