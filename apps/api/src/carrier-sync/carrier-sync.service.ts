@@ -133,6 +133,8 @@ export class CarrierSyncService {
    * 배송 완료 반영: 한 트랜잭션에서 단말기 전이(SHIPPED → DELIVERED, BATCH)를 먼저 하고 운송장을 완료로 바꾼다.
    * 운송장이 IN_TRANSIT가 아니면(완료·SUPERSEDED) no-op이다.
    * 단말기가 이미 SHIPPED가 아니면(운영자가 먼저 수동으로 바꾼 경우 등) 단말기는 건드리지 않고 운송장만 완료한다(no-op, decisions/0014).
+   * 운송장 완료는 `status = IN_TRANSIT` 조건부 UPDATE로 한다. 위의 읽기는 잠그지 않는 스냅샷 읽기라, 읽은 뒤 재출고가 옛 운송장을
+   * SUPERSEDED로 바꿨어도 여기서는 IN_TRANSIT로 보인다. 조건 없이 덮어쓰면 그 SUPERSEDED가 사라진다(troubleshooting/0010).
    */
   private async applyDelivered(shipmentId: number, deliveredAt: Date): Promise<{ outcome: TrackOutcome; detail: string | null }> {
     return this.em.fork().transactional(async (tx) => {
@@ -158,9 +160,20 @@ export class CarrierSyncService {
         );
         result = { outcome: 'DELIVERED', detail: null };
       }
-      shipment.status = ShipmentStatus.DELIVERED;
-      shipment.deliveredAt = deliveredAt;
-      shipment.lastSyncedAt = new Date();
+      // 잠금 순서는 단말기 UPDATE(전이 안에서 flush) → 운송장 UPDATE로, 재출고(recordShipment)와 같다.
+      // 관리 중인 shipment 엔티티는 고치지 않는다. 고치면 커밋 때 조건 없는 UPDATE가 한 번 더 나간다.
+      const updated = await tx.nativeUpdate(
+        Shipment,
+        { id: shipmentId, status: ShipmentStatus.IN_TRANSIT },
+        { status: ShipmentStatus.DELIVERED, deliveredAt, lastSyncedAt: new Date() },
+      );
+      if (updated === 0) {
+        // 단말기를 이미 바꿨다면 트랜잭션 전체를 되돌린다. job이 재시도되면 처음 조회에서 IN_TRANSIT가 아닌 것을 보고 건너뛴다.
+        if (result.outcome === 'DELIVERED') {
+          throw new Error(`운송장 ${shipmentId}이(가) 반영 중에 IN_TRANSIT가 아니게 되어 단말기 전이를 되돌림`);
+        }
+        return { outcome: 'NOOP', detail: '운송장이 반영 중에 IN_TRANSIT가 아니게 됨(재출고 등)' };
+      }
       return result;
     });
   }

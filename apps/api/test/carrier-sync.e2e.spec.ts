@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EntityManager } from '@mikro-orm/mysql';
 import { CarrierSyncService, SYNC_ACTOR } from '../src/carrier-sync/carrier-sync.service.js';
 import { CarrierAdapters } from '../src/carrier/carrier.adapters.js';
 import { Carrier } from '../src/carrier/carrier.types.js';
@@ -7,7 +8,7 @@ import { TerminalStatusHistory } from '../src/terminal/terminal-status-history.e
 import { TerminalStatus } from '../src/terminal/terminal-status.js';
 import { partners } from './helpers/partners.js';
 import { resetQueues, waitFor, waitForQueuesIdle } from './helpers/queues.js';
-import { prepareShipped } from './helpers/scenario.js';
+import { allocateTo, prepareShipped, SCENARIO_OP, shipWith } from './helpers/scenario.js';
 import { createTestApp, resetDatabase, type TestApp } from './helpers/test-app.js';
 
 describe('택배 추적 자동 수집 (F3)', () => {
@@ -156,5 +157,52 @@ describe('택배 추적 자동 수집 (F3)', () => {
     expect(await deliveredHistory('CS-0007')).toHaveLength(0);
     const [run] = await runs(shipmentId);
     expect(run).toMatchObject({ outcome: 'NOOP', detail: '운송장이 이미 SUPERSEDED' });
+  });
+
+  it('반영이 읽은 뒤 재출고가 커밋돼도 옛 운송장의 SUPERSEDED를 덮어쓰지 않는다(lost update, troubleshooting/0010)', async () => {
+    await partners.configure({ bungae: { advancePerPoll: 4 } });
+    const { shipmentId } = await prepareShipped(t, 'CS-0008', 'BUNGAE');
+    // 운송장 추적이 늦는 사이 운영자가 수동으로 배송 완료 → 설치 → 회수 → 재고 → 재배정까지 진행했다(옛 운송장은 IN_TRANSIT 그대로).
+    for (const to of ['DELIVERED', 'IN_SERVICE', 'RETURN_REQUESTED', 'RETURNING', 'RETURNED', 'IN_STOCK']) {
+      const version = (await t.http().get('/terminals/CS-0008')).body.version;
+      const res = await t.http().post('/terminals/CS-0008/transitions').set(SCENARIO_OP).send({ to, reason: '시나리오', expectedVersion: version });
+      expect(res.status).toBe(200);
+    }
+    await allocateTo(t, 'CS-0008');
+
+    // 반영 트랜잭션이 운송장(+단말기)을 읽은 직후(스냅샷: 운송장 IN_TRANSIT, 단말기 ALLOCATED)에 멈춰 두고, 그동안 재출고를 커밋시킨다.
+    // 재출고는 hook 안이 아니라 테스트 쪽에서 보낸다. hook 안에서 HTTP를 보내면 MikroORM 트랜잭션 컨텍스트(AsyncLocalStorage)가
+    // 요청 처리로 이어져 재출고가 같은 트랜잭션 안에서 실행된다(troubleshooting/0010 확인 1).
+    let reachedRead!: () => void;
+    const reached = new Promise<void>((r) => (reachedRead = r));
+    let resumeApply!: () => void;
+    const resume = new Promise<void>((r) => (resumeApply = r));
+    const original = EntityManager.prototype.findOneOrFail;
+    const spy = vi.spyOn(EntityManager.prototype, 'findOneOrFail').mockImplementationOnce(async function (this: EntityManager, ...args: unknown[]) {
+      const found = await (original as (...a: unknown[]) => Promise<unknown>).apply(this, args);
+      reachedRead();
+      await resume;
+      return found;
+    } as typeof original);
+    let outcome: string;
+    let reshipped: number;
+    try {
+      const tracking = sync.track(shipmentId, { queue: 'test', attempt: 1 });
+      await reached;
+      reshipped = (await shipWith(t, 'CS-0008', 'BUNGAE')).shipmentId;
+      resumeApply();
+      outcome = await tracking;
+    } finally {
+      resumeApply();
+      spy.mockRestore();
+    }
+
+    const old = await shipment(shipmentId);
+    expect({ status: old.status, deliveredAt: old.deliveredAt ?? null }).toEqual({ status: ShipmentStatus.SUPERSEDED, deliveredAt: null });
+    expect(old.terminal.status).toBe(TerminalStatus.SHIPPED);
+    expect((await shipment(reshipped)).status).toBe(ShipmentStatus.IN_TRANSIT);
+    expect(outcome).toBe('NOOP');
+    const [run] = await runs(shipmentId);
+    expect(run).toMatchObject({ outcome: 'NOOP', detail: '운송장이 반영 중에 IN_TRANSIT가 아니게 됨(재출고 등)' });
   });
 });

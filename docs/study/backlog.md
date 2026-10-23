@@ -55,3 +55,7 @@
 - [ ] BullMQ job scheduler 삭제(removeJobScheduler)와 이미 넣어진 job (scheduler/job-schedulers.ts)
 - [ ] Node stream 'data' 청크 경계 — 줄 단위가 아니라서 누적해서 봐야 하는 이유 (two-workers.spec.ts)
 - [ ] MikroORM schema.refresh()가 메타데이터에 없는 테이블을 지우지 않는 것 (troubleshooting/0009)
+- [ ] lost update와 조건부 UPDATE — 판단 조건을 WHERE에 넣고 바뀐 행 수로 확인하기 (troubleshooting/0010)
+- [ ] REPEATABLE READ의 스냅샷 읽기 vs 잠금 읽기(현재 읽기) — 같은 트랜잭션에서 SELECT와 UPDATE가 보는 행이 다른 이유 (troubleshooting/0010)
+- [ ] recordShipment의 terminal_id+status UPDATE가 RR에서 next-key 락을 건다(규모상 무시, 관찰 후보) (shipment.service.ts, decisions/0018)
+- [ ] MikroORM 트랜잭션 컨텍스트(AsyncLocalStorage)가 테스트 hook 안의 HTTP 요청으로 새는 현상 (troubleshooting/0010)
