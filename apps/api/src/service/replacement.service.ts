@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EntityManager, LockMode } from '@mikro-orm/mysql';
 import { CarrierAdapters } from '../carrier/carrier.adapters.js';
 import type { Carrier } from '../carrier/carrier.types.js';
 import { BusinessError } from '../common/domain-errors.js';
+import { env } from '../config/env.js';
 import { Merchant } from '../merchant/merchant.entity.js';
+import { RedisLock } from '../redis/redis-lock.js';
 import { ShipmentService } from '../shipment/shipment.service.js';
 import { Terminal } from '../terminal/terminal.entity.js';
 import { TerminalStatus, TransitionSource } from '../terminal/terminal-status.js';
@@ -25,8 +27,11 @@ export interface ReplaceCommand {
 /** A/S 교체 출고와 설치 확인(F7). "새 단말기 출고 + 고장 단말기 회수 요청"을 한 트랜잭션으로 처리한다. */
 @Injectable()
 export class ReplacementService {
+  private readonly logger = new Logger(ReplacementService.name);
+
   constructor(
     private readonly em: EntityManager,
+    private readonly lock: RedisLock,
     private readonly tickets: ServiceTicketService,
     private readonly transitions: TransitionService,
     private readonly shipments: ShipmentService,
@@ -34,13 +39,35 @@ export class ReplacementService {
   ) {}
 
   /**
+   * ⓪ 교체 단말기 예약(Redis SET NX PX, decisions/0026). 같은 교체 단말기를 다른 요청이 처리 중이면 운송장 없이 409 REPLACEMENT_RESERVED.
    * ① 트랜잭션 밖 사전 확인: 접수 OPEN, 교체 단말기 IN_STOCK·같은 모델. 실패하면 택배사를 부르지 않는다.
+   *    예약을 잡은 **뒤에** 확인한다. 앞서 끝난 요청이 이미 출고했으면 여기서 REPLACEMENT_NOT_IN_STOCK으로 걸러진다.
    * ② 트랜잭션 밖 운송장 발급(decisions/0012).
    * ③ 한 트랜잭션: 두 단말기를 id 오름차순으로 잠금(FOR UPDATE) → 접수 행 잠금(OPEN 재확인) → 교체 단말기 IN_STOCK → ALLOCATED(가맹점)
    *    → SHIPPED, 고장 단말기 IN_SERVICE → RETURN_REQUESTED, 운송장 저장, 접수 REPLACING.
    *    하나라도 실패하면 전부 롤백된다. ②의 운송장은 고아로 남는다(알려진 한계).
+   * 예약은 끝나면(성공·실패 모두) 푼다. 처리가 TTL(REPLACEMENT_LOCK_TTL_MS)보다 길면 그사이 다른 요청이 예약할 수 있고,
+   * 그 요청은 ③의 행 잠금에서 걸린다(Day 3과 같은 422 + 고아 운송장).
    */
   async replace(id: number, cmd: ReplaceCommand, actor: string, opts: { lockOrder?: LockOrder } = {}): Promise<ServiceTicket> {
+    const key = this.lock.keyOf('replacement-lock', cmd.replacementSerialNo);
+    const token = await this.lock.acquire(key, env.replacementLockTtlMs);
+    if (!token) {
+      throw new BusinessError(409, 'REPLACEMENT_RESERVED', `교체 단말기 ${cmd.replacementSerialNo}을(를) 다른 A/S 교체 출고가 처리하는 중입니다.`);
+    }
+    try {
+      return await this.replaceReserved(id, cmd, actor, opts);
+    } finally {
+      // 반영은 이미 커밋됐을 수 있다. 해제 실패로 결과를 500으로 바꾸지 않는다(TTL이 지나면 풀린다, decisions/0020과 같은 처리).
+      try {
+        await this.lock.release(key, token);
+      } catch (error) {
+        this.logger.warn(`교체 예약 해제 실패(TTL이 지나면 풀린다) ${cmd.replacementSerialNo}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }
+
+  private async replaceReserved(id: number, cmd: ReplaceCommand, actor: string, opts: { lockOrder?: LockOrder }): Promise<ServiceTicket> {
     const ticket = await this.tickets.get(id);
     if (ticket.status !== ServiceTicketStatus.OPEN) {
       throw new BusinessError(422, 'TICKET_NOT_OPEN', `A/S 접수 ${id}은(는) ${ticket.status} 상태라 교체 출고할 수 없습니다.`);
@@ -119,14 +146,14 @@ export class ReplacementService {
     if (current.status !== ServiceTicketStatus.REPLACING || !current.replacementTerminal) {
       throw new BusinessError(
         422,
-        'TICKET_NOT_OPEN',
-        `A/S 접수 ${id}은(는) ${current.status} 상태라 이 작업을 할 수 없습니다(필요: ${ServiceTicketStatus.REPLACING}).`,
+        'TICKET_NOT_REPLACING',
+        `A/S 접수 ${id}은(는) ${current.status} 상태라 설치 확인을 할 수 없습니다(필요: ${ServiceTicketStatus.REPLACING}).`,
       );
     }
     const replacementId = current.replacementTerminal.id;
     await this.em.fork().transactional(async (tx) => {
       const replacement = await tx.findOneOrFail(Terminal, replacementId, { lockMode: LockMode.PESSIMISTIC_WRITE });
-      const ticket = await this.tickets.lockOpen(tx, id, [ServiceTicketStatus.REPLACING]);
+      const ticket = await this.tickets.lockOpen(tx, id, [ServiceTicketStatus.REPLACING], 'TICKET_NOT_REPLACING');
       await this.transitions.transition(
         {
           serialNo: replacement.serialNo,

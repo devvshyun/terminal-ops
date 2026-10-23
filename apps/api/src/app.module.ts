@@ -9,6 +9,7 @@ import { InspectionModule } from './inspection/inspection.module.js';
 import { MerchantModule } from './merchant/merchant.module.js';
 import { ShipmentModule } from './shipment/shipment.module.js';
 import { QueuesModule } from './queue/queues.module.js';
+import { RedisModule } from './redis/redis.module.js';
 import { CarrierSyncModule } from './carrier-sync/carrier-sync.module.js';
 import { OutboxModule } from './outbox/outbox.module.js';
 import { PurchaseOrderModule } from './purchase-order/purchase-order.module.js';
@@ -28,6 +29,7 @@ export interface AppOptions {
   // forRoot가 요청마다 EntityManager를 fork하는 RequestContext 미들웨어를 자동 등록한다.
   imports: [
     MikroOrmModule.forRoot(ormConfig),
+    RedisModule,
     QueuesModule,
     TerminalModule,
     InspectionModule,

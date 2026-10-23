@@ -53,6 +53,8 @@ export const env = {
   toktokChannel: process.env.TOKTOK_CHANNEL ?? 'ops',
   /** 박스 스캔 처리 중 잠금(Redis) 유지 시간. 처리가 이보다 길면 잠금이 풀린다(decisions/0020) */
   scanLockTtlMs: Number(process.env.SCAN_LOCK_TTL_MS ?? 30_000),
+  /** A/S 교체 단말기 예약(Redis) 유지 시간. 운송장 발급 + 교체 트랜잭션이 이보다 길면 예약이 풀린다(decisions/0026) */
+  replacementLockTtlMs: Number(process.env.REPLACEMENT_LOCK_TTL_MS ?? 30_000),
   /** SyncRun에 남길 작업 프로세스 이름(워커 2개 실험에서 구분용) */
   workerName: process.env.WORKER_NAME ?? `pid-${process.pid}`,
 };

@@ -84,3 +84,5 @@
 - [ ] 잠그지 않고 읽은 뒤 PK로 갱신하는 패턴이 안전하려면 무엇이 직렬화를 보장해야 하나(여기서는 단말기 X 락) (shipment.service.ts recordShipment, decisions/0018)
 - [ ] 조회마다 flushMode(COMMIT)로 자동 flush만 끄기 vs 조회를 `find($in)` 한 번으로 묶기 — 어느 쪽을 언제 (experiments/0006 보강)
 - [ ] SHOW ENGINE INNODB STATUS의 LATEST DETECTED DEADLOCK 읽는 법, `information_schema.innodb_metrics`의 lock_deadlocks로 데드락 수 세기 (experiments/0007)
+- [ ] Nest 생명주기 훅 순서 — onModuleDestroy, beforeApplicationShutdown, onApplicationShutdown과 공용 자원(연결)을 닫는 자리 (redis/redis.module.ts, decisions/0026)
+- [ ] ioredis 연결 상태(connecting·connect·ready·end)와 quit·disconnect, 'error' 리스너가 없을 때의 동작 (redis/redis.provider.ts)

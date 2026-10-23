@@ -63,7 +63,7 @@ describe(`실험 0007: 교체 출고 동시 요청 — 접수 ${N}건 (${ROUNDS}
   }
 
   for (const order of ORDERS) {
-    it(`같은 교체 단말기, 잠금 순서 ${order}: 정확히 1건 성공, 나머지 422/409, 500·데드락 0`, async () => {
+    it(`같은 교체 단말기, 잠금 순서 ${order}: 정확히 1건 성공, 나머지 409/422, 500·데드락 0, 고아 운송장 0`, async () => {
       const replacements = t.app.get(ReplacementService);
       for (let round = 1; round <= ROUNDS; round++) {
         seq += 1;
@@ -89,8 +89,13 @@ describe(`실험 0007: 교체 출고 동시 요청 — 접수 ${N}건 (${ROUNDS}
         );
 
         expect(ok).toBe(1);
-        expect(Object.keys(reasons).every((k) => ['INVALID_TRANSITION', 'REPLACEMENT_NOT_IN_STOCK', 'OptimisticLockError'].includes(k))).toBe(true);
+        // Day 4: 교체 예약(decisions/0026) 뒤로 진 쪽은 대부분 REPLACEMENT_RESERVED(운송장 발급 전), 이긴 쪽이 끝난 뒤 온 요청은
+        // REPLACEMENT_NOT_IN_STOCK. 잠금을 기다린 뒤 걸리는 INVALID_TRANSITION은 예약 TTL이 지났을 때만 나온다.
+        expect(
+          Object.keys(reasons).every((k) => ['REPLACEMENT_RESERVED', 'INVALID_TRANSITION', 'REPLACEMENT_NOT_IN_STOCK', 'OptimisticLockError'].includes(k)),
+        ).toBe(true);
         expect(c.shipments).toBe(1);
+        expect(c.waybills - c.shipments).toBe(0); // 고아 운송장 0 (Day 3은 매회 9장, experiments/0007)
         expect(c.replacing).toBe(1);
         expect(c.returnRequested).toBe(1); // 진 쪽의 고장 단말기는 회수 요청으로 바뀌지 않았다(전부 롤백)
       }
