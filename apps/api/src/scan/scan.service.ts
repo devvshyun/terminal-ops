@@ -40,7 +40,7 @@ export class ScanService {
   async scan(input: CreateScanDto, actor: string): Promise<{ batch: ScanBatch; replayed: boolean }> {
     // 회수 입고는 발주와 상관없다. 쓰지 않는 값이 요청 해시에 섞이지 않게 받지 않는다(decisions/0020).
     if (input.kind === ScanKind.RETURN_IN && input.poNo !== undefined && input.poNo !== null) {
-      throw new BadRequestException('회수 입고(RETURN_IN)에는 poNo를 보내지 않습니다.');
+      throw new BadRequestException({ statusCode: 400, code: 'PO_NOT_ALLOWED', message: '회수 입고(RETURN_IN)에는 poNo를 보내지 않습니다.' });
     }
     // 시리얼은 입구에서 한 번 다듬고(앞뒤 공백·CR), 요청 해시·명세 검사·등록·회수 입고 모두 이 값을 쓴다(troubleshooting/0012).
     const dto: CreateScanDto = { ...input, serials: input.serials.map(normalizeValue) };

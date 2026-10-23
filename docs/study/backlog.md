@@ -72,3 +72,7 @@
 - [ ] 입력 정규화는 경계에서 한 번 — 검사하는 값과 저장하는 값이 달라지는 버그 유형 (troubleshooting/0012)
 - [ ] multipart/form-data와 Content-Disposition filename 인코딩(latin1 기본, RFC 5987 filename*) (terminal.controller.ts, decisions/0022)
 - [ ] CommonJS 패키지를 ESM에서 default import로 쓰기 — named import가 undefined가 되는 이유(cjs-module-lexer) (terminal-import.service.ts)
+- [ ] xlsx 셀 형식(공유 문자열·숫자·수식 결과·날짜 일련번호)과 숫자 서식 — 보이는 글자와 저장된 값이 다른 이유 (troubleshooting/0013, import-cells.ts)
+- [ ] zip 폭탄과 압축 해제 크기 — 업로드 크기 제한이 메모리를 막지 못하는 이유, zip 중앙 디렉터리로 풀린 크기 미리 보기 (decisions/0022)
+- [ ] 엑셀 일괄 등록을 exceljs 스트리밍 WorkbookReader로 바꿔 5001행째에서 멈추기 — 메모리 한계 해결 후보 (decisions/0022, 실험 0006에서 5000행 가져오기 측정)
+- [ ] Nest 인터셉터 실행 순서와 오류가 나는 단계(인터셉터 앞부분 vs next.handle() Observable) (common/upload.interceptor.ts)

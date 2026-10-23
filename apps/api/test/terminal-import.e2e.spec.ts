@@ -82,8 +82,43 @@ describe('엑셀 일괄 등록 (F1, decisions/0005·0022)', () => {
     expect(res.body.code).toBe('TOO_MANY_ROWS');
   });
 
-  it('2MB보다 큰 파일은 413', async () => {
+  it('2MB보다 큰 파일은 413 FILE_TOO_LARGE', async () => {
     const res = await upload(Buffer.alloc(2 * 1024 * 1024 + 1), 'big.xlsx');
     expect(res.status).toBe(413);
+    expect(res.body.code).toBe('FILE_TOO_LARGE');
+  });
+
+  it('file이 아닌 필드 이름, 파일 두 개, 글자 필드는 400 INVALID_FILE', async () => {
+    const file = await xlsx([['serialNo', 'modelCode'], ['XL-0401', 'SN-100']]);
+    const wrongField = await t.http().post('/terminals/imports').set(OP).attach('upload', file, 'terminals.xlsx');
+    expect(wrongField.status).toBe(400);
+    expect(wrongField.body.code).toBe('INVALID_FILE');
+    const twoFiles = await t.http().post('/terminals/imports').set(OP).attach('file', file, 'a.xlsx').attach('file', file, 'b.xlsx');
+    expect(twoFiles.status).toBe(400);
+    expect(twoFiles.body.code).toBe('INVALID_FILE');
+    const withField = await t.http().post('/terminals/imports').set(OP).field('note', 'x').attach('file', file, 'terminals.xlsx');
+    expect(withField.status).toBe(400);
+    expect(withField.body.code).toBe('INVALID_FILE');
+    expect(await t.orm.em.fork().count(TerminalStatusHistory, { terminal: { serialNo: 'XL-0401' } })).toBe(0);
+  });
+
+  it('날짜·0 채움 서식 숫자 셀은 그 행만 INVALID_FORMAT(이유를 message에), 나머지는 등록한다', async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('terminals');
+    ws.addRow(['serialNo', 'modelCode']);
+    ws.addRow([new Date(Date.UTC(2026, 9, 23)), 'SN-100']);
+    ws.addRow([123, 'SN-100']);
+    ws.getCell('A3').numFmt = '00000';
+    ws.addRow(['XL-0501', 'SN-100']);
+    ws.addRow([{ formula: '"XL-0502"', result: 'XL-0502' }, 'SN-100']);
+    const res = await upload(Buffer.from(await wb.xlsx.writeBuffer()));
+    expect(res.status).toBe(201);
+    expect(res.body.summary).toEqual({ INVALID_FORMAT: 2, CREATED: 2 });
+    expect(res.body.results[0]).toMatchObject({ row: 2, result: 'INVALID_FORMAT', message: expect.stringContaining('날짜') });
+    expect(res.body.results[1]).toMatchObject({ row: 3, serialNo: '123', result: 'INVALID_FORMAT', message: expect.stringContaining('텍스트 셀로 입력') });
+    expect(res.body.results.slice(2)).toEqual([
+      { row: 4, serialNo: 'XL-0501', result: 'CREATED' },
+      { row: 5, serialNo: 'XL-0502', result: 'CREATED' },
+    ]);
   });
 });

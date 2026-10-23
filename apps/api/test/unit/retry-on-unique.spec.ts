@@ -23,6 +23,7 @@ describe('retryOnUniqueViolation', () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks(); // Math.random 등 spy가 실패한 테스트에서도 다음 테스트로 새지 않게
   });
 
   it('unique 위반·데드락이면 다시 하고, 성공하면 그 값을 준다', async () => {
@@ -58,6 +59,5 @@ describe('retryOnUniqueViolation', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(fn).toHaveBeenCalledTimes(2);
     await expect(done).resolves.toBe('ok');
-    vi.restoreAllMocks();
   });
 });

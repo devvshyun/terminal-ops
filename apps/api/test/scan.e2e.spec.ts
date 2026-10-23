@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Logger } from '@nestjs/common';
 import { PurchaseOrder, PurchaseOrderStatus } from '../src/purchase-order/purchase-order.entity.js';
 import { ScanBatch } from '../src/scan/scan-batch.entity.js';
 import { ScanLock } from '../src/scan/scan-lock.js';
@@ -205,6 +206,7 @@ describe('박스 일괄 스캔 (F6)', () => {
     it('회수 입고에 poNo를 보내면 400(쓰지 않는 값이 요청 해시에 섞이지 않게)', async () => {
       const res = await scan({ scanId: 'BOX-RET-0003', kind: 'RETURN_IN', poNo: 'SE0', serials: ['RT-0001'] });
       expect(res.status).toBe(400);
+      expect(res.body.code).toBe('PO_NOT_ALLOWED');
       expect(await em().count(ScanBatch, { scanId: 'BOX-RET-0003' })).toBe(0);
     });
   });
@@ -213,13 +215,16 @@ describe('박스 일괄 스캔 (F6)', () => {
     it('반영이 커밋된 뒤 잠금 해제가 실패해도 201과 결과를 준다(잠금은 TTL로 풀린다)', async () => {
       const { poNo, serials } = await orderPurchase(t, 1);
       const spy = vi.spyOn(t.app.get(ScanLock), 'release').mockRejectedValueOnce(new Error('Connection is closed.'));
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
       try {
         const res = await scan({ scanId: 'BOX-LOCK-0001', kind: 'RECEIVE', poNo, serials });
         expect(res.status).toBe(201);
         expect(res.body.results).toEqual([{ serialNo: serials[0], result: 'CREATED' }]);
         expect(spy).toHaveBeenCalledTimes(1);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('BOX-LOCK-0001'));
       } finally {
         spy.mockRestore();
+        warn.mockRestore();
       }
     });
   });
