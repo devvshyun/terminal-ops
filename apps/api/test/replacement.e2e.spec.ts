@@ -27,8 +27,9 @@ describe('A/S 교체 출고·설치 확인 (F7)', () => {
     t = await createTestApp();
     await resetDatabase(t.orm);
     await partners.reset();
-    for (const s of ['RP-0001', 'RP-0002', 'RP-0003', 'RP-0004', 'RP-0005']) await prepareInService(t, s, 'PANGYO-BUNSIK');
-    for (const s of ['RP-0101', 'RP-0102', 'RP-0103', 'RP-0105']) await registerInStock(t, s);
+    for (const s of ['RP-0001', 'RP-0002', 'RP-0003', 'RP-0004', 'RP-0005', 'RP-0006', 'RP-0007']) await prepareInService(t, s, 'PANGYO-BUNSIK');
+    // RP-0106·0107은 마지막에 등록해 id가 가장 크다(운송장이 한 번도 없는 단말기, troubleshooting/0014).
+    for (const s of ['RP-0101', 'RP-0102', 'RP-0103', 'RP-0105', 'RP-0106', 'RP-0107']) await registerInStock(t, s);
     // 다른 모델(SN-200) 재고: 검수 항목이 달라 시나리오 헬퍼 대신 상태를 직접 맞춘다.
     await t.http().post('/terminals').set(OP).send({ serialNo: 'RP-0201', modelCode: 'SN-200' });
     await em().nativeUpdate(Terminal, { serialNo: 'RP-0201' }, { status: TerminalStatus.IN_STOCK });
@@ -133,5 +134,13 @@ describe('A/S 교체 출고·설치 확인 (F7)', () => {
     const loser = results.find((r) => r.status === 422)!;
     const loserTicket = loser === results[0] ? a : b;
     expect((await t.http().get(`/service-tickets/${loserTicket}`)).body.status).toBe('OPEN');
+  });
+
+  it('서로 다른 단말기의 교체 출고 2건을 동시에 하면 둘 다 201(운송장 gap 락 데드락 없음, troubleshooting/0014)', async () => {
+    const [a, b] = [await openTicket('RP-0006'), await openTicket('RP-0007')];
+    const results = await Promise.all([replace(a, 'RP-0106'), replace(b, 'RP-0107')]);
+    console.log(`[다른 단말기 동시 교체] 응답=${JSON.stringify(results.map((r) => r.status))} 코드=${JSON.stringify(results.map((r) => r.body.code ?? null))}`);
+    expect(results.map((r) => r.status)).toEqual([201, 201]);
+    expect(await em().count(Shipment, { terminal: { serialNo: { $in: ['RP-0106', 'RP-0107'] } }, status: ShipmentStatus.IN_TRANSIT })).toBe(2);
   });
 });

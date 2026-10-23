@@ -28,6 +28,11 @@ describe('출고 (F3)', () => {
       await allocateTo(t, serialNo);
     }
     await registerInStock(t, 'SH-0003'); // 배정하지 않은 재고
+    // SH-0006·0007은 마지막에 등록해 id가 가장 크다(운송장이 한 번도 없는 단말기, troubleshooting/0014).
+    for (const serialNo of ['SH-0006', 'SH-0007']) {
+      await registerInStock(t, serialNo);
+      await allocateTo(t, serialNo);
+    }
   });
   beforeEach(async () => {
     await partners.reset();
@@ -127,6 +132,17 @@ describe('출고 (F3)', () => {
       [old.id, ShipmentStatus.SUPERSEDED],
       [res.body.id, ShipmentStatus.IN_TRANSIT],
     ]);
+  });
+
+  it('서로 다른 단말기 동시 출고 2건: 둘 다 201(운송장 gap 락 데드락 없음, troubleshooting/0014)', async () => {
+    const versions = [await versionOf('SH-0006'), await versionOf('SH-0007')];
+    const responses = await Promise.all(
+      ['SH-0006', 'SH-0007'].map((serialNo, i) =>
+        t.http().post('/shipments').set(OP).send({ serialNo, carrier: 'BUNGAE', expectedVersion: versions[i] }),
+      ),
+    );
+    console.log(`[다른 단말기 동시 출고] 응답=${JSON.stringify(responses.map((r) => r.status))}`);
+    expect(responses.map((r) => r.status)).toEqual([201, 201]);
   });
 
   it('없는 출고 id는 404, 숫자가 아니면 400', async () => {

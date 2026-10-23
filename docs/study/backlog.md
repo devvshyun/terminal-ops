@@ -86,3 +86,5 @@
 - [ ] "열린 건은 하나만" 규칙을 잠금으로 지키기 vs 부분 unique 인덱스(generated column) (service-ticket.service.ts)
 - [ ] 여러 행 잠금 순서와 데드락 — 순환 대기 조건(공유 자원이 둘 이상이어야 한다) (decisions/0023, experiments/0007)
 - [ ] 잠금 읽기(FOR UPDATE)는 스냅샷을 만들지 않고 최신 커밋을 읽는다 — RR에서 일반 SELECT와 다른 점 (replacement.service.ts)
+- [ ] 없는 행을 조건으로 한 UPDATE가 RR에서 gap 락을 거는 이유, gap 락끼리는 호환되지만 insert intention과는 충돌 (troubleshooting/0014)
+- [ ] 잠그지 않고 읽은 뒤 PK로 갱신하는 패턴이 안전하려면 무엇이 직렬화를 보장해야 하나(여기서는 단말기 X 락) (shipment.service.ts recordShipment, decisions/0018)
