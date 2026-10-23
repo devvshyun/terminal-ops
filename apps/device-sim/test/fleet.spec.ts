@@ -95,4 +95,79 @@ describe('단말기 무리(Fleet)', () => {
     expect(s.skippedTicks).toBeGreaterThanOrEqual(1);
     expect(fleet.running).toBe(false);
   });
+
+  it('stop은 주기 도중에도 새 묶음을 보내지 않고, 보내는 중인 요청만 기다린다', async () => {
+    api.setHandler(async (req, res) => {
+      await sleep(200);
+      okHandler(req, res);
+    });
+    // 묶음 20개, 동시 2개 → 한 주기가 약 2초. 예전에는 stop이 주기가 끝나길(2초) 기다렸다
+    fleet = new Fleet(config({ count: 20, batchSize: 1, concurrency: 2, intervalMs: 60_000 }));
+    fleet.start();
+    await sleep(250);
+    const t0 = performance.now();
+    await fleet.stop();
+    const took = performance.now() - t0;
+    expect(took).toBeLessThan(400);
+    const after = api.received.length;
+    expect(after).toBeLessThan(20);
+    await sleep(500);
+    expect(api.received.length).toBe(after); // stop이 끝난 뒤에는 보내지 않는다
+    expect(fleet.running).toBe(false);
+    // 다시 시작하면 새 주기를 처음부터 보낸다
+    api.setHandler(okHandler);
+    api.received.length = 0;
+    fleet.start();
+    await sleep(300);
+    await fleet.stop();
+    expect(api.received.length).toBe(20);
+  });
+
+  it('시간 초과는 timeouts로 세고, 걸린 시간도 실패 응답 시간에 남긴다', async () => {
+    api.setHandler(async (req, res) => {
+      await sleep(400);
+      okHandler(req, res);
+    });
+    fleet = new Fleet(config({ count: 1, requestTimeoutMs: 100 }));
+    await fleet.tick();
+    const v = fleet.stats.view();
+    expect(v).toMatchObject({ requests: 1, errors: 1, timeouts: 1, networkErrors: 0, httpErrors: 0, badResponses: 0 });
+    expect(v.latencyFailed.count).toBe(1);
+    expect(v.latencyFailed.max).toBeGreaterThanOrEqual(90);
+    expect(v.latencyFailed.max).toBeLessThan(350);
+    expect(v.latencyOk.count).toBe(0);
+    expect(v.latency.count).toBe(1);
+  });
+
+  it('연결 실패는 networkErrors, 2xx가 아닌 응답은 httpErrors(응답 시간은 실패 쪽)', async () => {
+    api.setHandler((_req, res) => sendJson(res, 503, { error: 'X' }));
+    fleet = new Fleet(config({ count: 2, batchSize: 1 }));
+    await fleet.tick();
+    expect(fleet.stats.view()).toMatchObject({ errors: 2, httpErrors: 2, timeouts: 0, networkErrors: 0 });
+    expect(fleet.stats.view().latencyFailed.count).toBe(2);
+    await fleet.close();
+    fleet = new Fleet(config({ count: 1, targetUrl: 'http://127.0.0.1:1' }));
+    await fleet.tick();
+    expect(fleet.stats.view()).toMatchObject({ errors: 1, networkErrors: 1, httpErrors: 0 });
+    expect(fleet.stats.view().latencyFailed.count).toBe(1);
+  });
+
+  it('2xx인데 results 배열이 없으면 badResponses이자 오류다(성공 응답 시간에는 넣지 않는다)', async () => {
+    api.setHandler((_req, res) => sendJson(res, 200, { accepted: 1 }));
+    fleet = new Fleet(config({ count: 2, batchSize: 1 }));
+    await fleet.tick();
+    const v = fleet.stats.view();
+    expect(v).toMatchObject({ requests: 2, errors: 2, badResponses: 2, httpErrors: 0, heartbeatsAccepted: 0 });
+    expect(v.latencyOk.count).toBe(0);
+    expect(v.latencyFailed.count).toBe(2);
+  });
+
+  it('configure가 중간에 실패하면 이전 설정·단말기를 그대로 둔다', () => {
+    fleet = new Fleet(config({ count: 3, serialPrefix: 'KEEP' }));
+    const before = { config: fleet.config, devices: fleet.devices };
+    expect(() => fleet!.configure({ ...fleet!.config, targetUrl: 'not a url', count: 9 })).toThrow();
+    expect(fleet.config).toBe(before.config);
+    expect(fleet.devices).toBe(before.devices);
+    expect([...fleet.devices.keys()]).toEqual(['KEEP-0001', 'KEEP-0002', 'KEEP-0003']);
+  });
 });

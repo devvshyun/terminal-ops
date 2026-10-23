@@ -91,3 +91,6 @@
 - [ ] Redis ZSET(정렬 집합) — ZADD·ZRANGEBYSCORE·ZMSCORE와 점수로 시간 범위 찾기 (device/heartbeat.service.ts, decisions/0027)
 - [ ] Redis pipeline과 MULTI의 차이, ioredis exec()가 명령별 오류를 결과 배열로 주는 방식 (redis/redis-exec.ts)
 - [ ] RENAME으로 키를 원자적으로 바꾸기와 TTL이 함께 옮겨 가는 점(PERSIST) (device/active-set.service.ts)
+- [ ] 닫힌 루프 vs 열린 루프 부하 생성기, coordinated omission(응답이 느리면 요청도 늦게 보내져 지연이 낮게 보이는 문제) (decisions/0009 갱신, apps/device-sim/src/fleet.ts)
+- [ ] 로그 간격 히스토그램(HdrHistogram 방식)과 reservoir sampling의 백분위 오차 차이 (apps/device-sim/src/stats.ts, troubleshooting/0017)
+- [ ] Node http 서버 keepAliveTimeout·headersTimeout과 클라이언트 에이전트의 끊긴 소켓 재사용 경쟁 (decisions/0009 갱신)

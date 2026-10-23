@@ -1,4 +1,4 @@
-import { ApiClient } from './client.js';
+import { ApiClient, RequestError } from './client.js';
 import { defaultConfig, serialsOf, type SimConfig } from './config.js';
 import { createRng } from './rng.js';
 import { SimStats } from './stats.js';
@@ -16,11 +16,11 @@ interface HeartbeatResult {
   result: string;
 }
 
-/** 작업 목록을 동시에 n개까지만 돌린다. */
-export async function runPool<T>(items: T[], n: number, work: (item: T) => Promise<void>): Promise<void> {
+/** 작업 목록을 동시에 n개까지만 돌린다. shouldStop이 true를 돌려주면 새 작업은 시작하지 않고 하던 작업만 끝낸다. */
+export async function runPool<T>(items: T[], n: number, work: (item: T) => Promise<void>, shouldStop: () => boolean = () => false): Promise<void> {
   let next = 0;
   const lanes = Array.from({ length: Math.min(n, items.length) }, async () => {
-    while (next < items.length) {
+    while (next < items.length && !shouldStop()) {
       const item = items[next++];
       await work(item);
     }
@@ -50,6 +50,8 @@ export class Fleet {
   private client: ApiClient | null = null;
   private timer: NodeJS.Timeout | null = null;
   private inTick: Promise<void> | null = null;
+  /** stop이 요청됐다. 새 묶음을 시작하지 않는다. start가 지운다 */
+  private stopping = false;
 
   constructor(config: SimConfig = defaultConfig()) {
     this.configure(config);
@@ -59,9 +61,11 @@ export class Fleet {
     return this.timer !== null;
   }
 
-  /** 설정을 바꾸고 단말기 목록을 다시 만든다. 이미 있던 단말기의 펌웨어는 유지한다. */
+  /**
+   * 설정을 바꾸고 단말기 목록을 다시 만든다. 이미 있던 단말기의 펌웨어는 유지한다.
+   * 새 단말기 목록·연결을 모두 만든 뒤에 한꺼번에 바꾼다(중간에 던지면 이전 상태 그대로).
+   */
   configure(config: SimConfig): void {
-    this.config = config;
     const serials = serialsOf(config);
     const offline = new Set([...config.offlineSerials, ...pickSeeded(serials, Math.round(serials.length * config.offlineRate), config.seed)]);
     const next = new Map<string, Device>();
@@ -69,23 +73,31 @@ export class Fleet {
       const prev = this.devices.get(serialNo);
       next.set(serialNo, { serialNo, firmwareVersion: prev?.firmwareVersion ?? config.firmwareVersion, offline: offline.has(serialNo) });
     }
-    this.devices = next;
+    const client = new ApiClient(config.targetUrl, config.concurrency, config.requestTimeoutMs);
     this.client?.close();
-    this.client = new ApiClient(config.targetUrl, config.concurrency, config.requestTimeoutMs);
+    this.client = client;
+    this.config = config;
+    this.devices = next;
   }
 
   start(): void {
     if (this.timer) return;
+    this.stopping = false;
     this.stats.startedAt ??= new Date().toISOString();
     this.timer = setInterval(() => void this.tickIfIdle(), this.config.intervalMs);
     void this.tickIfIdle();
   }
 
-  /** 멈추고, 보내는 중인 주기가 끝날 때까지 기다린다. */
+  /** 멈춘다. 주기 도중이어도 새 묶음은 보내지 않고, 이미 보낸 요청의 응답(또는 제한 시간)만 기다린다. */
   async stop(): Promise<void> {
+    this.stopping = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    await this.inTick;
+    try {
+      await this.inTick;
+    } finally {
+      if (this.timer === null) this.stopping = false; // 그 사이 start가 오지 않았으면 직접 tick()도 다시 쓸 수 있다
+    }
   }
 
   async reset(config: SimConfig = defaultConfig()): Promise<void> {
@@ -116,7 +128,7 @@ export class Fleet {
     const online = [...this.devices.values()].filter((d) => !d.offline);
     const batches: Device[][] = [];
     for (let i = 0; i < online.length; i += this.config.batchSize) batches.push(online.slice(i, i + this.config.batchSize));
-    await runPool(batches, this.config.concurrency, (batch) => this.send(batch));
+    await runPool(batches, this.config.concurrency, (batch) => this.send(batch), () => this.stopping);
   }
 
   private async send(batch: Device[]): Promise<void> {
@@ -127,18 +139,33 @@ export class Fleet {
       const res = await client.postJson('/devices/heartbeats', {
         items: batch.map((d) => ({ serialNo: d.serialNo, firmwareVersion: d.firmwareVersion })),
       });
-      this.stats.recordLatency(res.ms);
       if (res.status < 200 || res.status >= 300) {
+        this.stats.recordLatency(res.ms, false);
         this.stats.errors += 1;
+        this.stats.httpErrors += 1;
         return;
       }
-      const results = (res.body as { results?: HeartbeatResult[] } | null)?.results ?? [];
-      for (const r of results) {
-        if (r.result === 'OK') this.stats.heartbeatsAccepted += 1;
+      const results = (res.body as { results?: unknown } | null)?.results;
+      if (!Array.isArray(results)) {
+        this.stats.recordLatency(res.ms, false);
+        this.stats.errors += 1;
+        this.stats.badResponses += 1;
+        return;
+      }
+      this.stats.recordLatency(res.ms, true);
+      for (const r of results as HeartbeatResult[]) {
+        if (r?.result === 'OK') this.stats.heartbeatsAccepted += 1;
         else this.stats.heartbeatsRejected += 1;
       }
-    } catch {
+    } catch (error) {
       this.stats.errors += 1;
+      if (error instanceof RequestError) {
+        this.stats.recordLatency(error.ms, false);
+        if (error.kind === 'timeout') this.stats.timeouts += 1;
+        else this.stats.networkErrors += 1;
+      } else {
+        this.stats.networkErrors += 1;
+      }
     }
   }
 }

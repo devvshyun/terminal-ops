@@ -24,6 +24,9 @@ export interface SimConfig {
   seed: number;
 }
 
+/** 단말기 대수의 상한(시리얼 목록·count 모두) */
+export const MAX_DEVICES = 20_000;
+
 export type SimConfigPatch = Partial<SimConfig>;
 
 export function defaultConfig(): SimConfig {
@@ -50,16 +53,71 @@ export function serialsOf(config: SimConfig): string[] {
   return Array.from({ length: config.count }, (_, i) => `${config.serialPrefix}-${String(config.serialStart + i).padStart(4, '0')}`);
 }
 
-/** 숫자 설정의 범위 검사. 틀리면 이유 문장, 맞으면 null */
-export function invalidReason(config: SimConfig): string | null {
-  const positive: (keyof SimConfig)[] = ['intervalMs', 'batchSize', 'concurrency', 'requestTimeoutMs'];
-  for (const key of positive) {
-    const v = config[key];
-    if (typeof v !== 'number' || !Number.isInteger(v) || v < 1) return `${key}는 1 이상의 정수여야 합니다.`;
+type Rule =
+  | { type: 'string'; nonEmpty?: boolean }
+  | { type: 'url' }
+  | { type: 'strings'; max: number }
+  | { type: 'int'; min: number; max: number }
+  | { type: 'number'; min: number; max: number };
+
+/** 설정 키마다 형식·범위. 새 설정 키는 여기에 한 줄을 더해야 관리 API가 받는다(알 수 없는 키는 400) */
+export const CONFIG_RULES: Record<keyof SimConfig, Rule> = {
+  targetUrl: { type: 'url' },
+  serials: { type: 'strings', max: MAX_DEVICES },
+  serialPrefix: { type: 'string', nonEmpty: true },
+  serialStart: { type: 'int', min: 0, max: 1_000_000_000 },
+  count: { type: 'int', min: 0, max: MAX_DEVICES },
+  intervalMs: { type: 'int', min: 1, max: 86_400_000 },
+  batchSize: { type: 'int', min: 1, max: 500 }, // API가 한 요청에 500개까지 받는다
+  concurrency: { type: 'int', min: 1, max: 1000 },
+  offlineSerials: { type: 'strings', max: MAX_DEVICES },
+  offlineRate: { type: 'number', min: 0, max: 1 },
+  firmwareVersion: { type: 'string', nonEmpty: true },
+  requestTimeoutMs: { type: 'int', min: 1, max: 600_000 },
+  seed: { type: 'int', min: 0, max: 4_294_967_295 },
+};
+
+function checkValue(key: string, value: unknown, rule: Rule): string | null {
+  switch (rule.type) {
+    case 'string':
+      if (typeof value !== 'string' || (rule.nonEmpty && value === '')) return `${key}는 ${rule.nonEmpty ? '비어 있지 않은 ' : ''}문자열이어야 합니다.`;
+      return null;
+    case 'url': {
+      if (typeof value !== 'string') return `${key}는 http(s) 주소 문자열이어야 합니다.`;
+      try {
+        const u = new URL(value);
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') return `${key}는 http 또는 https 주소여야 합니다.`;
+      } catch {
+        return `${key}가 올바른 주소가 아닙니다.`;
+      }
+      return null;
+    }
+    case 'strings':
+      if (!Array.isArray(value) || value.some((v) => typeof v !== 'string' || v === '')) return `${key}는 비어 있지 않은 문자열의 배열이어야 합니다.`;
+      if (value.length > rule.max) return `${key}는 ${rule.max}개 이하여야 합니다.`;
+      if (new Set(value).size !== value.length) return `${key}에 중복이 있습니다.`;
+      return null;
+    case 'int':
+    case 'number':
+      if (typeof value !== 'number' || !Number.isFinite(value) || (rule.type === 'int' && !Number.isInteger(value))) {
+        return `${key}는 유한한 ${rule.type === 'int' ? '정수' : '숫자'}여야 합니다.`;
+      }
+      if (value < rule.min || value > rule.max) return `${key}는 ${rule.min}~${rule.max}이어야 합니다.`;
+      return null;
   }
-  for (const key of ['offlineRate'] as const) {
-    if (!(config[key] >= 0 && config[key] <= 1)) return `${key}는 0~1이어야 합니다.`;
+}
+
+/** 관리 API로 받은 설정 일부의 검사. 알 수 없는 키·형식·범위가 틀리면 이유 문장, 맞으면 null */
+export function invalidPatchReason(patch: Record<string, unknown>): string | null {
+  for (const key of Object.keys(patch)) {
+    if (!Object.hasOwn(CONFIG_RULES, key)) return `알 수 없는 설정 키입니다: ${key}`;
+    const reason = checkValue(key, patch[key], CONFIG_RULES[key as keyof SimConfig]);
+    if (reason) return reason;
   }
-  if (!Number.isInteger(config.count) || config.count < 0) return 'count는 0 이상의 정수여야 합니다.';
   return null;
+}
+
+/** 합친 설정 전체의 검사(키마다의 검사 + 서로 관련된 값) */
+export function invalidReason(config: SimConfig): string | null {
+  return invalidPatchReason(config as unknown as Record<string, unknown>);
 }
