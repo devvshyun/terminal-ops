@@ -1,15 +1,20 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { UnrecoverableError, type Job } from 'bullmq';
+import { AnomalyService } from '../anomaly/anomaly.service.js';
+import { BusinessError } from '../common/domain-errors.js';
 import { QUEUE } from '../queue/queue-names.js';
 import { toVanRunView, VanReconciliationService, type VanRunJobData } from '../van/van-reconciliation.service.js';
 
 /**
- * report 큐: 오래 걸리는 집계 job(VAN 대조, 다음 Task의 이상 단말기 찾기·주간 리포트). device 큐(concurrency 1, 짧은 job)와 나눠
+ * report 큐: 오래 걸리는 집계 job(VAN 대조, 이상 단말기 찾기, 다음 Task의 주간 리포트). device 큐(concurrency 1, 짧은 job)와 나눠
  * 무거운 일이 active 갱신·오프라인 판정을 막지 않게 한다(experiments/0010). 이 큐도 concurrency 1 — 집계끼리는 겹치지 않는다.
  */
 @Processor(QUEUE.REPORT, { concurrency: 1 })
 export class ReportProcessor extends WorkerHost {
-  constructor(private readonly van: VanReconciliationService) {
+  constructor(
+    private readonly van: VanReconciliationService,
+    private readonly anomalies: AnomalyService,
+  ) {
     super();
   }
 
@@ -23,6 +28,15 @@ export class ReportProcessor extends WorkerHost {
       }
       case 'van-reconcile-scheduled':
         return this.van.runScheduled();
+      case 'anomaly-scan':
+        try {
+          const { newMatches: _new, ...summary } = await this.anomalies.scan();
+          return summary;
+        } catch (error) {
+          // 수동 찾기가 돌고 있으면 이번 주기는 건너뛴다(그 찾기가 같은 일을 한다)
+          if (error instanceof BusinessError && error.code === 'ANOMALY_SCAN_RUNNING') return { skipped: true };
+          throw error;
+        }
       default:
         throw new UnrecoverableError(`모르는 report job: ${job.name}`);
     }

@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/mysql';
 import { BusinessError } from '../common/domain-errors.js';
+import { env } from '../config/env.js';
+import { OUTBOX_TYPE, OutboxEvent } from '../outbox/outbox-event.entity.js';
 import { RedisLock } from '../redis/redis-lock.js';
 import { Terminal } from '../terminal/terminal.entity.js';
 import { Anomaly, AnomalyRule } from './anomaly.entity.js';
@@ -14,6 +16,9 @@ const SCAN_LOCK_TTL_MS = 5 * 60_000;
 
 /** PK IN (…) 갱신·INSERT 한 문장의 행 수 */
 const CHUNK = 500;
+
+/** 묶음 알림 payload에 담는 시리얼 수. 나머지는 count와 truncated로만 */
+const BULK_EVENT_SERIALS = 100;
 
 export interface ScanResult {
   /** 새로 걸린 이상 */
@@ -102,6 +107,8 @@ export class AnomalyService {
         const ids = resolved.slice(i, i + CHUNK);
         await tx.execute(openRowsUpdateSql('resolved_at', ids.length), [now, ...ids]);
       }
+      // 알림은 이 찾기가 실제로 넣은 행만(겹친 찾기가 먼저 연 것은 그 찾기가 알렸다)
+      this.recordNotifications(tx, inserted, now);
     });
 
     const openNow: Partial<Record<AnomalyRule, number>> = {};
@@ -112,6 +119,36 @@ export class AnomalyService {
       this.logger.log(`이상 단말기 찾기: 새로 ${inserted.length}, 계속 ${continuing.length + merged}, 풀림 ${resolved.length}`);
     }
     return { detected: inserted.length, continuing: continuing.length + merged, resolved: resolved.length, open: openNow, newMatches: inserted };
+  }
+
+  /**
+   * 새로 걸린 이상의 알림을 같은 트랜잭션의 Outbox에 남긴다(유실 없음, decisions/0016). 기준(ANOMALY_BULK_EVENT_THRESHOLD)보다 많으면
+   * 규칙별 수를 담은 묶음 한 행 — 첫 찾기나 큰 장애 뒤에 수천 행이 relay 줄을 막지 않게(experiments/0010, Day 4 방식).
+   * 계속 걸린 이상과 풀린 이상은 알리지 않는다(매일 같은 알림이 반복되지 않게. 열린 이상은 주간 리포트에 나온다).
+   */
+  private recordNotifications(tx: EntityManager, newMatches: AnomalyMatch[], now: Date): void {
+    if (newMatches.length === 0) return;
+    if (newMatches.length > env.anomalyBulkEventThreshold) {
+      const byRule: Partial<Record<AnomalyRule, number>> = {};
+      for (const m of newMatches) byRule[m.rule] = (byRule[m.rule] ?? 0) + 1;
+      tx.create(OutboxEvent, {
+        type: OUTBOX_TYPE.ANOMALY_DETECTED_BULK,
+        payload: {
+          count: newMatches.length,
+          byRule,
+          serials: newMatches.slice(0, BULK_EVENT_SERIALS).map((m) => m.serialNo),
+          truncated: newMatches.length > BULK_EVENT_SERIALS,
+          detectedAt: now.toISOString(),
+        },
+      });
+      return;
+    }
+    for (const m of newMatches) {
+      tx.create(OutboxEvent, {
+        type: OUTBOX_TYPE.ANOMALY_DETECTED,
+        payload: { serialNo: m.serialNo, rule: m.rule, ...(typeof m.detail.days === 'number' ? { days: m.detail.days } : {}), detectedAt: now.toISOString() },
+      });
+    }
   }
 
   /** 이상 목록 한 페이지(id 순, afterId 뒤부터). 단말기 시리얼·지금 상태를 붙인다 */

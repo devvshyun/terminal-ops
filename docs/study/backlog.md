@@ -120,3 +120,4 @@
 - [ ] INSERT … ON DUPLICATE KEY UPDATE와 함수 인덱스 unique, affectedRows(1·2·0)와 CLIENT_FOUND_ROWS (decisions/0034 fix)
 - [ ] 옵티마이저 통계와 UPDATE 실행계획, 인덱스 힌트(FORCE INDEX)의 대가 (decisions/0034 fix)
 - [ ] MySQL 소수 초 저장의 반올림과 TIME_TRUNCATE_FRACTIONAL (decisions/0034 fix)
+- [ ] cron 식과 시간대(tz), 일광 절약 시간의 건너뜀·겹침, 분산 스케줄러의 정확히 한 번 (decisions/0035)

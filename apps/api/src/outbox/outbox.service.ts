@@ -4,6 +4,8 @@ import { UnrecoverableError, type JobsOptions, type Queue } from 'bullmq';
 import { EntityManager, IsolationLevel, LockMode } from '@mikro-orm/mysql';
 import { PartnerPermanentError } from '../common/partner-errors.js';
 import { QUEUE } from '../queue/queue-names.js';
+import { ANOMALY_RULE_LABEL } from '../anomaly/anomaly-rules.js';
+import type { AnomalyRule } from '../anomaly/anomaly.entity.js';
 import { KIND_LABEL } from '../van/van-compare.js';
 import type { VanMismatchKind } from '../van/van.entities.js';
 import { OUTBOX_TYPE, OutboxEvent, OutboxStatus } from './outbox-event.entity.js';
@@ -70,7 +72,20 @@ export function textOf(event: Pick<OutboxEvent, 'type' | 'payload'>): string {
     unverifiable?: number;
     acknowledgeDrop?: boolean;
     counts?: Partial<Record<VanMismatchKind, number>>;
+    rule?: AnomalyRule;
+    days?: number;
+    byRule?: Partial<Record<AnomalyRule, number>>;
   };
+  if (event.type === OUTBOX_TYPE.ANOMALY_DETECTED) {
+    return `[단말온] 이상 단말기 ${p.serialNo}: ${ANOMALY_RULE_LABEL[p.rule!] ?? p.rule}${p.days === undefined ? '' : ` (${p.days}일)`}`;
+  }
+  if (event.type === OUTBOX_TYPE.ANOMALY_DETECTED_BULK) {
+    const byRule = Object.entries(ANOMALY_RULE_LABEL)
+      .filter(([rule]) => (p.byRule?.[rule as AnomalyRule] ?? 0) > 0)
+      .map(([rule, label]) => `${label} ${p.byRule![rule as AnomalyRule]}`)
+      .join(', ');
+    return `[단말온] 이상 단말기 ${p.count}대 새로 발견 (${byRule}, 판정 ${p.detectedAt})`;
+  }
   if (event.type === OUTBOX_TYPE.VAN_RECONCILIATION_COMPLETED) {
     const byKind = Object.entries(KIND_LABEL)
       .map(([kind, label]) => `${label} ${p.counts?.[kind as VanMismatchKind] ?? 0}`)

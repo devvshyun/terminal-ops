@@ -53,4 +53,16 @@ describe('알림 문구(textOf)', () => {
       '[단말온] VAN 등록 대조 #7: 어긋남 1000건(미등록 400, 운영 아님 0, 가맹점 다름 600, 정지 0), 재검증으로 풀림 3건, VAN 등록 50000건 (수집 급감 확인 후 실행)',
     );
   });
+
+  it('이상 단말기는 시리얼·규칙 이름·경과일, 묶음은 대수와 규칙별 수(0인 규칙은 뺌) (decisions/0034)', () => {
+    expect(textOf({ type: 'anomaly.detected', payload: { serialNo: 'A-0001', rule: 'DELIVERED_NOT_INSTALLED', days: 8 } })).toBe(
+      '[단말온] 이상 단말기 A-0001: 배송 완료 후 미설치 (8일)',
+    );
+    expect(textOf({ type: 'anomaly.detected', payload: { serialNo: 'A-0002', rule: 'IN_SERVICE_NO_MERCHANT' } })).toBe(
+      '[단말온] 이상 단말기 A-0002: 운영 중 가맹점 없음',
+    );
+    expect(
+      textOf({ type: 'anomaly.detected_bulk', payload: { count: 30, byRule: { SHIPPED_TOO_LONG: 25, RETURN_STALLED: 5 }, detectedAt: 'T' } }),
+    ).toBe('[단말온] 이상 단말기 30대 새로 발견 (회수 지연 5, 배송 지연 25, 판정 T)');
+  });
 });

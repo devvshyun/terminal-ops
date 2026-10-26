@@ -24,11 +24,20 @@ describe('주기 작업 삭제 (scheduler:clear, decisions/0015)', () => {
 
   it('등록된 주기 작업을 지우면 다음 주기 job이 더 생기지 않는다. 다시 지우면 지울 것이 없다', async () => {
     // 테스트 앱에는 스케줄러가 없으므로(schedulers: false) 직접 등록한다. 접두사가 test-라 개발 Redis 키는 건드리지 않는다.
-    await new SchedulerService(queueOf(QUEUE.CARRIER_SWEEP), queueOf(QUEUE.OUTBOX), queueOf(QUEUE.DEVICE)).onApplicationBootstrap();
+    await new SchedulerService(queueOf(QUEUE.CARRIER_SWEEP), queueOf(QUEUE.OUTBOX), queueOf(QUEUE.DEVICE), queueOf(QUEUE.REPORT)).onApplicationBootstrap();
     const queues = [...new Set(JOB_SCHEDULERS.map((s) => s.queue))];
     for (const name of queues) {
       expect(await queueOf(name).getJobSchedulersCount()).toBe(JOB_SCHEDULERS.filter((s) => s.queue === name).length);
     }
+    // cron 작업(report 큐)은 시간대와 함께 저장되고, 등록할 때 바로 돌지 않는다(다음 시각의 delayed job 하나씩, decisions/0035)
+    const anomaly = await queueOf(QUEUE.REPORT).getJobScheduler('anomaly-scan-daily');
+    expect(anomaly).toMatchObject({ pattern: '0 2 * * *', tz: 'Asia/Seoul' });
+    const next = new Date(anomaly!.next!);
+    expect(next.getTime()).toBeGreaterThan(Date.now());
+    expect([next.getUTCHours(), next.getUTCMinutes()]).toEqual([17, 0]); // 02:00 KST = 전날 17:00 UTC
+    const van = await queueOf(QUEUE.REPORT).getJobScheduler('van-reconcile-daily');
+    expect(new Date(van!.next!).getUTCHours()).toBe(18);
+    expect(await queueOf(QUEUE.REPORT).getJobCounts('waiting', 'delayed')).toEqual({ waiting: 0, delayed: 2 });
 
     expect(await clearJobSchedulers(queueOf)).toEqual(JOB_SCHEDULERS.map((s) => s.id));
     for (const name of queues) {

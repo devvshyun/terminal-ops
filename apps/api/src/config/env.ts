@@ -100,10 +100,13 @@ export const env = {
    * VAN_RUN_HEARTBEAT_STALE_MS ≥ 이 값 + 호출 하나의 최악 시간이어야 한다(시작할 때 검사, van-limits.ts, decisions/0033)
    */
   vanHeartbeatIntervalMs: intFromEnv('VAN_HEARTBEAT_INTERVAL_MS', 30_000, MS),
-  /** 안전장치: 후보가 max(이 수, 수집 수 × VAN_CANDIDATE_MAX_PCT%)를 넘으면 재검증 없이 실행을 FAILED로(decisions/0033) */
+  /** 안전장치: 후보가 max(이 수, max(수집 수, 우리 운영 중 수) × VAN_CANDIDATE_MAX_PCT%)를 넘으면 재검증 없이 실행을 FAILED로(decisions/0033) */
   vanCandidateAbsCap: intFromEnv('VAN_CANDIDATE_ABS_CAP', 5000, { min: 1, max: 1_000_000 }),
   vanCandidateMaxPct: intFromEnv('VAN_CANDIDATE_MAX_PCT', 20, { min: 1, max: 100 }),
-  /** 안전장치: 수집 수가 마지막 COMPLETED 실행의 이 %보다 적으면 FAILED로. 0이면 검사하지 않는다 */
+  /**
+   * 안전장치: 수집 수가 마지막 COMPLETED 실행의 이 %보다 적거나, 수집 0건인데 우리 운영 중 단말기가 있으면 FAILED로.
+   * 0이면 둘 다 검사하지 않는다. 운영자가 확인한 실행(POST 본문 acknowledgeDrop)은 이 검사만 건너뛴다(decisions/0033)
+   */
   vanFetchMinPct: intFromEnv('VAN_FETCH_MIN_PCT', 50, { min: 0, max: 100 }),
   /** 이상 단말기 찾기(F4) 규칙의 기준일(decisions/0034) */
   anomalyDays: {
@@ -113,6 +116,11 @@ export const env = {
     allocatedNoShipment: intFromEnv('ANOMALY_ALLOCATED_DAYS', 3, DAYS),
     offlineTooLong: intFromEnv('ANOMALY_OFFLINE_DAYS', 3, DAYS),
   },
+  /** 한 번 찾기에서 새 이상이 이보다 많으면 단말기별 알림 대신 묶음 한 건(anomaly.detected_bulk, decisions/0034) */
+  anomalyBulkEventThreshold: intFromEnv('ANOMALY_BULK_EVENT_THRESHOLD', 20, COUNT),
+  /** 주기 작업 cron(시간대 Asia/Seoul). 잘못된 식이면 스케줄러 등록(서버 시작)이 실패한다 */
+  anomalyScanCron: process.env.ANOMALY_SCAN_CRON ?? '0 2 * * *',
+  vanReconcileCron: process.env.VAN_RECONCILE_CRON ?? '0 3 * * *',
   /** SyncRun에 남길 작업 프로세스 이름(워커 2개 실험에서 구분용) */
   workerName: process.env.WORKER_NAME ?? `pid-${process.pid}`,
 };

@@ -22,6 +22,9 @@ export const OUTBOX_TYPE = {
   FIRMWARE_ROLLOUT_ABORTED: 'firmware.rollout_aborted',
   /** VAN 등록 대조 한 번의 요약(F9, 어긋남 수와 상관없이 1행, decisions/0033) */
   VAN_RECONCILIATION_COMPLETED: 'van.reconciliation_completed',
+  /** 이상 단말기가 새로 걸림(F4). 한 번 찾기에서 기준보다 많으면 묶음 한 건(decisions/0034) */
+  ANOMALY_DETECTED: 'anomaly.detected',
+  ANOMALY_DETECTED_BULK: 'anomaly.detected_bulk',
 } as const;
 
 /**

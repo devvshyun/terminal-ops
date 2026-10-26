@@ -39,3 +39,11 @@
   - 고침: 운영 중 단말기에서 출발해 LEFT JOIN — `c.last_seen_at < 기준`(online 값은 보지 않음) 또는 `c.terminal_id is null and t.status_changed_at < 기준`. 하트비트가 없으면 detail은 `{ lastSeenAt: null, since: 운영 시작, days }`. 스냅샷 job이 last_seen_at을 주기적으로 MySQL에 쓰므로(decisions/0029) 기준(3일)에 비해 늦음은 무시할 만하다. 테스트 먼저 실패(`expected [] to deeply equal [ …(2) ]`).
 - 경계 테스트: 배송 완료 기준(7일)보다 1시간 전·1시간 뒤 두 대. 시간대가 9시간 어긋나면(troubleshooting/0016) 둘 다 뒤집힌다. 지금 코드에서 처음부터 통과(회귀 방지용).
 - 이력 시각 정정: 위 "이력은 datetime(초)이라 1초 안에서 같다"는 버림이 아니라 반올림이다. MySQL은 소수 초를 기본으로 반올림해 저장한다(sql_mode에 TIME_TRUNCATE_FRACTIONAL이 없을 때). status_changed_at이 12:00:00.600이면 이력 occurred_at은 12:00:01 — 이력이 최대 0.5초 늦을 수 있고, 둘의 차이는 ±1초 안이다. 이력으로 "그 상태가 된 시각"을 비교할 때는 1초 여유를 둔다.
+
+## 보탬(2026-10-26, Task 6): 알림
+
+- 새로 걸린 이상만 알린다. 계속 걸린 것·풀린 것은 알리지 않는다(매일 같은 알림이 반복되지 않게, 열린 이상은 주간 리포트에 나온다).
+- 새 이상이 `ANOMALY_BULK_EVENT_THRESHOLD`(20) 이하면 단말기마다 `anomaly.detected`(serialNo, rule, days(있을 때), detectedAt), 넘으면 `anomaly.detected_bulk` 1행(count, 규칙별 수, 앞 100대, truncated). 첫 찾기나 큰 장애 뒤에 수천 행이 relay 줄을 막지 않게(experiments/0010·decisions/0029와 같은 방식).
+- 문구: `[단말온] 이상 단말기 A-0001: 배송 완료 후 미설치 (8일)`, `[단말온] 이상 단말기 30대 새로 발견 (회수 지연 5, 배송 지연 25, 판정 T)` — 규칙 순서, 0인 규칙은 뺀다. 규칙 이름은 `ANOMALY_RULE_LABEL`.
+- 찾기와 같은 트랜잭션의 Outbox라 유실이 없다(decisions/0016).
+- fix 커밋(겹침 멱등)과 합침: 알림은 계획의 `newMatches`가 아니라 "이 찾기가 실제로 넣은 행"(detected_at = 이번 시각)으로 만든다. 겹친 찾기가 먼저 연 이상은 그 찾기가 이미 알렸으므로 두 번 알리지 않는다.
