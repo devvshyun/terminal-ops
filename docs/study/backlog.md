@@ -131,3 +131,4 @@
 - [ ] MySQL SHOW PROFILES·performance_schema로 서버 안 시간과 클라이언트 왕복 가르기 (troubleshooting/0023)
 - [ ] 스냅숏 대조의 일관성 — 스캔 도중 변경, 재검증으로 거짓 양성 거르기, 놓친 것은 다음 실행(최종 일관성) (experiments/0012)
 - [ ] 셸 따옴표·heredoc 구분자 따옴표 규칙 — `<<'EOF'`와 `<<EOF`, 작은따옴표 안의 작은따옴표 (troubleshooting/0024)
+- [ ] MySQL DDL 암묵 커밋(implicit commit) — 마이그레이션 하나에 ALTER가 여럿이면 중간 실패 시 앞 것만 남는다, 원자적 DDL(8.0)의 범위 (troubleshooting/0025)

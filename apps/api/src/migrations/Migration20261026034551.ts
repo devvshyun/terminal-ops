@@ -24,9 +24,10 @@ export class Migration20261026034551 extends Migration {
   override down(): void | Promise<void> {
     this.addSql(`drop table if exists \`anomaly\`;`);
 
+    // up과 대칭: status 단독 인덱스를 먼저 되살리고 복합 인덱스를 지운다(최종 리뷰 Minor 3 — 그 사이에 실패해도 status 인덱스가 남게)
+    this.addSql(`alter table \`terminal\` add index \`terminal_status_index\` (\`status\`);`);
     this.addSql(`alter table \`terminal\` drop index \`terminal_status_status_changed_at_index\`;`);
     this.addSql(`alter table \`terminal\` drop column \`status_changed_at\`;`);
-    this.addSql(`alter table \`terminal\` add index \`terminal_status_index\` (\`status\`);`);
   }
 
 }
