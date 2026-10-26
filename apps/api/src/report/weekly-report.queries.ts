@@ -7,6 +7,12 @@ import type { KstWeek } from './kst-week.js';
 /** 이상 단말기 시트에 담는 최대 행 수(나머지는 total로만) */
 export const ANOMALY_SHEET_LIMIT = 1000;
 
+/**
+ * 주간 리포트 데이터. 기준 시점이 두 가지다(decisions/0035):
+ * - 현황(statusByModel, anomalies, connectivity)은 생성 시점(generatedAt) 기준 — 그 주 끝이 아니라 만든 순간의 모습이다.
+ * - 전이(transitions)·입출고(flows)·배포(rollouts)는 그 주 [from, to) 기준. 단 배포의 targets·succeeded·failed·timedOut은
+ *   그 주에 생긴 것만이 아니라 배포마다 누적(만든 시점까지)이다. van은 만든 시점까지 가장 최근에 끝난 대조.
+ */
 export interface WeeklyReportData {
   week: { weekStart: string; from: string; to: string };
   generatedAt: string;
@@ -24,7 +30,7 @@ export interface WeeklyReportData {
   };
   /** 운영 중 단말기의 접속 상태(MySQL 스냅샷 기준) */
   connectivity: { inService: number; online: number; offline: number; noRecord: number };
-  /** 그 주에 진행 중이었거나 끝난 펌웨어 배포 */
+  /** 그 주에 진행 중이었거나 끝난 펌웨어 배포. 대상·성공·실패·시간 초과 수는 배포마다 누적(그 주 증분 아님) */
   rollouts: {
     id: number;
     modelCode: string;
@@ -53,6 +59,17 @@ export interface WeeklyReportData {
 }
 
 const n = (v: unknown) => Number(v ?? 0);
+
+/**
+ * 주 입력 검사(리뷰 반영). NaN 시각이 파라미터로 가면 mysql2가 'Invalid date'를 보내 MySQL이 엉뚱하게 비교하거나
+ * toISOString()이 RangeError로 엉뚱한 자리에서 터진다 — DB에 가기 전에 이유를 담아 던진다.
+ */
+function assertValidWeek(week: KstWeek): void {
+  const bad = (why: string) => new Error(`주간 리포트 주 ${week.weekStart}: ${why}`);
+  if (!(week.from instanceof Date) || Number.isNaN(week.from.getTime())) throw bad(`from이 올바른 시각이 아닙니다(${String(week.from)})`);
+  if (!(week.to instanceof Date) || Number.isNaN(week.to.getTime())) throw bad(`to가 올바른 시각이 아닙니다(${String(week.to)})`);
+  if (week.to.getTime() <= week.from.getTime()) throw bad(`to(${week.to.toISOString()})가 from(${week.from.toISOString()})보다 늦어야 합니다`);
+}
 const iso = (v: string | Date) => fromDbDatetime(v).toISOString();
 
 /**
@@ -65,6 +82,7 @@ export class WeeklyReportQueries {
   constructor(private readonly em: EntityManager) {}
 
   async collect(week: KstWeek, now = new Date()): Promise<WeeklyReportData> {
+    assertValidWeek(week);
     return this.em.fork().transactional(
       async (tx) => {
         const range = [week.from, week.to];
@@ -100,10 +118,11 @@ export class WeeklyReportQueries {
             where a.resolved_at is null
             order by a.rule, a.detected_at, a.id limit ${ANOMALY_SHEET_LIMIT}`,
         );
-        // 판정 job이 아직 online을 못 내렸어도 마지막 하트비트가 기준보다 오래면 오프라인으로 센다(조회 API와 같은 규칙)
+        // 판정 job이 아직 online을 못 내렸어도 마지막 하트비트가 기준보다 오래면 오프라인으로 센다
+        // (조회 API connectivity.service와 같은 규칙·같은 부등호: lastSeen > now − 기준, 정확히 기준만큼 지났으면 오프라인)
         const [conn] = await tx.execute<{ in_service: unknown; online: unknown; no_record: unknown }[]>(
           `select count(*) as in_service,
-                  sum(c.online = 1 and c.last_seen_at >= ?) as online,
+                  sum(c.online = 1 and c.last_seen_at > ?) as online,
                   sum(c.terminal_id is null) as no_record
              from terminal t left join device_connectivity c on c.terminal_id = t.id
             where t.status = 'IN_SERVICE'`,

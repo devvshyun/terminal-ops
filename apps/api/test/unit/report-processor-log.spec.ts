@@ -37,4 +37,15 @@ describe('fix 4: report 큐 주기 job 로그(건너뜀은 warn, 끝나면 한 �
     await expect(p.process(job('van-reconcile-scheduled'))).resolves.toEqual({ runId: null, skipped: true });
     expect(warn).toHaveBeenCalledWith('van-reconcile-scheduled 건너뜀: 진행 중인 VAN 대조가 있음');
   });
+
+  it('리뷰 반영: 주기·수동 VAN 대조가 FAILED로 끝나면 log가 아니라 warn(밤에 사람 없이 돈 실패를 로그 수준으로 거를 수 있게)', async () => {
+    const runScheduled = vi.fn().mockResolvedValueOnce({ runId: 8, status: 'FAILED' });
+    const execute = vi.fn().mockResolvedValueOnce({ id: 9, status: 'FAILED', confirmed: 0, startedAt: new Date(), heartbeatAt: new Date(), finishedAt: new Date() });
+    const { p, log, warn } = setup({}, { runScheduled, execute } as Partial<VanReconciliationService>);
+    await p.process(job('van-reconcile-scheduled'));
+    expect(warn).toHaveBeenCalledWith('van-reconcile-scheduled 끝: 실행 #8 FAILED');
+    await p.process({ name: 'van-reconcile', data: { runId: 9 } } as Job);
+    expect(warn).toHaveBeenCalledWith('van-reconcile 끝: 실행 #9 FAILED, 어긋남 0');
+    expect(log).not.toHaveBeenCalled();
+  });
 });

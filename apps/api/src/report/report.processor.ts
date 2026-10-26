@@ -5,6 +5,7 @@ import { AnomalyService } from '../anomaly/anomaly.service.js';
 import { BusinessError } from '../common/domain-errors.js';
 import { QUEUE } from '../queue/queue-names.js';
 import { toVanRunView, VanReconciliationService, type VanRunJobData } from '../van/van-reconciliation.service.js';
+import { VanRunStatus } from '../van/van.entities.js';
 
 /**
  * report 큐: 오래 걸리는 집계 job(VAN 대조, 이상 단말기 찾기, 다음 Task의 주간 리포트). device 큐(concurrency 1, 짧은 job)와 나눠
@@ -28,13 +29,14 @@ export class ReportProcessor extends WorkerHost {
         const runId = (job.data as Partial<VanRunJobData>).runId;
         if (typeof runId !== 'number') throw new UnrecoverableError(`van-reconcile: runId가 없습니다: ${JSON.stringify(job.data)}`);
         const run = toVanRunView(await this.van.execute(runId));
-        this.logger.log(`van-reconcile 끝: 실행 #${runId} ${run.status}, 어긋남 ${run.confirmed}`);
+        // 실패(FAILED)로 끝난 실행은 warn — execute는 실패해도 던지지 않으므로(행에 이유를 남김) 로그 수준으로 거를 수 있게(리뷰 반영)
+        this.logByStatus(run.status, `van-reconcile 끝: 실행 #${runId} ${run.status}, 어긋남 ${run.confirmed}`);
         return { runId, status: run.status, confirmed: run.confirmed };
       }
       case 'van-reconcile-scheduled': {
         const result = await this.van.runScheduled();
         if (result.skipped) this.logger.warn('van-reconcile-scheduled 건너뜀: 진행 중인 VAN 대조가 있음');
-        else this.logger.log(`van-reconcile-scheduled 끝: 실행 #${result.runId} ${result.status}`);
+        else this.logByStatus(result.status, `van-reconcile-scheduled 끝: 실행 #${result.runId} ${result.status}`);
         return result;
       }
       case 'anomaly-scan':
@@ -53,5 +55,11 @@ export class ReportProcessor extends WorkerHost {
       default:
         throw new UnrecoverableError(`모르는 report job: ${job.name}`);
     }
+  }
+
+  /** 끝난 상태가 FAILED면 warn, 아니면 log */
+  private logByStatus(status: string | undefined, message: string): void {
+    if (status === VanRunStatus.FAILED) this.logger.warn(message);
+    else this.logger.log(message);
   }
 }

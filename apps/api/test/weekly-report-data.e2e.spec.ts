@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Anomaly, AnomalyRule } from '../src/anomaly/anomaly.entity.js';
+import { env } from '../src/config/env.js';
 import { DeviceConnectivity } from '../src/device/device-connectivity.entity.js';
 import { Firmware, FirmwareRollout, FirmwareRolloutTarget, RolloutStatus, TargetStatus } from '../src/firmware/firmware.entities.js';
 import { parseKstWeekStart } from '../src/report/kst-week.js';
@@ -137,5 +138,12 @@ describe('주간 리포트 데이터 — DB 집계와 KST 주 경계 (F11, decis
       ['9.9.9', 'RUNNING', 0, 0, 0, 0],
     ]);
     expect(data.van).toMatchObject({ confirmed: 2, fetched: 10, counts: { NOT_REGISTERED: 2 }, unverifiable: 0, acknowledgeDrop: false });
+  });
+
+  it('리뷰 반영: 온라인은 lastSeen > now − 기준(조회 API connectivity.service와 같은 부등호) — 정확히 기준만큼 지났으면 오프라인', async () => {
+    const lastSeen = sec(NOW, -30); // WR-01
+    const q = t.app.get(WeeklyReportQueries);
+    expect((await q.collect(WEEK, new Date(lastSeen.getTime() + env.hbOfflineAfterMs - 1))).connectivity.online).toBe(1);
+    expect((await q.collect(WEEK, new Date(lastSeen.getTime() + env.hbOfflineAfterMs))).connectivity).toEqual({ inService: 3, online: 0, offline: 2, noRecord: 1 });
   });
 });

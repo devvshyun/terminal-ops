@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cronFromEnv, nextCronRun } from '../../src/config/env-cron.js';
 
@@ -43,5 +44,16 @@ describe('cronFromEnv — cron 환경변수 검증 (fix, decisions/0035)', () =>
     vi.resetModules();
     const { env } = await import('../../src/config/env.js');
     expect([env.anomalyScanCron, env.vanReconcileCron]).toEqual(['0 2 * * *', '0 3 * * *']);
+  });
+});
+
+describe('cron-parser 판 고정 검사 (리뷰 반영, decisions/0035)', () => {
+  const readJson = (path: string) => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8'));
+
+  it('package.json의 cron-parser는 bullmq가 고정한 판과 같다(다르면 cronFromEnv 검사는 통과해도 BullMQ가 다르게 읽을 수 있다)', () => {
+    const ours = readJson('../../package.json').dependencies['cron-parser'];
+    const bullmqs = readJson('../../node_modules/bullmq/package.json').dependencies['cron-parser'];
+    expect(ours).toMatch(/^\d+\.\d+\.\d+$/); // 범위(^·~)가 아닌 정확한 판
+    expect(ours).toBe(bullmqs);
   });
 });
