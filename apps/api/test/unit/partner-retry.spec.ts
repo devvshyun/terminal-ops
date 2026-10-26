@@ -42,4 +42,29 @@ describe('withPartnerRetry — 한 job 안의 외부 호출 재시도 (decisions
     expect(carrierBackoff(1, 'carrier', limited)).toBe(partnerBackoffMs(1, limited));
     expect([1, 2, 3].map((n) => carrierBackoff(n, 'carrier', new PartnerTransientError('x')))).toEqual([500, 1000, 2000]);
   });
+  it('beforeWait는 기다리기 직전마다 불리고(하트비트용), 그것이 던지면 더 기다리지 않고 그 오류로 끝난다', async () => {
+    const order: string[] = [];
+    let calls = 0;
+    const value = await withPartnerRetry(
+      async () => {
+        order.push(`call${++calls}`);
+        if (calls < 3) throw new PartnerTransientError('503');
+        return 'ok';
+      },
+      { attempts: 5, sleep: async (ms) => void order.push(`sleep${ms}`), beforeWait: async () => void order.push('beat') },
+    );
+    expect(value).toBe('ok');
+    expect(order).toEqual(['call1', 'beat', 'sleep500', 'call2', 'beat', 'sleep1000', 'call3']);
+
+    const stop = new Error('stop');
+    let slept = 0;
+    await expect(
+      withPartnerRetry(async () => Promise.reject(new PartnerTransientError('503')), {
+        attempts: 5,
+        sleep: async () => void slept++,
+        beforeWait: async () => Promise.reject(stop),
+      }),
+    ).rejects.toBe(stop);
+    expect(slept).toBe(0);
+  });
 });

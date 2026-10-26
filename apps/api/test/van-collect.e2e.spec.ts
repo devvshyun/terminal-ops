@@ -24,6 +24,7 @@ function vanRows(n: number): VanSeed[] {
 describe('VAN 등록 대조 — 실행·커서 수집·스테이징 (F9)', () => {
   let t: TestApp;
   let svc: VanReconciliationService;
+  const fetchMinPct = env.vanFetchMinPct;
   const em = () => t.orm.em.fork();
   const snapshotCount = (runId: number) => em().count(VanRegistrationSnapshot, { runId });
 
@@ -33,6 +34,8 @@ describe('VAN 등록 대조 — 실행·커서 수집·스테이징 (F9)', () =>
     await resetDatabase(t.orm);
     await resetQueues(t.app);
     svc = t.app.get(VanReconciliationService);
+    // 이 파일은 실행마다 VAN 등록 수가 다르다(1234 → 30 등). 수집 수 급감 안전장치는 van-reconciliation에서 따로 본다
+    env.vanFetchMinPct = 0;
   });
   beforeEach(async () => {
     await partners.reset();
@@ -43,6 +46,7 @@ describe('VAN 등록 대조 — 실행·커서 수집·스테이징 (F9)', () =>
     vi.restoreAllMocks();
   });
   afterAll(async () => {
+    env.vanFetchMinPct = fetchMinPct;
     await resetQueues(t.app);
     await t.app.close();
   });

@@ -45,7 +45,7 @@ export interface VanPhaseMs {
  */
 @Entity({ tableName: 'van_reconciliation_run' })
 export class VanReconciliationRun {
-  [OptionalProps]?: 'status' | 'finishedAt' | 'pages' | 'fetched' | 'retries' | 'candidates' | 'confirmed' | 'resolved' | 'counts' | 'phaseMs' | 'error';
+  [OptionalProps]?: 'status' | 'finishedAt' | 'pages' | 'fetched' | 'retries' | 'candidates' | 'confirmed' | 'resolved' | 'unverifiable' | 'counts' | 'phaseMs' | 'error';
 
   @PrimaryKey()
   id!: number;
@@ -107,6 +107,10 @@ export class VanReconciliationRun {
   @Property()
   resolved: number = 0;
 
+  /** 재검증의 VAN 조회가 영구 오류(4xx·형식)라 확인하지 못한 후보 수(결과 행 verified=false + reason) */
+  @Property()
+  unverifiable: number = 0;
+
   /** 확정된 어긋남의 종류별 수 */
   @Property({ type: 'json', nullable: true })
   counts: Record<string, number> | null = null;
@@ -150,10 +154,13 @@ export class VanRegistrationSnapshot {
 /**
  * 대조 결과 한 줄. 집합 비교가 찾은 후보마다 하나 — 재검증 뒤에도 어긋나면 verified=true(그때의 종류·값),
  * 재검증에서 풀렸으면 verified=false(비교 때의 종류·값, 스캔 도중 변경 등으로 생긴 거짓 양성).
+ * 재검증의 VAN 조회가 영구 오류면 verified=false + reason(확인 불가, 비교 때의 종류·값).
  * 목록은 (run_id, id) 순서로 넘긴다 — run_id 인덱스의 항목에 PK(id)가 붙어 있어 따로 복합 인덱스가 필요 없다.
  */
 @Entity({ tableName: 'van_reconciliation_item' })
 export class VanReconciliationItem {
+  [OptionalProps]?: 'reason';
+
   @PrimaryKey()
   id!: number;
 
@@ -176,4 +183,8 @@ export class VanReconciliationItem {
 
   @Property()
   verified!: boolean;
+
+  /** 확인하지 못한 이유(재검증의 VAN 조회가 영구 오류). 있으면 verified=false여도 "풀림"이 아니다 */
+  @Property({ type: 'varchar', length: 200, nullable: true })
+  reason: string | null = null;
 }

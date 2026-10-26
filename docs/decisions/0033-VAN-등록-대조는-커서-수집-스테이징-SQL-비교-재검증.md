@@ -56,3 +56,25 @@
 - 확정 순서: 실행 행 UPDATE(조건 status=RUNNING) → 결과 INSERT → Outbox 1행, 한 트랜잭션. 실행 행이 그사이 FAILED(멈춘 실행 정리)가 됐으면 0행 → `VanRunNotRunningError`를 던져 결과도 롤백한다. 계획은 일반 Error였는데, fix 커밋의 규칙(정리된 실행의 이유를 덮어쓰지 않고 경고 로그)과 맞추려고 같은 오류 형으로 했다. fix 커밋의 "마지막 UPDATE 0행이면 경고 로그"는 이것으로 대신한다.
 - 알림 묶음: 어긋남이 천 건이어도 Outbox 1행(요약). 목록은 GET과 주간 리포트로 본다(experiments/0010의 relay 줄 교훈).
 - 스테이징 정리(보관 규칙): 실행이 COMPLETED로 끝나면 그보다 앞선 실행(COMPLETED·FAILED 모두)의 스테이징을 지운다. 이번 것만 남겨 다음 비교·조사에 쓴다. FAILED로 끝난 실행은 정리하지 않으므로 그 반쪽 스테이징은 다음 완료 때 지워진다.
+
+## 갱신(2026-10-26, fix 커밋 2): 재검증 하트비트는 시간 기준, 후보 수 안전장치, 키 정규화
+
+- 문제(리뷰 Important 2개, Minor 몇 개):
+  - 재검증 하트비트가 100개 블록마다뿐이었다. 블록 하나는 동시 8개씩 묶음 13번이고, 묶음 하나는 VAN이 느리면 재시도까지 `5 × 3초 + 7.5초`(429면 Retry-After만큼 더)다. 블록 하나가 멈춤 기준(5분)을 넘길 수 있어 살아 있는 실행을 다음 시작이 FAILED로 바꿀 수 있었다.
+  - 후보 수에 상한이 없었다. VAN이 빈 목록·일부만 주는 장애면 "운영 중인데 VAN에 없음"이 우리 운영 중 단말기 수만큼 생기고, 그만큼 단건 조회를 보낸 뒤 그 수의 결과 행을 한 트랜잭션에 넣는다.
+- 하트비트 선택지:
+  1. 묶음마다·호출마다 하트비트 — 후보 천 개면 UPDATE 천 번. 실행 행 하나에 쓰기가 몰린다.
+  2. 블록 크기를 줄임 — 블록 하나의 최악 시간이 VAN 속도에 달려 있어 맞는 크기가 없다.
+  3. **시간 기준: 확인 지점마다 "마지막 하트비트 뒤 `VAN_HEARTBEAT_INTERVAL_MS`(30초)가 지났으면" 보낸다** — 확인 지점은 재검증 동시 묶음 사이, 재시도 대기 직전(`withPartnerRetry`의 새 `beforeWait`, 수집 페이지 재시도에도). 수집 페이지·재검증 블록의 하트비트(항상)는 그대로 둔다(RUNNING 확인 겸용). 마지막 하트비트 시각은 서비스의 `clock()`으로 재고, 테스트는 가짜 시계로 바꾼다.
+  - → 3. 두 하트비트 사이의 최악 시간 = 간격 + 호출 하나의 최악 시간(`5 × PARTNER_TIMEOUT_MS + 500+1000+2000+4000`). 그래서 시작할 때 `VAN_RUN_HEARTBEAT_STALE_MS ≥ VAN_HEARTBEAT_INTERVAL_MS + 5 × PARTNER_TIMEOUT_MS + 7500`을 검사하고 틀리면 env 이름과 값을 담아 던진다(`van-limits.ts`, 기본값 300000 ≥ 30000 + 22500). Retry-After는 업체가 정해 상한이 없어 식에 넣지 않았다 — 대기 직전에 하트비트를 보내므로 대기 하나가 멈춤 기준보다 길 때만 문제다(업체가 5분 넘게 기다리라고 하면 멈춘 것으로 봐도 된다고 본다).
+- 후보 수 안전장치(재검증 전, 둘 다 실행을 FAILED(`VanSafetyValveError: 이유`)로 끝내고 단건 조회·결과 행·알림 없음, 그때까지의 pages·fetched·candidates·phaseMs는 실행 행에 남김):
+  1. 후보 > max(`VAN_CANDIDATE_ABS_CAP` 5000, 수집 수 × `VAN_CANDIDATE_MAX_PCT` 20%). 절대 상한만 두면 등록이 50만이 돼도 5000에서 막히고, 비율만 두면 등록이 적을 때(수집 10건에 후보 3건) 막힌다.
+  2. 수집 수 < 마지막 COMPLETED 실행의 `VAN_FETCH_MIN_PCT` 50%. 기준은 FAILED가 아니라 COMPLETED(반쪽 수집을 기준으로 삼지 않게). 첫 실행·이전 수집 0이면 검사하지 않는다. 0으로 두면 끈다(van-collect 테스트는 실행마다 등록 수가 달라 끈다).
+  - 버린 것: 후보를 상한까지만 재검증하고 나머지를 버림 — 어떤 것이 빠졌는지 알 수 없고 "확정 수"가 거짓이 된다. 운영자가 원인(VAN 장애·우리 쪽 대량 변경)을 보고 다시 돌리는 편이 낫다.
+- 키 정규화(Minor): 테이블 collation이 `utf8mb4_0900_ai_ci`라 SQL 조인·스테이징 PK·`terminal.serial_no` unique는 'vk-01'과 'VK-01'을 같게 보는데, TS의 Map 키·`classify`의 가맹점 비교는 글자 그대로였다. 재검증이 우리 쪽을 못 찾아 종류가 틀어졌다(테스트 먼저 실패: VAN 'vk-01' 정지가 SUSPENDED가 아니라 NOT_REGISTERED로, 공백 붙은 ' VK-03 '은 후보 2개로).
+  1. SQL에 `COLLATE utf8mb4_bin` — `terminal.serial_no` 인덱스를 못 타고, 우리 DB가 이미 같은 단말기로 보는(unique가 막는) 값을 다르다고 하게 된다.
+  2. **TS를 SQL과 같은 동치로: `serialKey = trim + toUpperCase`**. Map 키·정렬·가맹점 비교에 쓰고, 수집은 시리얼·가맹점의 앞뒤 공백을 지워 넣는다(collation이 NO PAD라 공백은 SQL도 다르게 본다). 재검증 VAN 단건 조회는 스테이징의 VAN 쪽 표기로 한다(VAN이 대소문자를 구분할 수도 있어서). 결과 행의 시리얼은 우리 쪽 표기.
+  - → 2. 시리얼·가맹점 코드는 ASCII라 악센트 무시는 다루지 않는다.
+- "VAN에서 시리얼은 유일"을 가정으로 적는다. 깨지면(같은 serialKey의 등록이 둘) ACTIVE > SUSPENDED > CANCELLED, 같으면 updatedAt이 나중인 것(`betterRegistration`). 수집은 페이지 안은 TS에서, 페이지 사이는 이미 넣은 행을 PK로 읽어(`run_id = ? and serial_no in (…)`, 페이지마다 한 문장) 고르고, 단건 조회도 같은 규칙. 남은 한계: 나중 페이지의 등록이 이기면 스테이징 시리얼 표기는 처음 것으로 남는다(PK는 merge하지 않음).
+- 후보 하나의 영구 오류(Minor): 재검증의 VAN 단건이 `PartnerPermanentError`(4xx·형식)면 그 후보만 결과 행 verified=false + `reason`(`재검증 실패: …`)으로 남기고 실행은 끝낸다. 실행 행 `unverifiable`에 수를 두고 `resolved`(풀림)에서 뺀다. 알림 문구는 있을 때만 "확인 불가 N건". 재시도를 다 쓴 429·5xx는 VAN 장애라 지금처럼 실행 FAILED. 마이그레이션 `Migration20261026033754`(run `unverifiable int default 0`, item `reason varchar(200) null`).
+- 스테이징 정리(`cleanupSnapshots`)는 결과를 확정한 뒤의 일이라 따로 try/catch에서 경고만 남긴다(전에는 실패하면 `fail()`이 불렸지만 조건이 RUNNING이라 0행이었다 — 결과는 같았고, 테스트로 고정만 했다).

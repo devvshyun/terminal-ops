@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DAY_MS, intFromEnv } from './env-number.js';
 import { resolveHeartbeatWriteMode } from './heartbeat-write-mode.js';
+import { checkVanHeartbeatTiming } from '../van/van-limits.js';
 
 // 스크립트·테스트는 apps/api에서 실행한다. 저장소 루트의 .env를 읽는다(이미 있는 환경변수는 덮어쓰지 않는다).
 const envFile = resolve(process.cwd(), '../../.env');
@@ -92,6 +93,19 @@ export const env = {
   vanRunHeartbeatStaleMs: intFromEnv('VAN_RUN_HEARTBEAT_STALE_MS', 300_000, MS),
   /** 재검증 때 브릿지VAN 단건 조회를 동시에 몇 개까지 보내나 */
   vanReverifyConcurrency: intFromEnv('VAN_REVERIFY_CONCURRENCY', 8, { min: 1, max: 64 }),
+  /**
+   * 실행 중 하트비트를 보내는 최소 간격. 확인 지점(수집 페이지·재검증 블록은 항상, 재검증 동시 묶음 사이·재시도 대기 앞은 이 간격이 지났을 때)에서 보낸다.
+   * VAN_RUN_HEARTBEAT_STALE_MS ≥ 이 값 + 호출 하나의 최악 시간이어야 한다(시작할 때 검사, van-limits.ts, decisions/0033)
+   */
+  vanHeartbeatIntervalMs: intFromEnv('VAN_HEARTBEAT_INTERVAL_MS', 30_000, MS),
+  /** 안전장치: 후보가 max(이 수, 수집 수 × VAN_CANDIDATE_MAX_PCT%)를 넘으면 재검증 없이 실행을 FAILED로(decisions/0033) */
+  vanCandidateAbsCap: intFromEnv('VAN_CANDIDATE_ABS_CAP', 5000, { min: 1, max: 1_000_000 }),
+  vanCandidateMaxPct: intFromEnv('VAN_CANDIDATE_MAX_PCT', 20, { min: 1, max: 100 }),
+  /** 안전장치: 수집 수가 마지막 COMPLETED 실행의 이 %보다 적으면 FAILED로. 0이면 검사하지 않는다 */
+  vanFetchMinPct: intFromEnv('VAN_FETCH_MIN_PCT', 50, { min: 0, max: 100 }),
   /** SyncRun에 남길 작업 프로세스 이름(워커 2개 실험에서 구분용) */
   workerName: process.env.WORKER_NAME ?? `pid-${process.pid}`,
 };
+
+// VAN 실행의 멈춤 기준이 하트비트 간격·호출 하나의 최악 시간보다 짧으면 살아 있는 실행을 다른 시작이 FAILED로 바꾼다 → 시작 실패(decisions/0033)
+checkVanHeartbeatTiming({ staleMs: env.vanRunHeartbeatStaleMs, intervalMs: env.vanHeartbeatIntervalMs, timeoutMs: env.partnerTimeoutMs });

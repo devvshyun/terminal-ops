@@ -21,6 +21,11 @@ export interface PartnerRetryOptions {
   sleep?: (ms: number) => Promise<void>;
   /** 다시 하기 직전에 부른다(재시도 수 세기·로그) */
   onRetry?: (error: PartnerError, attempt: number, delayMs: number) => void;
+  /**
+   * 기다리기 직전에 부른다(onRetry 다음). 긴 작업이 기다리는 동안에도 살아 있다는 하트비트를 보낼 때 쓴다(decisions/0033).
+   * 던지면 더 기다리지 않고 그 오류로 끝난다.
+   */
+  beforeWait?: () => Promise<void>;
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -39,6 +44,7 @@ export async function withPartnerRetry<T>(fn: () => Promise<T>, opts: PartnerRet
       if (!retryable || attempt >= opts.attempts) throw error;
       const delayMs = partnerBackoffMs(attempt, error, opts.baseMs);
       opts.onRetry?.(error, attempt, delayMs);
+      await opts.beforeWait?.();
       await (opts.sleep ?? defaultSleep)(delayMs);
     }
   }

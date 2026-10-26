@@ -2,14 +2,17 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import { EntityManager, IsolationLevel, UniqueConstraintViolationException, type QueryResult } from '@mikro-orm/mysql';
+import { fromDbDatetime } from '../common/db-datetime.js';
 import { BusinessError } from '../common/domain-errors.js';
+import { PartnerPermanentError } from '../common/partner-errors.js';
 import { withPartnerRetry } from '../common/partner-retry.js';
 import { env } from '../config/env.js';
 import { OUTBOX_TYPE, OutboxEvent } from '../outbox/outbox-event.entity.js';
 import { QUEUE } from '../queue/queue-names.js';
 import type { TerminalStatus } from '../terminal/terminal-status.js';
-import { BridgevanClient } from './bridgevan.client.js';
-import { classify, ourValueOf, vanValueOf, type OurSide, type VanSide } from './van-compare.js';
+import { BridgevanClient, type VanRegistrationDto } from './bridgevan.client.js';
+import { betterRegistration, classify, ourValueOf, serialKey, vanValueOf, type OurSide, type VanSide } from './van-compare.js';
+import { VAN_CALL_ATTEMPTS } from './van-limits.js';
 import {
   VanMismatchKind,
   VanReconciliationItem,
@@ -24,13 +27,12 @@ import {
 /** 주기 실행의 작업자 이름(decisions/0001) */
 export const VAN_SYSTEM_ACTOR = 'system:van-reconcile';
 
-/** 페이지 하나·시리얼 하나를 다시 부르는 최대 횟수(첫 시도 포함) */
-export const VAN_CALL_ATTEMPTS = 5;
+export { VAN_CALL_ATTEMPTS };
 
 /** 스냅샷 정리 DELETE 한 번의 행 수(한 문장이 오래 잠그지 않게) */
 const SNAPSHOT_DELETE_BATCH = 5000;
 
-/** 재검증 때 우리 쪽을 한 번에 다시 읽는 시리얼 수(이 블록마다 하트비트도 보낸다) */
+/** 재검증 때 우리 쪽을 한 번에 다시 읽는 시리얼 수(이 블록마다 하트비트도 보낸다. 블록 안에서는 시간 기준, env.vanHeartbeatIntervalMs) */
 const REVERIFY_BLOCK = 100;
 
 /** 결과 INSERT 한 문장의 행 수 */
@@ -45,16 +47,20 @@ export interface VanRunJobData {
 
 /** 집합 비교가 찾은 후보 */
 export interface VanCandidate {
+  /** 우리 쪽 표기(우리 DB에 없으면 VAN 표기) */
   serialNo: string;
+  /** 스테이징에 있는 VAN 쪽 표기. 재검증 단건 조회는 이 표기로 한다(VAN에 없으면 null → 우리 표기로 조회) */
+  vanSerialNo: string | null;
   kind: VanMismatchKind;
   our: OurSide | null;
   van: VanSide | null;
 }
 
-type ItemRow = Pick<VanReconciliationItem, 'serialNo' | 'kind' | 'ourValue' | 'vanValue' | 'verified'>;
+type ItemRow = Pick<VanReconciliationItem, 'serialNo' | 'kind' | 'ourValue' | 'vanValue' | 'verified' | 'reason'>;
 
 interface CompareRow {
   serial_no: string;
+  van_serial: string | null;
   status: TerminalStatus | null;
   our_merchant: string | null;
   van_status: VanStatus | null;
@@ -82,6 +88,26 @@ export class VanRunNotRunningError extends Error {
 }
 
 /**
+ * 안전장치에 걸렸다(후보가 너무 많음, 수집 수가 급감). VAN 장애·빈 응답·우리 쪽 대량 변경일 수 있어 단건 조회를 수천 번 보내거나
+ * 거대한 결과 트랜잭션을 만들지 않고 실행을 FAILED(이유)로 끝낸다(decisions/0033).
+ */
+export class VanSafetyValveError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'VanSafetyValveError';
+  }
+}
+
+/** 실행 도중의 숫자(FAILED로 끝나도 실행 행에 남긴다) */
+interface RunProgress {
+  pages?: number;
+  fetched?: number;
+  retries?: number;
+  candidates?: number;
+  phaseMs: VanPhaseMs;
+}
+
+/**
  * 브릿지VAN 등록 대조(F9, decisions/0033).
  * 1. start: 실행 행(RUNNING)을 만든다. 진행 중인 실행이 있으면 409(실행 행의 부분 unique). 하트비트가 끊긴 RUNNING은 먼저 FAILED로.
  * 2. collect: 커서로 모든 페이지를 받아 페이지마다 스테이징(van_registration_snapshot)에 한 문장으로 넣는다.
@@ -89,12 +115,18 @@ export class VanRunNotRunningError extends Error {
  * 3. compare: 스테이징 ⟷ terminal·merchant를 SQL 두 문장으로 비교해 어긋남 후보를 거른다(한 스냅숏, 읽기 전용 트랜잭션).
  * 4. reverify: 후보마다 VAN 단건(시리얼)과 우리 쪽을 지금 값으로 다시 읽어, 여전히 어긋난 것만 확정한다(스캔 도중 변경의 거짓 양성 제거).
  * 5. finish: 한 트랜잭션에서 실행 행 완료 + 결과 행 INSERT + Outbox 요약 알림 1행. 그 뒤 이전 실행의 스테이징을 지운다.
- * 수집 페이지·재검증 블록마다 하트비트(조건 status=RUNNING)를 보내고, 0행이면(멈춘 실행으로 정리됨) 그 자리에서 멈춘다.
+ * 3과 4 사이: 안전장치(수집 수 급감, 후보 수 상한)에 걸리면 재검증 없이 FAILED(이유).
+ * 수집 페이지·재검증 블록마다, 그리고 마지막 하트비트 뒤 env.vanHeartbeatIntervalMs가 지났으면 재검증 동시 묶음 사이·재시도 대기 앞에서도
+ * 하트비트(조건 status=RUNNING)를 보내고, 0행이면(멈춘 실행으로 정리됨) 그 자리에서 멈춘다.
  * 실행은 report 큐 job 하나가 처음부터 끝까지 한다(device 큐에 무거운 일을 넣지 않는다, experiments/0010).
  */
 @Injectable()
 export class VanReconciliationService {
   private readonly logger = new Logger(VanReconciliationService.name);
+  /** 실행별 마지막 하트비트 시각(this.clock 기준). 시간 기준 하트비트의 "간격이 지났나" 판단용 */
+  private readonly lastBeatAt = new Map<number, number>();
+  /** 하트비트 간격 판단에 쓰는 시계(ms). 테스트가 가짜 시계로 바꾼다 */
+  clock: () => number = () => Date.now();
 
   constructor(
     private readonly em: EntityManager,
@@ -154,33 +186,75 @@ export class VanReconciliationService {
       this.logger.warn(`VAN 대조 ${runId}은(는) 이미 ${current.status}라 다시 하지 않음`);
       return current;
     }
-    const phaseMs: VanPhaseMs = {};
+    const progress: RunProgress = { phaseMs: {} };
+    const phaseMs = progress.phaseMs;
     try {
       let t = performance.now();
       const collected = await this.collect(runId);
       phaseMs.collect = elapsed(t);
+      Object.assign(progress, collected);
+      await this.checkFetched(runId, collected.fetched);
       t = performance.now();
       const candidates = await this.compare(runId);
       phaseMs.compare = elapsed(t);
+      progress.candidates = candidates.length;
+      this.checkCandidates(collected.fetched, candidates.length);
       t = performance.now();
       const checked = await this.reverify(runId, candidates);
       phaseMs.reverify = elapsed(t);
       await this.finish(runId, { ...collected, retries: collected.retries + checked.retries }, candidates.length, checked.items, phaseMs);
-      await this.cleanupSnapshots(runId);
     } catch (error) {
       if (error instanceof VanRunNotRunningError) {
         this.logger.warn(error.message);
       } else {
         this.logger.error(`VAN 대조 ${runId} 실패: ${error instanceof Error ? error.message : String(error)}`);
-        await this.fail(runId, error);
+        await this.fail(runId, error, progress);
       }
+      return this.get(runId);
+    } finally {
+      this.lastBeatAt.delete(runId);
+    }
+    // 정리는 실행 결과와 상관없다: 실패해도 COMPLETED는 그대로 두고 경고만(다음 완료 때 다시 지운다)
+    try {
+      await this.cleanupSnapshots(runId);
+    } catch (error) {
+      this.logger.warn(`VAN 대조 ${runId} 스테이징 정리 실패(다음 완료 때 다시): ${error instanceof Error ? error.message : String(error)}`);
     }
     return this.get(runId);
   }
 
   /**
+   * 안전장치 ①: 수집 수가 마지막 COMPLETED 실행의 env.vanFetchMinPct% 미만이면 VanSafetyValveError.
+   * VAN이 빈 목록·일부만 주는 장애면 "운영 중인데 VAN에 없음"이 대량으로 생긴다. 기준은 FAILED가 아니라 마지막 COMPLETED(반쪽 수집을 기준으로 삼지 않게).
+   */
+  private async checkFetched(runId: number, fetched: number): Promise<void> {
+    if (env.vanFetchMinPct === 0) return;
+    const [last] = await this.em
+      .fork()
+      .find(VanReconciliationRun, { status: VanRunStatus.COMPLETED, id: { $lt: runId } }, { fields: ['id', 'fetched'], orderBy: { id: 'desc' }, limit: 1 });
+    if (!last || last.fetched === 0) return;
+    if (fetched * 100 < last.fetched * env.vanFetchMinPct) {
+      throw new VanSafetyValveError(
+        `수집 ${fetched}건이 마지막 완료 실행 #${last.id}의 ${last.fetched}건의 ${env.vanFetchMinPct}% 미만입니다(VAN 장애·빈 응답 의심, 재검증하지 않음).`,
+      );
+    }
+  }
+
+  /** 안전장치 ②: 후보가 max(env.vanCandidateAbsCap, 수집 수 × env.vanCandidateMaxPct%)를 넘으면 VanSafetyValveError */
+  private checkCandidates(fetched: number, candidates: number): void {
+    const cap = Math.max(env.vanCandidateAbsCap, Math.floor((fetched * env.vanCandidateMaxPct) / 100));
+    if (candidates > cap) {
+      throw new VanSafetyValveError(
+        `후보 ${candidates}건이 상한 ${cap}건(max(${env.vanCandidateAbsCap}, 수집 ${fetched} × ${env.vanCandidateMaxPct}%))을 넘습니다(재검증하지 않음).`,
+      );
+    }
+  }
+
+  /**
    * 커서로 모든 페이지를 받아 스테이징에 넣는다. 페이지마다 INSERT 한 문장(자동 커밋) — 수집 전체를 한 트랜잭션으로 묶지 않는다
-   * (외부 호출을 기다리는 동안 잠금을 쥐지 않게). 같은 시리얼이 두 번 오면 나중 값으로 덮는다.
+   * (외부 호출을 기다리는 동안 잠금을 쥐지 않게). 시리얼·가맹점 코드는 앞뒤 공백을 지워 넣는다(SQL 비교 collation이 NO PAD라).
+   * 같은 시리얼(serialKey 기준 = 스테이징 PK collation과 같은 동치)이 두 번 오면 betterRegistration으로 하나를 고른다 — 페이지 안은 TS에서,
+   * 페이지 사이는 이미 넣은 행을 PK로 읽어 비교한다("VAN에서 시리얼은 유일" 가정이 깨졌을 때만 의미가 있다).
    * 시작할 때와 페이지를 받을 때마다 하트비트를 갱신하고, 실행이 RUNNING이 아니면(멈춘 실행으로 정리됨) 그 페이지를 넣지 않고 멈춘다.
    * @throws VanRunNotRunningError
    */
@@ -196,14 +270,14 @@ export class VanReconciliationService {
       const page = await withPartnerRetry(() => this.van.list(cursor, env.bridgevanPageSize), {
         attempts: VAN_CALL_ATTEMPTS,
         onRetry: () => retries++,
+        beforeWait: () => this.heartbeatIfDue(runId),
       });
       await this.heartbeat(runId);
-      if (page.items.length > 0) {
+      const rows = await this.pickPageRows(em, runId, page.items);
+      if (rows.length > 0) {
         await em
           .createQueryBuilder(VanRegistrationSnapshot)
-          .insert(
-            page.items.map((r) => ({ runId, serialNo: r.serialNo, tid: r.tid, merchantCode: r.merchantCode, status: r.status, vanUpdatedAt: r.updatedAt })),
-          )
+          .insert(rows.map((r) => ({ runId, serialNo: r.serialNo, tid: r.tid, merchantCode: r.merchantCode, status: r.status, vanUpdatedAt: r.updatedAt })))
           .onConflict(['runId', 'serialNo'])
           .merge(['tid', 'merchantCode', 'status', 'vanUpdatedAt'])
           .execute();
@@ -215,17 +289,42 @@ export class VanReconciliationService {
     return { pages, fetched, retries };
   }
 
+  /** 한 페이지에서 넣을 행: 정규화하고, 페이지 안·이미 넣은 행과 같은 시리얼이면 betterRegistration이 고른 것만 */
+  private async pickPageRows(em: EntityManager, runId: number, items: VanRegistrationDto[]): Promise<VanRegistrationDto[]> {
+    const best = new Map<string, VanRegistrationDto>();
+    for (const raw of items) {
+      const r = { ...raw, serialNo: raw.serialNo.trim(), merchantCode: raw.merchantCode.trim() };
+      const key = serialKey(r.serialNo);
+      const prev = best.get(key);
+      best.set(key, prev ? betterRegistration(prev, r) : r);
+    }
+    if (best.size === 0) return [];
+    const serials = [...best.values()].map((r) => r.serialNo);
+    const existing = await em.execute<{ serial_no: string; status: VanStatus; van_updated_at: string }[]>(
+      `select serial_no, status, van_updated_at from van_registration_snapshot where run_id = ? and serial_no in (${serials.map(() => '?').join(', ')})`,
+      [runId, ...serials],
+    );
+    for (const e of existing) {
+      const key = serialKey(e.serial_no);
+      const incoming = best.get(key);
+      const stored: Pick<VanRegistrationDto, 'status' | 'updatedAt'> = { status: e.status, updatedAt: fromDbDatetime(e.van_updated_at) };
+      if (incoming && betterRegistration<Pick<VanRegistrationDto, 'status' | 'updatedAt'>>(stored, incoming) !== incoming) best.delete(key);
+    }
+    return [...best.values()];
+  }
+
   /**
    * 스테이징 ⟷ terminal·merchant 집합 비교. 두 문장을 한 REPEATABLE READ 읽기 전용 트랜잭션에서 돌려 같은 시점을 본다(F10 대조와 같은 방식).
    * ① 우리 쪽 운영 중 단말기 기준(LEFT JOIN 스테이징): VAN 없음·해지·정지·가맹점 다름
    * ② VAN 쪽 ACTIVE 등록 기준(LEFT JOIN terminal): 우리가 운영 중이 아니거나 단말기가 없음
-   * SQL은 어긋난 행만 거르고, 종류는 classify(재검증과 같은 함수)로 정한다. 시리얼 오름차순.
+   * SQL은 어긋난 행만 거르고, 종류는 classify(재검증과 같은 함수)로 정한다. 시리얼(serialKey) 오름차순.
+   * 조인은 테이블 collation(대소문자 무시)으로 한다 — TS 쪽도 serialKey로 같은 동치를 쓴다.
    */
   async compare(runId: number): Promise<VanCandidate[]> {
     const [inService, vanActive] = await this.em.fork().transactional(
       async (tx) => [
         await tx.execute<CompareRow[]>(
-          `select t.serial_no, t.status, m.code as our_merchant, s.status as van_status, s.merchant_code as van_merchant
+          `select t.serial_no, s.serial_no as van_serial, t.status, m.code as our_merchant, s.status as van_status, s.merchant_code as van_merchant
              from terminal t
              left join merchant m on m.id = t.merchant_id
              left join van_registration_snapshot s on s.run_id = ? and s.serial_no = t.serial_no
@@ -234,7 +333,7 @@ export class VanReconciliationService {
           [runId],
         ),
         await tx.execute<CompareRow[]>(
-          `select s.serial_no, t.status, m.code as our_merchant, s.status as van_status, s.merchant_code as van_merchant
+          `select coalesce(t.serial_no, s.serial_no) as serial_no, s.serial_no as van_serial, t.status, m.code as our_merchant, s.status as van_status, s.merchant_code as van_merchant
              from van_registration_snapshot s
              left join terminal t on t.serial_no = s.serial_no
              left join merchant m on m.id = t.merchant_id
@@ -248,15 +347,21 @@ export class VanReconciliationService {
     for (const row of [...inService, ...vanActive]) {
       const { our, van } = sidesOf(row);
       const kind = classify(our, van);
-      if (kind) out.push({ serialNo: row.serial_no, kind, our, van });
+      if (kind) out.push({ serialNo: row.serial_no, vanSerialNo: row.van_serial, kind, our, van });
     }
-    return out.sort((a, b) => (a.serialNo < b.serialNo ? -1 : a.serialNo > b.serialNo ? 1 : 0));
+    return out.sort((a, b) => {
+      const [x, y] = [serialKey(a.serialNo), serialKey(b.serialNo)];
+      return x < y ? -1 : x > y ? 1 : 0;
+    });
   }
 
   /**
    * 후보마다 지금 값으로 다시 본다: VAN은 시리얼 단건 조회(동시 env.vanReverifyConcurrency개), 우리 쪽은 블록마다 한 문장.
    * 여전히 어긋나면 verified=true(지금의 종류·값), 풀렸으면 verified=false(비교 때의 종류·값).
-   * 블록마다 먼저 하트비트를 보낸다 — 후보가 많아 재검증이 길어도 멈춘 실행으로 보이지 않게, 그사이 정리됐으면 VAN을 더 부르지 않게.
+   * 후보 하나의 VAN 조회가 영구 오류(4xx·형식, PartnerPermanentError)면 그 후보만 verified=false + reason(확인 불가)으로 남긴다 —
+   * 한 건 때문에 실행 전체를 버리지 않게. 재시도를 다 쓴 429·5xx는 VAN 장애라 실행을 FAILED로(그대로 던진다).
+   * 블록마다 먼저 하트비트를 보내고, 블록 안에서는 동시 묶음 사이·재시도 대기 앞에서 마지막 하트비트 뒤 env.vanHeartbeatIntervalMs가
+   * 지났으면 보낸다 — 느린 VAN(제한 시간·Retry-After)에 블록 하나가 길어져도 멈춘 실행으로 보이지 않게, 그사이 정리됐으면 VAN을 더 부르지 않게.
    * @throws VanRunNotRunningError
    */
   async reverify(runId: number, candidates: VanCandidate[]): Promise<{ items: ItemRow[]; retries: number }> {
@@ -265,23 +370,42 @@ export class VanReconciliationService {
     for (let i = 0; i < candidates.length; i += REVERIFY_BLOCK) {
       await this.heartbeat(runId);
       const block = candidates.slice(i, i + REVERIFY_BLOCK);
-      const vans = new Map<string, VanSide | null>();
+      const vans = new Map<string, { van: VanSide | null } | { error: PartnerPermanentError }>();
       for (let j = 0; j < block.length; j += env.vanReverifyConcurrency) {
+        if (j > 0) await this.heartbeatIfDue(runId);
         const group = block.slice(j, j + env.vanReverifyConcurrency);
         const found = await Promise.all(
-          group.map((c) => withPartnerRetry(() => this.van.findBySerial(c.serialNo), { attempts: VAN_CALL_ATTEMPTS, onRetry: () => retries++ })),
+          group.map((c) =>
+            withPartnerRetry(() => this.van.findBySerial(c.vanSerialNo ?? c.serialNo), {
+              attempts: VAN_CALL_ATTEMPTS,
+              onRetry: () => retries++,
+              beforeWait: () => this.heartbeatIfDue(runId),
+            }).then(
+              (r): { van: VanSide | null } => ({ van: r ? { status: r.status, merchantCode: r.merchantCode } : null }),
+              (error: unknown): { error: PartnerPermanentError } => {
+                if (error instanceof PartnerPermanentError) return { error };
+                throw error;
+              },
+            ),
+          ),
         );
-        group.forEach((c, k) => vans.set(c.serialNo, found[k] ? { status: found[k].status, merchantCode: found[k].merchantCode } : null));
+        group.forEach((c, k) => vans.set(serialKey(c.serialNo), found[k]));
       }
       const ours = await this.ourSides(block.map((c) => c.serialNo));
       for (const c of block) {
-        const our = ours.get(c.serialNo) ?? null;
-        const van = vans.get(c.serialNo) ?? null;
-        const kind = classify(our, van);
+        const key = serialKey(c.serialNo);
+        const checked = vans.get(key)!;
+        const asFound = { serialNo: c.serialNo, kind: c.kind, ourValue: ourValueOf(c.our), vanValue: vanValueOf(c.van), verified: false };
+        if ('error' in checked) {
+          items.push({ ...asFound, reason: `재검증 실패: ${checked.error.name}: ${checked.error.message}`.slice(0, 200) });
+          continue;
+        }
+        const our = ours.get(key) ?? null;
+        const kind = classify(our, checked.van);
         items.push(
           kind
-            ? { serialNo: c.serialNo, kind, ourValue: ourValueOf(our), vanValue: vanValueOf(van), verified: true }
-            : { serialNo: c.serialNo, kind: c.kind, ourValue: ourValueOf(c.our), vanValue: vanValueOf(c.van), verified: false },
+            ? { serialNo: c.serialNo, kind, ourValue: ourValueOf(our), vanValue: vanValueOf(checked.van), verified: true, reason: null }
+            : { ...asFound, reason: null },
         );
       }
     }
@@ -301,8 +425,9 @@ export class VanReconciliationService {
     phaseMs: VanPhaseMs,
   ): Promise<void> {
     const confirmed = items.filter((it) => it.verified);
+    const unverifiable = items.filter((it) => it.reason).length;
     const counts = Object.fromEntries(Object.values(VanMismatchKind).map((k) => [k, confirmed.filter((it) => it.kind === k).length]));
-    const summary = { ...collected, candidates, confirmed: confirmed.length, resolved: items.length - confirmed.length, counts, phaseMs };
+    const summary = { ...collected, candidates, confirmed: confirmed.length, resolved: items.length - confirmed.length - unverifiable, unverifiable, counts, phaseMs };
     await this.em.fork().transactional(async (tx) => {
       const now = new Date();
       const updated = await tx.nativeUpdate(
@@ -320,7 +445,7 @@ export class VanReconciliationService {
       // 묶음 원칙: 어긋남이 몇 건이든 알림은 요약 1행(experiments/0010, decisions/0029)
       tx.create(OutboxEvent, {
         type: OUTBOX_TYPE.VAN_RECONCILIATION_COMPLETED,
-        payload: { runId, fetched: collected.fetched, candidates, confirmed: summary.confirmed, resolved: summary.resolved, counts },
+        payload: { runId, fetched: collected.fetched, candidates, confirmed: summary.confirmed, resolved: summary.resolved, unverifiable, counts },
       });
     });
   }
@@ -366,12 +491,12 @@ export class VanReconciliationService {
     );
     const page = rows.slice(0, q.limit);
     return {
-      items: page.map((it) => ({ id: it.id, serialNo: it.serialNo, kind: it.kind, ourValue: it.ourValue, vanValue: it.vanValue, verified: it.verified })),
+      items: page.map((it) => ({ id: it.id, serialNo: it.serialNo, kind: it.kind, ourValue: it.ourValue, vanValue: it.vanValue, verified: it.verified, reason: it.reason })),
       nextAfterId: rows.length > q.limit ? page.at(-1)!.id : null,
     };
   }
 
-  /** 시리얼들의 지금 상태·가맹점(재검증용, 한 문장) */
+  /** 시리얼들의 지금 상태·가맹점(재검증용, 한 문장). 키는 serialKey(IN 비교가 collation으로 대소문자를 무시하므로 같은 동치) */
   private async ourSides(serials: string[]): Promise<Map<string, OurSide>> {
     const rows = await this.em.fork().execute<{ serial_no: string; status: TerminalStatus; merchant_code: string | null }[]>(
       `select t.serial_no, t.status, m.code as merchant_code
@@ -379,7 +504,7 @@ export class VanReconciliationService {
         where t.serial_no in (${serials.map(() => '?').join(', ')})`,
       serials,
     );
-    return new Map(rows.map((r) => [r.serial_no, { status: r.status, merchantCode: r.merchant_code }]));
+    return new Map(rows.map((r) => [serialKey(r.serial_no), { status: r.status, merchantCode: r.merchant_code }]));
   }
 
   /**
@@ -389,14 +514,25 @@ export class VanReconciliationService {
   async heartbeat(runId: number): Promise<void> {
     const updated = await this.em.fork().nativeUpdate(VanReconciliationRun, { id: runId, status: VanRunStatus.RUNNING }, { heartbeatAt: new Date() });
     if (updated === 0) throw new VanRunNotRunningError(runId);
+    this.lastBeatAt.set(runId, this.clock());
   }
 
-  /** 실행 행을 FAILED로(아직 RUNNING일 때만) */
-  private async fail(runId: number, error: unknown): Promise<void> {
+  /** 마지막 하트비트 뒤 env.vanHeartbeatIntervalMs가 지났을 때만 하트비트(호출마다 UPDATE하지 않게). @throws VanRunNotRunningError */
+  private async heartbeatIfDue(runId: number): Promise<void> {
+    const last = this.lastBeatAt.get(runId);
+    if (last === undefined || this.clock() - last >= env.vanHeartbeatIntervalMs) await this.heartbeat(runId);
+  }
+
+  /** 실행 행을 FAILED로(아직 RUNNING일 때만). 그때까지의 숫자(페이지·수집·후보·단계 시간)가 있으면 함께 남긴다 */
+  private async fail(runId: number, error: unknown, progress?: RunProgress): Promise<void> {
     const message = (error instanceof Error ? `${error.name}: ${error.message}` : String(error)).slice(0, 500);
     await this.em
       .fork()
-      .nativeUpdate(VanReconciliationRun, { id: runId, status: VanRunStatus.RUNNING }, { status: VanRunStatus.FAILED, finishedAt: new Date(), error: message });
+      .nativeUpdate(
+        VanReconciliationRun,
+        { id: runId, status: VanRunStatus.RUNNING },
+        { status: VanRunStatus.FAILED, finishedAt: new Date(), error: message, ...(progress ?? {}) },
+      );
   }
 
   /**
@@ -433,6 +569,7 @@ export function toVanRunView(run: VanReconciliationRun) {
     candidates: run.candidates,
     confirmed: run.confirmed,
     resolved: run.resolved,
+    unverifiable: run.unverifiable,
     counts: run.counts ?? {},
     phaseMs: run.phaseMs ?? {},
     error: run.error,

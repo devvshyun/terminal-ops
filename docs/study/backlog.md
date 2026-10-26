@@ -112,3 +112,4 @@
 - [ ] MySQL FK가 인덱스를 요구하는 이유와 ERROR 1553 (decisions/0032)
 - [ ] 커서(키셋) 페이지네이션과 offset의 중복·누락, 안정적인 정렬 키 (decisions/0033, apps/partners/src/bridgevan.ts)
 - [ ] MySQL 생성 열(virtual·stored)과 함수 인덱스, NULL이 unique에서 서로 다른 것 — 부분 unique 흉내 (decisions/0033)
+- [ ] 테이블 collation(ai_ci, NO PAD)과 앱 쪽 문자열 비교를 같은 동치로 맞추기 (decisions/0033 fix 커밋 2)

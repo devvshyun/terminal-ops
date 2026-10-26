@@ -1,5 +1,6 @@
 import { PartnerPermanentError } from '../common/partner-errors.js';
 import { partnerFetch } from '../common/partner-http.js';
+import { betterRegistration, serialKey } from './van-compare.js';
 import { VanStatus } from './van.entities.js';
 
 export interface BridgevanOptions {
@@ -68,10 +69,15 @@ export class BridgevanClient {
     return parsePage(await partnerFetch('브릿지VAN 목록', `${this.opts.baseUrl}/bridgevan/v1/terminals?${q}`, { method: 'GET' }, this.opts.timeoutMs));
   }
 
-  /** 시리얼로 등록 한 건(재검증용). 없으면 null */
+  /**
+   * 시리얼로 등록 한 건(재검증용). 없으면 null. 같은 시리얼(serialKey)의 등록이 여럿 오면 수집과 같은 규칙(betterRegistration)으로 하나를 고른다
+   * ("VAN에서 시리얼은 유일" 가정이 깨졌을 때, decisions/0033).
+   */
   async findBySerial(serialNo: string): Promise<VanRegistrationDto | null> {
     const q = new URLSearchParams({ serialNo });
     const page = parsePage(await partnerFetch('브릿지VAN 시리얼 조회', `${this.opts.baseUrl}/bridgevan/v1/terminals?${q}`, { method: 'GET' }, this.opts.timeoutMs));
-    return page.items[0] ?? null;
+    const key = serialKey(serialNo);
+    const same = page.items.filter((r) => serialKey(r.serialNo) === key);
+    return same.length === 0 ? null : same.reduce((a, b) => betterRegistration(a, b));
   }
 }
