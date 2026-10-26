@@ -133,3 +133,7 @@
 - [ ] 식(greatest·coalesce)에 감싼 열은 sargable이 아니다 — 같은 뜻의 열 비교로 풀어 쓰기 (experiments/0011, decisions/0034)
 - [ ] 엑셀 열 너비와 한글(전각) 글자 폭 — exceljs `width`는 글자 수 단위라 한글 열이 좁게 나온다 (src/report/weekly-report.xlsx.ts, Task 8 리뷰 Minor 11)
 - [ ] 잠금 TTL 정하기 — 최악 소요 계산 대 연장(watchdog, Redisson 방식), 펜싱 토큰 (decisions/0035 Task 8 리뷰)
+- [ ] TCP 지연 ACK(delayed ACK)·Nagle·quick ACK와 큰 요청 한 번의 왕복 — 16KB 넘는 SQL 문장이 약 43ms 늘어난 일 (troubleshooting/0023)
+- [ ] Docker Desktop(Windows) 포트 전달 경로와 지연, 개발 PC 숫자를 운영 숫자로 읽지 않기 (troubleshooting/0023, experiments/0012)
+- [ ] MySQL SHOW PROFILES·performance_schema로 서버 안 시간과 클라이언트 왕복 가르기 (troubleshooting/0023)
+- [ ] 스냅숏 대조의 일관성 — 스캔 도중 변경, 재검증으로 거짓 양성 거르기, 놓친 것은 다음 실행(최종 일관성) (experiments/0012)
