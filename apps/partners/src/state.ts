@@ -38,12 +38,31 @@ export interface SeumConfig {
   error5xxRate: number;
 }
 
+export interface BridgevanConfig {
+  /** 목록 한 페이지에 줄 수 있는 최대 건수(limit 상한) */
+  maxLimit: number;
+  /** 목록·단건 응답 지연(ms) */
+  delayMs: number;
+  /** 503을 낼 확률(0~1) */
+  error5xxRate: number;
+  /** 429를 낼 확률(0~1) */
+  force429Rate: number;
+  /** 429 응답의 Retry-After(초) */
+  retryAfterSec: number;
+  /**
+   * 스캔 도중 변경: 커서를 받은 목록 요청(둘째 페이지부터)마다, 이미 지나간(커서 앞) 등록 n건을 바꾼다.
+   * healTo가 있는 등록은 그 값으로 고쳐지고(어긋남이 풀림), 없으면 ACTIVE↔SUSPENDED가 뒤집힌다.
+   */
+  mutateDuringScan: number;
+}
+
 export interface PartnersConfig {
   seed: number;
   bungae: BungaeConfig;
   neurimbo: NeurimboConfig;
   toktok: ToktokConfig;
   seum: SeumConfig;
+  bridgevan: BridgevanConfig;
 }
 
 export interface ConfigPatch {
@@ -52,6 +71,7 @@ export interface ConfigPatch {
   neurimbo?: Partial<NeurimboConfig>;
   toktok?: Partial<ToktokConfig>;
   seum?: Partial<SeumConfig>;
+  bridgevan?: Partial<BridgevanConfig>;
 }
 
 export function defaultConfig(): PartnersConfig {
@@ -61,6 +81,7 @@ export function defaultConfig(): PartnersConfig {
     neurimbo: { advancePerPoll: 1, delayMs: 0, error5xxRate: 0, shuffle: false },
     toktok: { failRate: 0 },
     seum: { shortfall: 0, foreignSerials: 0, error5xxRate: 0 },
+    bridgevan: { maxLimit: 1000, delayMs: 0, error5xxRate: 0, force429Rate: 0, retryAfterSec: 1, mutateDuringScan: 0 },
   };
 }
 
@@ -77,6 +98,21 @@ export interface SeumPurchaseOrder {
   quantity: number;
   reference: string;
   serials: string[];
+}
+
+export const VAN_STATUSES = ['ACTIVE', 'SUSPENDED', 'CANCELLED'] as const;
+export type VanStatus = (typeof VAN_STATUSES)[number];
+
+/** 브릿지VAN에 등록된 단말기 한 대(가상). tid는 VAN이 붙인 단말기 번호 */
+export interface VanRegistration {
+  tid: string;
+  serialNo: string;
+  merchantCode: string;
+  status: VanStatus;
+  registeredAt: string;
+  updatedAt: string;
+  /** 스캔 도중 변경(mutateDuringScan)이 이 등록을 고를 때 바꿀 값. 테스트·실험이 "곧 풀릴 어긋남"을 심을 때 쓴다 */
+  healTo?: { status?: VanStatus; merchantCode?: string };
 }
 
 export interface ToktokMessage {
@@ -106,10 +142,14 @@ export interface Stats {
   inFlightTotal: number;
   /** 운송장 구분 없이 동시에 처리한 번개 추적 조회 수의 최댓값. 1보다 크면 실제로 겹쳐 돌았다는 뜻 */
   maxInFlightTotal: number;
+  /** 스캔 도중 변경으로 바뀐 브릿지VAN 등록 수(healed 포함) */
+  vanMutated: number;
+  /** 그중 healTo로 고쳐진 수 */
+  vanHealed: number;
 }
 
 function emptyStats(): Stats {
-  return { calls: {}, perTracking: {}, status429: 0, status429Limit: 0, status429Forced: 0, status5xx: 0, overlaps: 0, maxInFlight: 0, inFlightTotal: 0, maxInFlightTotal: 0 };
+  return { calls: {}, perTracking: {}, status429: 0, status429Limit: 0, status429Forced: 0, status5xx: 0, overlaps: 0, maxInFlight: 0, inFlightTotal: 0, maxInFlightTotal: 0, vanMutated: 0, vanHealed: 0 };
 }
 
 /** 가상 업체 서버의 메모리 상태. 재시작하거나 reset하면 모두 사라진다. */
@@ -125,6 +165,10 @@ export class PartnersState {
   /** 번개 추적 조회가 받아들여진 시각(최근 1초) */
   bungaeWindow: number[] = [];
   messages: ToktokMessage[] = [];
+  /** 브릿지VAN 등록(tid → 등록), tid 오름차순 목록(커서 페이지용), 시리얼 → tid */
+  van = new Map<string, VanRegistration>();
+  vanTids: string[] = [];
+  vanBySerial = new Map<string, string>();
   stats: Stats = emptyStats();
   private inFlight = new Map<string, number>();
 
@@ -138,6 +182,9 @@ export class PartnersState {
     this.seum.clear();
     this.bungaeWindow = [];
     this.messages = [];
+    this.van.clear();
+    this.vanTids = [];
+    this.vanBySerial.clear();
     this.stats = emptyStats();
     this.inFlight.clear();
   }
@@ -150,6 +197,7 @@ export class PartnersState {
       neurimbo: { ...this.config.neurimbo, ...patch.neurimbo },
       toktok: { ...this.config.toktok, ...patch.toktok },
       seum: { ...this.config.seum, ...patch.seum },
+      bridgevan: { ...this.config.bridgevan, ...patch.bridgevan },
     };
     if (patch.seed !== undefined) this.rng = createRng(patch.seed);
     return this.config;
