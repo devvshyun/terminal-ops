@@ -20,6 +20,8 @@ export const JOB_SCHEDULERS = [
   // 매일 밤(KST): 이상 단말기 찾기(F4), VAN 등록 대조(F9). report 큐(concurrency 1)라 둘이 겹치지 않는다
   { queue: QUEUE.REPORT, id: 'anomaly-scan-daily', jobName: 'anomaly-scan', schedule: () => ({ pattern: env.anomalyScanCron, tz: SCHEDULE_TZ }) },
   { queue: QUEUE.REPORT, id: 'van-reconcile-daily', jobName: 'van-reconcile-scheduled', schedule: () => ({ pattern: env.vanReconcileCron, tz: SCHEDULE_TZ }) },
+  // 매주 월요일 09:00 KST: 지난주 운영 리포트(F11)
+  { queue: QUEUE.REPORT, id: 'weekly-report', jobName: 'weekly-report', schedule: () => ({ pattern: env.weeklyReportCron, tz: SCHEDULE_TZ }) },
 ] as const satisfies readonly { queue: QueueName; id: string; jobName: string; schedule: () => JobSchedule }[];
 
 /** 로그용: `1000ms` 또는 `cron "0 2 * * *" Asia/Seoul` */

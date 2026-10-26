@@ -1,3 +1,4 @@
+import { PartnerPermanentError } from '../common/partner-errors.js';
 import { partnerFetch } from '../common/partner-http.js';
 
 export interface ToktokOptions {
@@ -10,12 +11,35 @@ export interface ToktokOptions {
 export class ToktokClient {
   constructor(private readonly opts: ToktokOptions) {}
 
-  async send(message: { idempotencyKey: string; text: string }): Promise<void> {
+  /** 메시지. attachments는 uploadFile이 준 fileId들 */
+  async send(message: { idempotencyKey: string; text: string; attachments?: string[] }): Promise<void> {
     await partnerFetch(
       '톡톡메신저',
       `${this.opts.baseUrl}/toktok/hooks/${encodeURIComponent(this.opts.channel)}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(message) },
       this.opts.timeoutMs,
     );
+  }
+
+  /** 첨부할 파일을 올린다(JSON 안의 base64, decisions/0035). @returns 메시지에 붙일 fileId와 메신저가 받은 크기 */
+  async uploadFile(file: { fileName: string; contentType: string; content: Buffer }): Promise<{ fileId: string; size: number }> {
+    const text = await partnerFetch(
+      '톡톡메신저 파일',
+      `${this.opts.baseUrl}/toktok/files`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: file.fileName, contentType: file.contentType, contentBase64: file.content.toString('base64') }),
+      },
+      this.opts.timeoutMs,
+    );
+    let body: { fileId?: unknown; size?: unknown };
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw new PartnerPermanentError('톡톡메신저 파일 응답이 JSON이 아닙니다.');
+    }
+    if (typeof body.fileId !== 'string' || typeof body.size !== 'number') throw new PartnerPermanentError('톡톡메신저 파일 응답 형식이 아닙니다(fileId, size).');
+    return { fileId: body.fileId, size: body.size };
   }
 }

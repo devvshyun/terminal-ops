@@ -6,9 +6,10 @@ import { BusinessError } from '../common/domain-errors.js';
 import { QUEUE } from '../queue/queue-names.js';
 import { toVanRunView, VanReconciliationService, type VanRunJobData } from '../van/van-reconciliation.service.js';
 import { VanRunStatus } from '../van/van.entities.js';
+import { WeeklyReportService } from './weekly-report.service.js';
 
 /**
- * report 큐: 오래 걸리는 집계 job(VAN 대조, 이상 단말기 찾기, 다음 Task의 주간 리포트). device 큐(concurrency 1, 짧은 job)와 나눠
+ * report 큐: 오래 걸리는 집계 job(VAN 대조, 이상 단말기 찾기, 주간 리포트). device 큐(concurrency 1, 짧은 job)와 나눠
  * 무거운 일이 active 갱신·오프라인 판정을 막지 않게 한다(experiments/0010). 이 큐도 concurrency 1 — 집계끼리는 겹치지 않는다.
  */
 @Processor(QUEUE.REPORT, { concurrency: 1 })
@@ -19,6 +20,7 @@ export class ReportProcessor extends WorkerHost {
   constructor(
     private readonly van: VanReconciliationService,
     private readonly anomalies: AnomalyService,
+    private readonly reports: WeeklyReportService,
   ) {
     super();
   }
@@ -52,6 +54,13 @@ export class ReportProcessor extends WorkerHost {
           }
           throw error;
         }
+      case 'weekly-report': {
+        // 실패(톡톡 오류 등)는 던진다 — 행에 lastError가 남고, 같은 주를 다시 보내면(수동 POST·다음 job) 같은 파일로 이어서 보낸다
+        const { report, alreadySent } = await this.reports.sendScheduled();
+        if (alreadySent) this.logger.warn(`weekly-report 건너뜀: ${report.weekStart} 주는 이미 보냄`);
+        else this.logger.log(`weekly-report 끝: ${report.weekStart} 주 ${report.status}, ${report.fileSize}바이트`);
+        return { weekStart: report.weekStart, status: report.status, alreadySent };
+      }
       default:
         throw new UnrecoverableError(`모르는 report job: ${job.name}`);
     }

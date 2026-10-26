@@ -25,8 +25,10 @@ export interface NeurimboConfig {
 }
 
 export interface ToktokConfig {
-  /** 500을 낼 확률(0~1). 실패한 요청은 저장하지 않는다. */
+  /** 500을 낼 확률(0~1). 실패한 요청은 저장하지 않는다(웹훅·파일 올리기 모두). */
   failRate: number;
+  /** 올릴 수 있는 파일 크기 상한(바이트, base64를 푼 크기) */
+  maxFileBytes: number;
 }
 
 export interface SeumConfig {
@@ -79,7 +81,7 @@ export function defaultConfig(): PartnersConfig {
     seed: 42,
     bungae: { advancePerPoll: 1, duplicateRate: 0, rateLimitPerSec: 20, force429Rate: 0, retryAfterSec: 1, delayMs: 0 },
     neurimbo: { advancePerPoll: 1, delayMs: 0, error5xxRate: 0, shuffle: false },
-    toktok: { failRate: 0 },
+    toktok: { failRate: 0, maxFileBytes: 5 * 1024 * 1024 },
     seum: { shortfall: 0, foreignSerials: 0, error5xxRate: 0 },
     bridgevan: { maxLimit: 1000, delayMs: 0, error5xxRate: 0, force429Rate: 0, retryAfterSec: 1, mutateDuringScan: 0 },
   };
@@ -115,11 +117,23 @@ export interface VanRegistration {
   healTo?: { status?: VanStatus; merchantCode?: string };
 }
 
+/** 톡톡메신저에 올린 파일(메시지 첨부용) */
+export interface ToktokFile {
+  fileId: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+  content: Buffer;
+  uploadedAt: string;
+}
+
 export interface ToktokMessage {
   channel: string;
   idempotencyKey: string;
   text: string;
   receivedAt: string;
+  /** 첨부 파일(올린 파일의 id·이름·크기) */
+  attachments: { fileId: string; fileName: string; size: number }[];
 }
 
 export interface Stats {
@@ -165,6 +179,8 @@ export class PartnersState {
   /** 번개 추적 조회가 받아들여진 시각(최근 1초) */
   bungaeWindow: number[] = [];
   messages: ToktokMessage[] = [];
+  /** 톡톡메신저에 올린 파일(fileId → 파일) */
+  files = new Map<string, ToktokFile>();
   /** 브릿지VAN 등록(tid → 등록), tid 오름차순 목록(커서 페이지용), 시리얼 → tid */
   van = new Map<string, VanRegistration>();
   vanTids: string[] = [];
@@ -182,6 +198,7 @@ export class PartnersState {
     this.seum.clear();
     this.bungaeWindow = [];
     this.messages = [];
+    this.files.clear();
     this.van.clear();
     this.vanTids = [];
     this.vanBySerial.clear();

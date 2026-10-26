@@ -1,0 +1,143 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import ExcelJS from 'exceljs';
+import type { Redis } from 'ioredis';
+import { RedisLock } from '../src/redis/redis-lock.js';
+import { REDIS } from '../src/redis/redis.provider.js';
+import { WeeklyReport, WeeklyReportStatus } from '../src/report/weekly-report.entity.js';
+import { WeeklyReportService } from '../src/report/weekly-report.service.js';
+import { SHEET_NAMES } from '../src/report/weekly-report.xlsx.js';
+import { TerminalStatus as S } from '../src/terminal/terminal-status.js';
+import { partners } from './helpers/partners.js';
+import { deleteTestKeys } from './helpers/redis-keys.js';
+import { insertTerminals } from './helpers/terminals.js';
+import { createTestApp, resetDatabase, type TestApp } from './helpers/test-app.js';
+
+const OP = { 'X-Operator': 'park' };
+
+async function readXlsx(buffer: Buffer) {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buffer as unknown as ArrayBuffer);
+  return wb;
+}
+
+describe('주간 운영 리포트 — xlsx, 톡톡 첨부, 멱등, 내려받기 (F11, decisions/0035)', () => {
+  let t: TestApp;
+  const em = () => t.orm.em.fork();
+  const row = (weekStart: string) => em().findOneOrFail(WeeklyReport, { weekStart });
+  const send = (weekStart?: string) => t.http().post('/reports/weekly').set(OP).send(weekStart ? { weekStart } : {});
+
+  beforeAll(async () => {
+    t = await createTestApp();
+    await resetDatabase(t.orm);
+    await insertTerminals(t, [
+      { serialNo: 'WK-01', status: S.IN_SERVICE, merchantCode: 'GANGNAM-KIMBAP' },
+      { serialNo: 'WK-02', status: S.IN_STOCK, modelCode: 'SN-200' },
+    ]);
+  });
+  beforeEach(async () => {
+    await partners.reset();
+  });
+  afterAll(async () => {
+    await deleteTestKeys(t.app.get<Redis>(REDIS));
+    await t.app.close();
+  });
+
+  it('보내면 xlsx를 만들어 저장하고, 톡톡에 파일을 올려 메시지에 첨부한다(이름·크기가 같다)', async () => {
+    const res = await send('2026-10-19');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      weekStart: '2026-10-19',
+      status: 'SENT',
+      fileName: '단말온-주간리포트-2026-10-19.xlsx',
+      attempts: 1,
+      lastError: null,
+      alreadySent: false,
+    });
+    expect(res.body.fileSize).toBeGreaterThan(1000);
+    const toktok = await partners.toktok();
+    expect(toktok.total).toBe(1);
+    expect(toktok.messages[0]).toMatchObject({ idempotencyKey: 'weekly-report-2026-10-19' });
+    expect(toktok.messages[0].attachments).toEqual([{ fileId: expect.any(String), fileName: res.body.fileName, size: res.body.fileSize }]);
+    expect((await row('2026-10-19')).toktokFileId).toBe(toktok.messages[0].attachments[0].fileId);
+
+    // 메신저가 받은 첨부를 그대로 열어 본다
+    const wb = await readXlsx(await partners.toktokFile(toktok.messages[0].attachments[0].fileId));
+    expect(wb.worksheets.map((w) => w.name)).toEqual([...SHEET_NAMES]);
+    const summary = wb.getWorksheet('요약')!;
+    expect(summary.getRow(2).values).toEqual([undefined, '주', '2026-10-19 ~ 2026-10-25 (KST)']);
+    expect(summary.getRow(4).values).toEqual([undefined, '단말기 총수', 2]);
+    expect(summary.lastRow!.values).toEqual([undefined, '기준', expect.stringMatching(/^현황\(상태·이상·접속\)은 만든 시각, 전이·입출고·배포는 그 주/)]);
+    // 리뷰 반영: 현황 시트는 첫 줄에 "생성 시점 기준", 배포 시트는 "누적"을 적고 머리글은 2행(decisions/0035)
+    for (const name of ['상태·모델', '이상 단말기', '접속 상태']) {
+      expect(String(wb.getWorksheet(name)!.getCell('A1').value)).toMatch(/^생성 시점\(2026-\d\d-\d\d \d\d:\d\d KST\) 기준 현황/);
+    }
+    const rollout = wb.getWorksheet('펌웨어 배포')!;
+    expect(String(rollout.getCell('A1').value)).toMatch(/대상·성공·실패·시간 초과 수는 배포마다 누적/);
+    expect(rollout.getRow(2).values).toEqual(expect.arrayContaining(['대상(누적)', '성공(누적)', '실패(누적)', '시간 초과(누적)']));
+    const status = wb.getWorksheet('상태·모델')!;
+    expect(status.getRow(2).values).toEqual([undefined, '모델', '상태', '대수']);
+    expect(status.getRow(3).values).toEqual([undefined, 'SN-100', 'IN_SERVICE', 1]);
+  });
+
+  it('같은 주를 다시 보내면 아무것도 하지 않는다(alreadySent, 올리기·메시지 0번)', async () => {
+    const res = await send('2026-10-19');
+    expect(res.body).toMatchObject({ status: 'SENT', alreadySent: true, attempts: 1 });
+    expect(await partners.toktok()).toMatchObject({ total: 0, files: 0 });
+  });
+
+  it('톡톡이 계속 실패하면 502이고 행은 GENERATED(파일 저장, lastError). 다시 보내면 같은 파일로 보낸다', async () => {
+    await partners.configure({ toktok: { failRate: 1 } });
+    const failed = await send('2026-10-12');
+    expect(failed.status).toBe(502);
+    expect(failed.body.code).toBe('PARTNER_ERROR');
+    const r1 = await row('2026-10-12');
+    expect(r1).toMatchObject({ status: WeeklyReportStatus.GENERATED, attempts: 1 });
+    expect(r1.lastError).toMatch(/톡톡메신저 파일 응답 500/);
+    expect((await partners.stats()).calls['toktok.file']).toBe(3); // 3번까지 다시 불렀다
+
+    await partners.configure({ toktok: { failRate: 0 } });
+    const ok = await send('2026-10-12');
+    expect(ok.body).toMatchObject({ status: 'SENT', attempts: 2, lastError: null, fileSize: r1.fileSize });
+    expect(ok.body.generatedAt).toBe(r1.generatedAt!.toISOString()); // 다시 만들지 않았다
+  }, 20_000);
+
+  it('GET 상태와 xlsx 내려받기(한글 파일 이름은 filename*), 주 형식이 틀리면 400, 없으면 404', async () => {
+    const meta = await t.http().get('/reports/weekly/2026-10-19');
+    expect(meta.body).toMatchObject({ weekStart: '2026-10-19', status: 'SENT' });
+    const file = await t.http().get('/reports/weekly/2026-10-19/file').buffer(true).parse((res, cb) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(c));
+      res.on('end', () => cb(null, Buffer.concat(chunks)));
+    });
+    expect(file.status).toBe(200);
+    expect(file.headers['content-type']).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    expect(file.headers['content-disposition']).toBe(
+      `attachment; filename="weekly-report-2026-10-19.xlsx"; filename*=UTF-8''${encodeURIComponent('단말온-주간리포트-2026-10-19.xlsx')}`,
+    );
+    expect((file.body as Buffer).length).toBe(meta.body.fileSize);
+    expect((await readXlsx(file.body as Buffer)).worksheets).toHaveLength(SHEET_NAMES.length);
+
+    expect((await t.http().get('/reports/weekly/2026-10-20')).body.code).toBe('INVALID_WEEK_START'); // 화요일
+    expect((await send('2026-10-20')).status).toBe(400);
+    expect((await t.http().get('/reports/weekly/2026-09-07')).status).toBe(404);
+    expect((await t.http().get('/reports/weekly/2026-09-07/file')).status).toBe(404);
+  });
+
+  it('같은 주를 다른 요청이 보내는 중이면 409 WEEKLY_REPORT_IN_PROGRESS', async () => {
+    const lock = t.app.get(RedisLock);
+    const key = lock.keyOf('report-lock', 'weekly-2026-10-05');
+    const token = await lock.acquire(key, 10_000);
+    try {
+      const busy = await send('2026-10-05');
+      expect(busy.status).toBe(409);
+      expect(busy.body.code).toBe('WEEKLY_REPORT_IN_PROGRESS');
+    } finally {
+      await lock.release(key, token!);
+    }
+  });
+
+  it('주기 job은 지난주를 보낸다(월요일 09:00 KST에 돌면 그 앞 주)', async () => {
+    const { report, alreadySent } = await t.app.get(WeeklyReportService).sendScheduled(new Date('2026-11-02T00:00:00.000Z'));
+    expect([report.weekStart, report.status, alreadySent]).toEqual(['2026-10-26', WeeklyReportStatus.SENT, false]);
+  });
+});

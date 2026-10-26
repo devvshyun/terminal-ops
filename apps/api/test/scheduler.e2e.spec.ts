@@ -41,7 +41,11 @@ describe('주기 작업 삭제 (scheduler:clear, decisions/0015)', () => {
     const van = await queueOf(QUEUE.REPORT).getJobScheduler('van-reconcile-daily');
     expect(van).toMatchObject({ pattern: env.vanReconcileCron, tz: SCHEDULE_TZ });
     expect(van!.next).toBe(nextCronRun(env.vanReconcileCron, before).getTime());
-    expect(await queueOf(QUEUE.REPORT).getJobCounts('waiting', 'delayed')).toEqual({ waiting: 0, delayed: 2 });
+    // 주간 리포트(F11): WEEKLY_REPORT_CRON(기본 월 09:00 KST = 월 00:00 UTC, unit/env-cron이 본다)
+    const weekly = await queueOf(QUEUE.REPORT).getJobScheduler('weekly-report');
+    expect(weekly).toMatchObject({ pattern: env.weeklyReportCron, tz: SCHEDULE_TZ });
+    expect(weekly!.next).toBe(nextCronRun(env.weeklyReportCron, before).getTime());
+    expect(await queueOf(QUEUE.REPORT).getJobCounts('waiting', 'delayed')).toEqual({ waiting: 0, delayed: 3 });
 
     expect(await clearJobSchedulers(queueOf)).toEqual(JOB_SCHEDULERS.map((s) => s.id));
     for (const name of queues) {

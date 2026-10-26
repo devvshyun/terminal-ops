@@ -5,16 +5,17 @@ import type { AnomalyService } from '../../src/anomaly/anomaly.service.js';
 import { BusinessError } from '../../src/common/domain-errors.js';
 import { ReportProcessor } from '../../src/report/report.processor.js';
 import type { VanReconciliationService } from '../../src/van/van-reconciliation.service.js';
+import type { WeeklyReportService } from '../../src/report/weekly-report.service.js';
 
 const job = (name: string) => ({ name, data: {} }) as Job;
 
 describe('fix 4: report 큐 주기 job 로그(건너뜀은 warn, 끝나면 한 줄 요약)', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  const setup = (anomalies: Partial<AnomalyService>, van: Partial<VanReconciliationService>) => {
+  const setup = (anomalies: Partial<AnomalyService>, van: Partial<VanReconciliationService>, reports: Partial<WeeklyReportService> = {}) => {
     const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
     const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    const p = new ReportProcessor(van as VanReconciliationService, anomalies as AnomalyService);
+    const p = new ReportProcessor(van as VanReconciliationService, anomalies as AnomalyService, reports as WeeklyReportService);
     return { p, log, warn };
   };
 
@@ -47,5 +48,16 @@ describe('fix 4: report 큐 주기 job 로그(건너뜀은 warn, 끝나면 한 �
     await p.process({ name: 'van-reconcile', data: { runId: 9 } } as Job);
     expect(warn).toHaveBeenCalledWith('van-reconcile 끝: 실행 #9 FAILED, 어긋남 0');
     expect(log).not.toHaveBeenCalled();
+  });
+  it('Task 8 weekly-report: 보내면 주·상태·크기 한 줄, 이미 보낸 주면 warn', async () => {
+    const sendScheduled = vi
+      .fn()
+      .mockResolvedValueOnce({ report: { weekStart: '2026-10-19', status: 'SENT', fileSize: 12345 }, alreadySent: false })
+      .mockResolvedValueOnce({ report: { weekStart: '2026-10-19', status: 'SENT', fileSize: 12345 }, alreadySent: true });
+    const { p, log, warn } = setup({}, {}, { sendScheduled });
+    await expect(p.process(job('weekly-report'))).resolves.toEqual({ weekStart: '2026-10-19', status: 'SENT', alreadySent: false });
+    expect(log).toHaveBeenCalledWith('weekly-report 끝: 2026-10-19 주 SENT, 12345바이트');
+    await p.process(job('weekly-report'));
+    expect(warn).toHaveBeenCalledWith('weekly-report 건너뜀: 2026-10-19 주는 이미 보냄');
   });
 });

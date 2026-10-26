@@ -122,6 +122,8 @@ export const env = {
   /** 주기 작업 cron(분 시 일 월 요일 다섯 칸, 시간대 Asia/Seoul). 잘못된 식이면 env를 읽을 때 던진다(cronFromEnv, decisions/0035) */
   anomalyScanCron: cronFromEnv('ANOMALY_SCAN_CRON', '0 2 * * *'),
   vanReconcileCron: cronFromEnv('VAN_RECONCILE_CRON', '0 3 * * *'),
+  /** 주간 리포트(F11): 매주 월요일 09:00 KST에 지난주를 보낸다 */
+  weeklyReportCron: cronFromEnv('WEEKLY_REPORT_CRON', '0 9 * * 1'),
   /** SyncRun에 남길 작업 프로세스 이름(워커 2개 실험에서 구분용) */
   workerName: process.env.WORKER_NAME ?? `pid-${process.pid}`,
 };

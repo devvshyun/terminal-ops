@@ -11,6 +11,6 @@ import { ToktokClient } from './toktok.client.js';
       useFactory: () => new ToktokClient({ baseUrl: env.partnersUrl, channel: env.toktokChannel, timeoutMs: env.partnerTimeoutMs }),
     },
   ],
-  exports: [OutboxService],
+  exports: [OutboxService, ToktokClient],
 })
 export class OutboxModule {}

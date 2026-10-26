@@ -30,9 +30,10 @@ describe('cronFromEnv — cron 환경변수 검증 (fix, decisions/0035)', () =>
     const from = new Date('2026-10-26T01:22:00.000Z'); // 월 10:22 KST
     expect(nextCronRun('0 2 * * *', from).toISOString()).toBe('2026-10-26T17:00:00.000Z');
     expect(nextCronRun('0 3 * * *', from).toISOString()).toBe('2026-10-26T18:00:00.000Z');
+    expect(nextCronRun('0 9 * * 1', from).toISOString()).toBe('2026-11-02T00:00:00.000Z'); // 주간 리포트: 다음 월 09:00 KST = 월 00:00 UTC
   });
 
-  it.each(['ANOMALY_SCAN_CRON', 'VAN_RECONCILE_CRON'])('env 모듈은 %s가 잘못된 식이면 불러올 때 던진다(서버·워커가 뜨지 않는다)', async (name) => {
+  it.each(['ANOMALY_SCAN_CRON', 'VAN_RECONCILE_CRON', 'WEEKLY_REPORT_CRON'])('env 모듈은 %s가 잘못된 식이면 불러올 때 던진다(서버·워커가 뜨지 않는다)', async (name) => {
     vi.stubEnv(name, '@daily');
     vi.resetModules();
     await expect(import('../../src/config/env.js')).rejects.toThrow(new RegExp(name));
@@ -41,9 +42,10 @@ describe('cronFromEnv — cron 환경변수 검증 (fix, decisions/0035)', () =>
   it('env 모듈: 빈 cron env는 기본값', async () => {
     vi.stubEnv('ANOMALY_SCAN_CRON', ' ');
     vi.stubEnv('VAN_RECONCILE_CRON', '');
+    vi.stubEnv('WEEKLY_REPORT_CRON', '  ');
     vi.resetModules();
     const { env } = await import('../../src/config/env.js');
-    expect([env.anomalyScanCron, env.vanReconcileCron]).toEqual(['0 2 * * *', '0 3 * * *']);
+    expect([env.anomalyScanCron, env.vanReconcileCron, env.weeklyReportCron]).toEqual(['0 2 * * *', '0 3 * * *', '0 9 * * 1']);
   });
 });
 

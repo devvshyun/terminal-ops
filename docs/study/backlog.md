@@ -123,3 +123,6 @@
 - [ ] cron 식과 시간대(tz), 일광 절약 시간의 건너뜀·겹침, 분산 스케줄러의 정확히 한 번 (decisions/0035)
 - [ ] cron 식 방언(다섯 칸·초가 붙은 여섯 칸·@ 별칭)과 전이 의존성 판을 직접 의존성으로 맞추기 (decisions/0035 fix, src/config/env-cron.ts)
 - [ ] 시간대 경계 — 저장은 UTC, 업무 날짜는 KST, 반열린 구간 [from, to) (src/report/kst-week.ts, decisions/0035)
+- [ ] base64(33% 늘어남)와 multipart/form-data, 파일 업로드 API 설계 (decisions/0035)
+- [ ] Content-Disposition의 filename*(RFC 5987/6266)과 한글 파일 이름 (src/report/weekly-report.controller.ts)
+- [ ] 큰 값(BLOB)을 DB에 둘 때의 대가 — 행 크기, 버퍼 풀, 백업, lazy 로딩 (decisions/0035)

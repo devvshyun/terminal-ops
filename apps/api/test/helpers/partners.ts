@@ -43,7 +43,15 @@ export interface VanSeed {
 export interface ToktokSummary {
   total: number;
   byKey: Record<string, number>;
-  messages: { channel: string; idempotencyKey: string; text: string; receivedAt: string }[];
+  messages: {
+    channel: string;
+    idempotencyKey: string;
+    text: string;
+    receivedAt: string;
+    attachments: { fileId: string; fileName: string; size: number }[];
+  }[];
+  /** 올린 파일 수 */
+  files: number;
 }
 
 export const partners = {
@@ -51,6 +59,12 @@ export const partners = {
   configure: (patch: Record<string, unknown>) => call<unknown>('POST', '/__admin/config', patch),
   stats: () => call<PartnersStats>('GET', '/__admin/stats'),
   toktok: () => call<ToktokSummary>('GET', '/__admin/toktok/messages'),
+  /** 톡톡메신저에 올라간 첨부 파일 내용 */
+  toktokFile: async (fileId: string) => {
+    const res = await fetch(`${env.partnersUrl}/__admin/toktok/files/${encodeURIComponent(fileId)}`);
+    if (!res.ok) throw new Error(`partners toktok file ${fileId} → ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
+  },
   /** 브릿지VAN 등록을 심는다(replace 기본 true: 기존 등록을 지우고) */
   seedVan: (registrations: VanSeed[], replace = true) =>
     call<{ count: number }>('POST', '/__admin/bridgevan/registrations', { registrations, replace }),
