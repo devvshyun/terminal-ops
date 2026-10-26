@@ -126,3 +126,8 @@
 - [ ] base64(33% 늘어남)와 multipart/form-data, 파일 업로드 API 설계 (decisions/0035)
 - [ ] Content-Disposition의 filename*(RFC 5987/6266)과 한글 파일 이름 (src/report/weekly-report.controller.ts)
 - [ ] 큰 값(BLOB)을 DB에 둘 때의 대가 — 행 크기, 버퍼 풀, 백업, lazy 로딩 (decisions/0035)
+- [ ] EXPLAIN ANALYZE 읽기 — actual time·rows·loops, dependent subquery, covering index, Materialize (experiments/0011)
+- [ ] InnoDB 통계(ANALYZE TABLE, innodb_stats_persistent)와 옵티마이저의 행 수 추정, show table status의 Index_length가 흔들리는 이유 (experiments/0011)
+- [ ] 커버링 인덱스와 보조 인덱스 → PK 되읽기 비용, 버퍼 풀보다 큰 표에서 범위 스캔 대 전체 훑기 (experiments/0011, decisions/0036)
+- [ ] 인덱스 하나가 INSERT에 더하는 비용 — 대량 INSERT와 한 건 커밋(redo flush, innodb_flush_log_at_trx_commit)의 비용 구성 (experiments/0011)
+- [ ] 식(greatest·coalesce)에 감싼 열은 sargable이 아니다 — 같은 뜻의 열 비교로 풀어 쓰기 (experiments/0011, decisions/0034)
