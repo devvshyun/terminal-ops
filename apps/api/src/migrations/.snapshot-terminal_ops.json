@@ -150,16 +150,6 @@
           "keyName": "carrier_event_shipment_id_event_key_unique",
           "primary": false,
           "unique": true
-        },
-        {
-          "columnNames": [
-            "shipment_id"
-          ],
-          "composite": false,
-          "constraint": false,
-          "keyName": "carrier_event_shipment_id_index",
-          "primary": false,
-          "unique": false
         }
       ],
       "checks": [],
@@ -384,16 +374,6 @@
           "keyName": "PRIMARY",
           "primary": true,
           "unique": true
-        },
-        {
-          "columnNames": [
-            "model_id"
-          ],
-          "composite": false,
-          "constraint": false,
-          "keyName": "firmware_model_id_index",
-          "primary": false,
-          "unique": false
         },
         {
           "columnNames": [
@@ -861,16 +841,6 @@
         },
         {
           "columnNames": [
-            "rollout_id"
-          ],
-          "composite": false,
-          "constraint": false,
-          "keyName": "firmware_rollout_target_rollout_id_index",
-          "primary": false,
-          "unique": false
-        },
-        {
-          "columnNames": [
             "rollout_id",
             "stage",
             "status"
@@ -1169,16 +1139,6 @@
           "keyName": "inspection_item_model_id_code_unique",
           "primary": false,
           "unique": true
-        },
-        {
-          "columnNames": [
-            "model_id"
-          ],
-          "composite": false,
-          "constraint": false,
-          "keyName": "inspection_item_model_id_index",
-          "primary": false,
-          "unique": false
         }
       ],
       "checks": [],
@@ -2239,16 +2199,6 @@
           "composite": false,
           "constraint": false,
           "keyName": "service_ticket_replacement_terminal_id_index",
-          "primary": false,
-          "unique": false
-        },
-        {
-          "columnNames": [
-            "terminal_id"
-          ],
-          "composite": false,
-          "constraint": false,
-          "keyName": "service_ticket_terminal_id_index",
           "primary": false,
           "unique": false
         },
@@ -3327,16 +3277,6 @@
           "keyName": "PRIMARY",
           "primary": true,
           "unique": true
-        },
-        {
-          "columnNames": [
-            "terminal_id"
-          ],
-          "composite": false,
-          "constraint": false,
-          "keyName": "terminal_status_history_terminal_id_index",
-          "primary": false,
-          "unique": false
         },
         {
           "columnNames": [
