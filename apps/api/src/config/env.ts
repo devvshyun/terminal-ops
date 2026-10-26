@@ -85,8 +85,11 @@ export const env = {
   replacementLockTtlMs: intFromEnv('REPLACEMENT_LOCK_TTL_MS', 30_000, MS),
   /** 브릿지VAN 등록 목록 한 페이지 크기(F9, decisions/0033) */
   bridgevanPageSize: intFromEnv('BRIDGEVAN_PAGE_SIZE', 500, { min: 1, max: 1000 }),
-  /** 이보다 오래 RUNNING인 VAN 대조 실행은 멈춘 것(프로세스가 죽음)으로 보고, 새 실행을 시작할 때 FAILED로 바꾼다 */
-  vanRunStaleMs: intFromEnv('VAN_RUN_STALE_MS', 3_600_000, MS),
+  /**
+   * RUNNING인 VAN 대조 실행의 하트비트(페이지마다 갱신)가 이보다 오래되면 멈춘 것(프로세스가 죽음)으로 보고, 새 실행을 시작할 때 FAILED로 바꾼다.
+   * 페이지 하나의 재시도(5번, 지수 백오프·Retry-After)보다 넉넉히 길게 둔다(decisions/0033). 전의 VAN_RUN_STALE_MS(시작 후 경과)를 대신한다
+   */
+  vanRunHeartbeatStaleMs: intFromEnv('VAN_RUN_HEARTBEAT_STALE_MS', 300_000, MS),
   /** SyncRun에 남길 작업 프로세스 이름(워커 2개 실험에서 구분용) */
   workerName: process.env.WORKER_NAME ?? `pid-${process.pid}`,
 };

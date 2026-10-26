@@ -63,6 +63,13 @@ export class VanReconciliationRun {
   @Property({ type: 'datetime', length: 3 })
   startedAt!: Date;
 
+  /**
+   * 살아 있다는 신호: 시작할 때와 수집 페이지마다(재검증이 있으면 블록마다) 갱신한다(조건 status=RUNNING).
+   * 멈춘 실행은 시작 시각이 아니라 이 값으로 판정한다 — 오래 걸리는 정상 실행을 죽은 것으로 보지 않게(decisions/0033).
+   */
+  @Property({ type: 'datetime', length: 3 })
+  heartbeatAt!: Date;
+
   @Property({ type: 'datetime', length: 3, nullable: true })
   finishedAt: Date | null = null;
 

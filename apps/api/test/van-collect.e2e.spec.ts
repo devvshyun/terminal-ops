@@ -1,6 +1,8 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { env } from '../src/config/env.js';
 import { BusinessError } from '../src/common/domain-errors.js';
 import { VanReconciliationRun, VanRegistrationSnapshot, VanRunStatus, VanRunTrigger, VanStatus } from '../src/van/van.entities.js';
+import { BridgevanClient } from '../src/van/bridgevan.client.js';
 import { VanReconciliationService } from '../src/van/van-reconciliation.service.js';
 import { partners, type VanSeed } from './helpers/partners.js';
 import { resetQueues, waitFor } from './helpers/queues.js';
@@ -36,6 +38,9 @@ describe('VAN 등록 대조 — 실행·커서 수집·스테이징 (F9)', () =>
     await partners.reset();
     // 이전 테스트가 남긴 RUNNING을 정리(한 번에 하나 규칙 때문에)
     await em().nativeUpdate(VanReconciliationRun, { status: VanRunStatus.RUNNING }, { status: VanRunStatus.FAILED });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
   afterAll(async () => {
     await resetQueues(t.app);
@@ -82,15 +87,31 @@ describe('VAN 등록 대조 — 실행·커서 수집·스테이징 (F9)', () =>
     expect((await partners.stats()).calls['bridgevan.list']).toBe(5);
   }, 20_000);
 
-  it('같은 실행을 다시 돌리면(멈춘 job 재시도) 스테이징을 지우고 처음부터 모은다', async () => {
+  it('같은 실행을 다시 돌리면(멈춘 job 재시도, 실행 행은 아직 RUNNING) 스테이징을 지우고 처음부터 모은다', async () => {
     await partners.seedVan(vanRows(30));
     const run = await svc.start(VanRunTrigger.MANUAL, 'kim');
-    await svc.execute(run.id);
+    // 앞선 시도가 남긴 반쪽 스테이징
     await em().insert(VanRegistrationSnapshot, { runId: run.id, serialNo: 'LEFTOVER', tid: 'X', merchantCode: 'X', status: VanStatus.CANCELLED, vanUpdatedAt: new Date() });
-    expect(await snapshotCount(run.id)).toBe(31);
-    expect(await svc.collect(run.id)).toEqual({ pages: 1, fetched: 30, retries: 0 });
+    const done = await svc.execute(run.id);
+    expect(done).toMatchObject({ status: VanRunStatus.COMPLETED, pages: 1, fetched: 30 });
     expect(await snapshotCount(run.id)).toBe(30);
     expect(await svc.deleteSnapshot(run.id)).toBe(30);
+  });
+
+  it('끝난 실행(COMPLETED)을 다시 execute하면 아무것도 하지 않는다: 스테이징을 지우지 않고 VAN을 부르지 않는다', async () => {
+    await partners.seedVan(vanRows(30));
+    const run = await svc.start(VanRunTrigger.MANUAL, 'kim');
+    const done = await svc.execute(run.id);
+    expect(done.status).toBe(VanRunStatus.COMPLETED);
+    const callsBefore = (await partners.stats()).calls['bridgevan.list'];
+    const again = await svc.execute(run.id);
+    expect(again).toMatchObject({ status: VanRunStatus.COMPLETED, pages: 1, fetched: 30, error: null });
+    expect(again.finishedAt?.getTime()).toBe(done.finishedAt?.getTime());
+    expect(await snapshotCount(run.id)).toBe(30);
+    expect((await partners.stats()).calls['bridgevan.list']).toBe(callsBefore);
+    // collect를 바로 불러도 RUNNING이 아니면 스테이징을 건드리기 전에 멈춘다
+    await expect(svc.collect(run.id)).rejects.toThrow(/RUNNING이 아님/);
+    expect(await snapshotCount(run.id)).toBe(30);
   });
 
   it('진행 중인 실행은 하나만: 두 번째 시작은 409 VAN_RECONCILIATION_RUNNING, 끝나면 다시 시작할 수 있다', async () => {
@@ -104,15 +125,46 @@ describe('VAN 등록 대조 — 실행·커서 수집·스테이징 (F9)', () =>
     await svc.execute(second.id);
   });
 
-  it('너무 오래 RUNNING인 실행(프로세스가 죽음)은 다음 시작이 FAILED로 바꾸고 새로 시작한다', async () => {
+  it('시작한 지 오래됐어도 하트비트가 최근이면 살아 있는 실행이다(409). 하트비트가 끊긴 RUNNING은 다음 시작이 FAILED로 바꾸고 새로 시작한다', async () => {
     const old = await svc.start(VanRunTrigger.MANUAL, 'kim', new Date(Date.now() - 2 * 3_600_000));
+    // 두 시간 전에 시작했지만 방금 페이지를 받았다(긴 수집)
+    await em().nativeUpdate(VanReconciliationRun, { id: old.id }, { heartbeatAt: new Date() });
+    await expect(svc.start(VanRunTrigger.MANUAL, 'kim')).rejects.toMatchObject({ status: 409, code: 'VAN_RECONCILIATION_RUNNING' });
+    // 하트비트가 기준보다 오래됨 → 멈춘 실행
+    await em().nativeUpdate(VanReconciliationRun, { id: old.id }, { heartbeatAt: new Date(Date.now() - env.vanRunHeartbeatStaleMs - 1000) });
     const fresh = await svc.start(VanRunTrigger.MANUAL, 'kim');
     const stale = await em().findOneOrFail(VanReconciliationRun, old.id);
     expect(stale.status).toBe(VanRunStatus.FAILED);
-    expect(stale.error).toMatch(/멈춘 실행/);
+    expect(stale.error).toMatch(/멈춘 실행: 하트비트/);
     expect(fresh.status).toBe(VanRunStatus.RUNNING);
+    expect(fresh.heartbeatAt).toBeInstanceOf(Date);
     await partners.seedVan(vanRows(1));
     await svc.execute(fresh.id);
+  });
+
+  it('수집 중 페이지마다 하트비트를 갱신하고, 그사이 실행이 FAILED가 되면 지금 페이지에서 멈춘다(다음 페이지를 부르지 않음)', async () => {
+    await partners.seedVan(vanRows(1200)); // 페이지 500 × 3
+    const run = await svc.start(VanRunTrigger.MANUAL, 'kim', new Date(Date.now() - 60_000));
+    const client = t.app.get(BridgevanClient);
+    const original = client.list.bind(client);
+    const heartbeats: number[] = [];
+    let calls = 0;
+    vi.spyOn(client, 'list').mockImplementation(async (cursor, limit) => {
+      heartbeats.push((await em().findOneOrFail(VanReconciliationRun, run.id)).heartbeatAt.getTime());
+      const page = await original(cursor, limit);
+      // 둘째 페이지를 받는 동안 다른 시작이 이 실행을 멈춘 것으로 보고 FAILED로 바꿨다
+      if (++calls === 2) await em().nativeUpdate(VanReconciliationRun, { id: run.id }, { status: VanRunStatus.FAILED, error: '멈춘 실행(테스트)' });
+      return page;
+    });
+    const done = await svc.execute(run.id);
+    expect(calls).toBe(2);
+    expect((await partners.stats()).calls['bridgevan.list']).toBe(2);
+    expect(done.status).toBe(VanRunStatus.FAILED);
+    expect(done.error).toBe('멈춘 실행(테스트)'); // 수집 쪽이 이유를 덮어쓰지 않는다
+    expect(await snapshotCount(run.id)).toBe(500); // 둘째 페이지는 넣지 않았다
+    // 시작 때 하트비트(start의 now = 1분 전)보다 첫 페이지 앞의 하트비트가 나중, 둘째 페이지 앞은 그 이상
+    expect(heartbeats[0]).toBeGreaterThan(run.heartbeatAt.getTime());
+    expect(heartbeats[1]).toBeGreaterThanOrEqual(heartbeats[0]);
   });
 
   it('POST /van-reconciliations는 202로 실행 행을 주고 report 큐 워커가 끝낸다. 진행 중에 다시 POST하면 409', async () => {

@@ -19,9 +19,24 @@
 - 진행 중 실행은 하나:
   1. Redis 잠금 — 실행이 수 분이라 TTL을 정하기 어렵고, 잠금이 사라져도 DB에는 RUNNING이 남는다.
   2. **실행 행의 unique(생성 열 running_key)** — 상태가 DB 한 곳에 있다. MikroORM 부분 unique(`where: { status: 'RUNNING' }`)는 MySQL이 식에 `_utf8mb4` 글자 집합을 붙여 저장해 `db:migration:check`가 늘 다르다고 해서(사전 검증) 생성 열로 했다.
-  3. 멈춘 실행: 워커가 죽으면 RUNNING이 남는다 → 다음 시작이 VAN_RUN_STALE_MS(1시간) 넘은 것을 FAILED로.
+  3. 멈춘 실행: 워커가 죽으면 RUNNING이 남는다 → 다음 시작이 하트비트가 끊긴 것을 FAILED로(아래 "생존 판정", 처음에는 시작 후 1시간이었다).
   - → 2와 3을 함께. 시작이 unique 위반이면 409 `VAN_RECONCILIATION_RUNNING`.
 - 큐: report 큐를 새로 만든다(concurrency 1). device 큐(짧은 job, active 갱신·판정)에 수 초~수 분짜리 일을 넣지 않는다(experiments/0010의 줄서기).
 - 결과·대가: 실행 하나가 끝날 때까지 다음 실행(수동·주기)은 409·건너뜀. 수집은 자동 커밋이라 수집 도중의 스테이징은 반쪽일 수 있다(같은 실행을 다시 하면 지우고 처음부터).
 - 다시 볼 조건: 등록이 수십만 건이 되어 수집이 길어질 때(페이지 크기·동시 페이지), VAN이 스냅샷 커서(일관된 시점)를 줄 때.
 - 이 Task(3)에서 한 것: 실행 행·스테이징·커서 수집·한 job 안의 재시도·report 큐. 비교·재검증·확정은 Task 4가 이 기록에 보탠다.
+
+## 갱신(2026-10-26, fix 커밋): 생존 판정은 하트비트로, 끝난 실행은 다시 하지 않는다
+
+- 문제: 멈춘 실행을 "시작한 지 VAN_RUN_STALE_MS(1시간)"로 판정했다. 등록이 늘어 수집이 1시간을 넘기면 살아 있는 실행을 다음 시작이 FAILED로 바꾸고 새 실행을 만든다. 그러면 두 실행이 함께 돌고(unique는 RUNNING 하나만 막는다), 앞 실행은 자기가 FAILED가 된 줄 모르고 끝까지 VAN을 부른다. 또 `execute`는 상태를 보지 않아, 끝난 실행의 job이 다시 돌면 그 실행의 스테이징을 지우고 다시 모았다.
+- 생존 판정:
+  1. 시작 후 경과 시간(그대로) — 기준을 길게 잡으면 죽은 실행을 오래 못 치우고, 짧게 잡으면 긴 정상 실행을 죽인다. 실행 길이는 등록 수에 따라 달라서 맞는 값이 없다.
+  2. Redis 잠금 + TTL 연장 — 위 "진행 중 실행은 하나"의 1과 같은 이유로 버렸다(상태가 두 곳).
+  3. **실행 행의 `heartbeat_at`** — 시작할 때와 페이지를 받을 때마다 `update … set heartbeat_at = now where id = ? and status = 'RUNNING'`. 멈춘 실행 = RUNNING이고 `heartbeat_at < 지금 - VAN_RUN_HEARTBEAT_STALE_MS`(기본 5분). 페이지 하나는 재시도를 다 써도 500ms·1·2·4초 백오프(429면 Retry-After)라 5분이면 넉넉하다.
+  - → 3. 같은 UPDATE의 영향 행 수가 "아직 내 실행이 RUNNING인가"의 확인도 겸한다. 0행이면(다른 시작이 FAILED로 바꿈) 그 페이지를 스테이징에 넣지 않고 `VanRunNotRunningError`를 던져 멈춘다. 이때 실행 행의 이유(error)는 덮어쓰지 않는다.
+  - env: `VAN_RUN_STALE_MS`(시작 후 경과)를 없애고 `VAN_RUN_HEARTBEAT_STALE_MS`로 바꿨다. 뜻이 달라 같은 이름을 두면 헷갈린다. 아직 배포 전이라 호환 이름은 두지 않는다(`.env.example` 함께 바꿈).
+  - 정리 UPDATE의 조건에도 `heartbeat_at < 기준`을 다시 넣는다 — 읽은 뒤 그 실행이 하트비트를 보냈으면 건드리지 않는다.
+  - 마이그레이션: 행이 있으면 `add … not null`이 실패하므로 null 허용 추가 → `coalesce(finished_at, started_at)`로 백필 → not null.
+- 끝난 실행 재처리 방지: `execute`가 처음에 실행 행을 읽어 RUNNING이 아니면 아무것도 하지 않고 돌려준다. `collect`도 첫 하트비트(스테이징을 지우기 전)에서 같은 확인을 한다 — 바로 불러도 끝난 실행의 스테이징을 지우지 않는다.
+- 작은 것: 스테이징 DELETE에 `order by serial_no`(PK 순서로 지운다는 것을 문장에 적어 둠, `LIMIT`만 있으면 어떤 행을 지울지 정해지지 않는다). 마지막 COMPLETED UPDATE가 0행이면(끝나는 순간 정리됨) 경고 로그.
+- 스테이징 보관: 지금은 지우지 않는다(같은 실행을 다시 할 때만 지움). 보관 규칙은 Task 4의 `cleanupSnapshots`(실행이 끝나면 그보다 앞선 실행의 스테이징을 지움, 이번 것만 남김)로 미룬다 — FAILED 실행의 반쪽 스테이징도 다음 완료 때 함께 지워진다.

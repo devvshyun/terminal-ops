@@ -28,8 +28,19 @@ export interface VanRunJobData {
 const elapsed = (start: number) => Math.round(performance.now() - start);
 
 /**
+ * 실행 행이 더는 RUNNING이 아니다(멈춘 실행으로 보고 다른 시작이 FAILED로 바꿈, 이미 끝남). 이 실행의 일을 그만둔다.
+ * 실행 행은 이미 다른 상태라 FAILED로 덮어쓰지 않는다(decisions/0033).
+ */
+export class VanRunNotRunningError extends Error {
+  constructor(runId: number) {
+    super(`VAN 대조 ${runId}이(가) RUNNING이 아님(멈춘 실행으로 정리됐거나 이미 끝남)`);
+    this.name = 'VanRunNotRunningError';
+  }
+}
+
+/**
  * 브릿지VAN 등록 대조(F9, decisions/0033).
- * 1. start: 실행 행(RUNNING)을 만든다. 진행 중인 실행이 있으면 409(실행 행의 부분 unique).
+ * 1. start: 실행 행(RUNNING)을 만든다. 진행 중인 실행이 있으면 409(실행 행의 부분 unique). 하트비트가 끊긴 RUNNING은 먼저 FAILED로.
  * 2. collect: 커서로 모든 페이지를 받아 페이지마다 스테이징(van_registration_snapshot)에 한 문장으로 넣는다.
  *    429·5xx는 그 페이지만 다시 부른다(Retry-After, withPartnerRetry). 외부 호출은 트랜잭션 밖이다.
  * 실행은 report 큐 job 하나가 처음부터 끝까지 한다(device 큐에 무거운 일을 넣지 않는다, experiments/0010).
@@ -48,7 +59,7 @@ export class VanReconciliationService {
   async start(trigger: VanRunTrigger, actor: string, now = new Date()): Promise<VanReconciliationRun> {
     await this.failStale(now);
     const em = this.em.fork();
-    const run = em.create(VanReconciliationRun, { trigger, requestedBy: actor, startedAt: now });
+    const run = em.create(VanReconciliationRun, { trigger, requestedBy: actor, startedAt: now, heartbeatAt: now });
     try {
       await em.flush();
     } catch (error) {
@@ -87,23 +98,33 @@ export class VanReconciliationService {
 
   /**
    * 실행 한 번을 끝까지 한다. 어디서 실패하든 실행 행을 FAILED(이유)로 남기고 행을 돌려준다(던지지 않는다 — job은 끝난다).
-   * 같은 runId로 다시 불리면(멈춘 job을 BullMQ가 다시 돌림) 스테이징을 지우고 처음부터 한다.
+   * 같은 runId로 다시 불리면(멈춘 job을 BullMQ가 다시 돌림) 실행 행이 아직 RUNNING일 때만 스테이징을 지우고 처음부터 한다.
+   * 이미 끝난(COMPLETED·FAILED) 실행이면 아무것도 하지 않고 행을 돌려준다 — 끝난 실행의 스테이징을 지우거나 결과를 다시 쓰지 않게.
    */
   async execute(runId: number): Promise<VanReconciliationRun> {
+    const current = await this.get(runId);
+    if (current.status !== VanRunStatus.RUNNING) {
+      this.logger.warn(`VAN 대조 ${runId}은(는) 이미 ${current.status}라 다시 하지 않음`);
+      return current;
+    }
     const phaseMs: VanPhaseMs = {};
     try {
-      let t = performance.now();
+      const t = performance.now();
       const collected = await this.collect(runId);
       phaseMs.collect = elapsed(t);
-      t = performance.now();
-      await this.em.fork().nativeUpdate(
+      const updated = await this.em.fork().nativeUpdate(
         VanReconciliationRun,
         { id: runId, status: VanRunStatus.RUNNING },
-        { status: VanRunStatus.COMPLETED, finishedAt: new Date(), ...collected, phaseMs },
+        { status: VanRunStatus.COMPLETED, finishedAt: new Date(), heartbeatAt: new Date(), ...collected, phaseMs },
       );
+      if (updated === 0) this.logger.warn(`VAN 대조 ${runId}: 끝내는 중에 RUNNING이 아니게 됨(멈춘 실행으로 정리됨) — COMPLETED로 바꾸지 않음`);
     } catch (error) {
-      this.logger.error(`VAN 대조 ${runId} 실패: ${error instanceof Error ? error.message : String(error)}`);
-      await this.fail(runId, error);
+      if (error instanceof VanRunNotRunningError) {
+        this.logger.warn(error.message);
+      } else {
+        this.logger.error(`VAN 대조 ${runId} 실패: ${error instanceof Error ? error.message : String(error)}`);
+        await this.fail(runId, error);
+      }
     }
     return this.get(runId);
   }
@@ -111,8 +132,11 @@ export class VanReconciliationService {
   /**
    * 커서로 모든 페이지를 받아 스테이징에 넣는다. 페이지마다 INSERT 한 문장(자동 커밋) — 수집 전체를 한 트랜잭션으로 묶지 않는다
    * (외부 호출을 기다리는 동안 잠금을 쥐지 않게). 같은 시리얼이 두 번 오면 나중 값으로 덮는다.
+   * 시작할 때와 페이지를 받을 때마다 하트비트를 갱신하고, 실행이 RUNNING이 아니면(멈춘 실행으로 정리됨) 그 페이지를 넣지 않고 멈춘다.
+   * @throws VanRunNotRunningError
    */
   async collect(runId: number): Promise<{ pages: number; fetched: number; retries: number }> {
+    await this.heartbeat(runId);
     await this.deleteSnapshot(runId);
     const em = this.em.fork();
     let cursor: string | null = null;
@@ -124,6 +148,7 @@ export class VanReconciliationService {
         attempts: VAN_CALL_ATTEMPTS,
         onRetry: () => retries++,
       });
+      await this.heartbeat(runId);
       if (page.items.length > 0) {
         await em
           .createQueryBuilder(VanRegistrationSnapshot)
@@ -146,7 +171,7 @@ export class VanReconciliationService {
     const em = this.em.fork();
     let deleted = 0;
     for (;;) {
-      const res = await em.execute<QueryResult>('delete from van_registration_snapshot where run_id = ? limit ?', [runId, SNAPSHOT_DELETE_BATCH], 'run');
+      const res = await em.execute<QueryResult>('delete from van_registration_snapshot where run_id = ? order by serial_no limit ?', [runId, SNAPSHOT_DELETE_BATCH], 'run');
       deleted += res.affectedRows;
       if (res.affectedRows < SNAPSHOT_DELETE_BATCH) return deleted;
     }
@@ -158,6 +183,15 @@ export class VanReconciliationService {
     return run;
   }
 
+  /**
+   * 하트비트: RUNNING일 때만 heartbeat_at을 지금으로. 0행이면 이 실행은 더 이상 RUNNING이 아니다 → 던져서 일을 그만둔다.
+   * @throws VanRunNotRunningError
+   */
+  async heartbeat(runId: number): Promise<void> {
+    const updated = await this.em.fork().nativeUpdate(VanReconciliationRun, { id: runId, status: VanRunStatus.RUNNING }, { heartbeatAt: new Date() });
+    if (updated === 0) throw new VanRunNotRunningError(runId);
+  }
+
   /** 실행 행을 FAILED로(아직 RUNNING일 때만) */
   private async fail(runId: number, error: unknown): Promise<void> {
     const message = (error instanceof Error ? `${error.name}: ${error.message}` : String(error)).slice(0, 500);
@@ -166,19 +200,20 @@ export class VanReconciliationService {
       .nativeUpdate(VanReconciliationRun, { id: runId, status: VanRunStatus.RUNNING }, { status: VanRunStatus.FAILED, finishedAt: new Date(), error: message });
   }
 
-  /** 너무 오래 RUNNING인 실행(프로세스가 죽어 끝나지 못함)을 FAILED로. 잠그지 않고 읽은 뒤 PK로 갱신한다(troubleshooting/0014) */
+  /**
+   * 하트비트가 끊긴 RUNNING 실행(프로세스가 죽어 끝나지 못함)을 FAILED로. 잠그지 않고 읽은 뒤 PK로 갱신한다(troubleshooting/0014).
+   * 시작 시각이 아니라 마지막 하트비트로 본다 — 수집이 길어도 페이지를 받고 있으면 살아 있다(decisions/0033).
+   * 갱신 조건에도 하트비트를 다시 넣어, 읽은 뒤 그 실행이 하트비트를 보냈으면 건드리지 않는다.
+   */
   private async failStale(now: Date): Promise<void> {
     const em = this.em.fork();
-    const stale = await em.find(
-      VanReconciliationRun,
-      { status: VanRunStatus.RUNNING, startedAt: { $lt: new Date(now.getTime() - env.vanRunStaleMs) } },
-      { fields: ['id'] },
-    );
+    const before = new Date(now.getTime() - env.vanRunHeartbeatStaleMs);
+    const stale = await em.find(VanReconciliationRun, { status: VanRunStatus.RUNNING, heartbeatAt: { $lt: before } }, { fields: ['id'] });
     if (stale.length === 0) return;
     await em.nativeUpdate(
       VanReconciliationRun,
-      { id: { $in: stale.map((r) => r.id) }, status: VanRunStatus.RUNNING },
-      { status: VanRunStatus.FAILED, finishedAt: now, error: `멈춘 실행: ${env.vanRunStaleMs}ms 넘게 끝나지 않음` },
+      { id: { $in: stale.map((r) => r.id) }, status: VanRunStatus.RUNNING, heartbeatAt: { $lt: before } },
+      { status: VanRunStatus.FAILED, finishedAt: now, error: `멈춘 실행: 하트비트가 ${env.vanRunHeartbeatStaleMs}ms 넘게 없음` },
     );
     this.logger.warn(`멈춘 VAN 대조 실행을 FAILED로: ${stale.map((r) => r.id).join(', ')}`);
   }
@@ -191,6 +226,7 @@ export function toVanRunView(run: VanReconciliationRun) {
     trigger: run.trigger,
     requestedBy: run.requestedBy,
     startedAt: run.startedAt.toISOString(),
+    heartbeatAt: run.heartbeatAt.toISOString(),
     finishedAt: run.finishedAt?.toISOString() ?? null,
     pages: run.pages,
     fetched: run.fetched,
