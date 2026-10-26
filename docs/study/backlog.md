@@ -122,3 +122,4 @@
 - [ ] MySQL 소수 초 저장의 반올림과 TIME_TRUNCATE_FRACTIONAL (decisions/0034 fix)
 - [ ] cron 식과 시간대(tz), 일광 절약 시간의 건너뜀·겹침, 분산 스케줄러의 정확히 한 번 (decisions/0035)
 - [ ] cron 식 방언(다섯 칸·초가 붙은 여섯 칸·@ 별칭)과 전이 의존성 판을 직접 의존성으로 맞추기 (decisions/0035 fix, src/config/env-cron.ts)
+- [ ] 시간대 경계 — 저장은 UTC, 업무 날짜는 KST, 반열린 구간 [from, to) (src/report/kst-week.ts, decisions/0035)
