@@ -45,7 +45,7 @@ export interface VanPhaseMs {
  */
 @Entity({ tableName: 'van_reconciliation_run' })
 export class VanReconciliationRun {
-  [OptionalProps]?: 'status' | 'finishedAt' | 'pages' | 'fetched' | 'retries' | 'candidates' | 'confirmed' | 'resolved' | 'unverifiable' | 'counts' | 'phaseMs' | 'error';
+  [OptionalProps]?: 'status' | 'finishedAt' | 'pages' | 'fetched' | 'retries' | 'candidates' | 'confirmed' | 'resolved' | 'unverifiable' | 'counts' | 'phaseMs' | 'error' | 'acknowledgeDrop';
 
   @PrimaryKey()
   id!: number;
@@ -72,6 +72,13 @@ export class VanReconciliationRun {
   /** 작업자(수동) 또는 `system:van-reconcile`(주기) */
   @Property({ length: 50 })
   requestedBy!: string;
+
+  /**
+   * 운영자가 수집 급감을 확인하고 돌린 실행(POST 본문 acknowledgeDrop). 이 실행만 수집 급감 검사(마지막 완료 대비·VAN 0건)를 건너뛴다.
+   * 누가 언제 안전장치를 넘겼는지 남기려고 실행 행과 요약 알림에 둔다(decisions/0033 fix 커밋 3).
+   */
+  @Property({ default: false })
+  acknowledgeDrop: boolean = false;
 
   @Property({ type: 'datetime', length: 3 })
   startedAt!: Date;

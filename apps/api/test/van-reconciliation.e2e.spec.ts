@@ -25,7 +25,9 @@ describe('VAN 등록 대조 — 집합 비교·재검증·결과·알림·스테
   let svc: VanReconciliationService;
   const em = () => t.orm.em.fork();
   const pageSize = env.bridgevanPageSize;
-  const run = async () => svc.execute((await svc.start(VanRunTrigger.MANUAL, 'kim')).id);
+  const run = async (opts: { acknowledgeDrop?: boolean } = {}) => svc.execute((await svc.start(VanRunTrigger.MANUAL, 'kim', new Date(), opts)).id);
+  /** VAN이 비어 있고 우리 운영 중 단말기만 있는 장면(후보 = 운영 중 전부)은 VAN 0건 안전장치에 걸리므로 급감 확인으로 돌린다(fix 커밋 3) */
+  const ACK = { acknowledgeDrop: true };
   const items = (runId: number) => em().find(VanReconciliationItem, { run: runId }, { orderBy: { id: 'asc' } });
 
   beforeAll(async () => {
@@ -153,7 +155,7 @@ describe('VAN 등록 대조 — 집합 비교·재검증·결과·알림·스테
     await resetDatabase(t.orm);
     // 운영 중인데 VAN에 없음 101대 → 후보 101개 = 블록 2개
     await insertTerminals(t, Array.from({ length: 101 }, (_, i) => ({ serialNo: `VH-${String(i + 1).padStart(3, '0')}`, status: S.IN_SERVICE, merchantCode: G })));
-    const started = await svc.start(VanRunTrigger.MANUAL, 'kim');
+    const started = await svc.start(VanRunTrigger.MANUAL, 'kim', new Date(), ACK);
     const client = t.app.get(BridgevanClient);
     const original = client.findBySerial.bind(client);
     let calls = 0;
@@ -206,7 +208,7 @@ describe('VAN 등록 대조 — 집합 비교·재검증·결과·알림·스테
       // 후보 20개 = 블록 1개, 동시 8개씩 묶음 3개(8·8·4). 호출마다 가짜 시계 31초
       await insertTerminals(t, Array.from({ length: 20 }, (_, i) => ({ serialNo: `VT-${String(i + 1).padStart(2, '0')}`, status: S.IN_SERVICE, merchantCode: G })));
       const seen = watch(31_000);
-      const done = await run();
+      const done = await run(ACK);
       expect(done).toMatchObject({ status: VanRunStatus.COMPLETED, candidates: 20, confirmed: 20 });
       expect(seen.calls).toBe(20);
       expect(seen.beatsAfterFirstCall).toBe(2); // 둘째·셋째 묶음 앞(블록 첫머리 하트비트는 첫 호출 전)
@@ -215,14 +217,14 @@ describe('VAN 등록 대조 — 집합 비교·재검증·결과·알림·스테
     it('간격이 안 지났으면 묶음 사이 하트비트를 보내지 않는다(호출마다 UPDATE하지 않음)', async () => {
       await insertTerminals(t, Array.from({ length: 20 }, (_, i) => ({ serialNo: `VT-${String(i + 1).padStart(2, '0')}`, status: S.IN_SERVICE, merchantCode: G })));
       const seen = watch(1_000);
-      await run();
+      await run(ACK);
       expect(seen.beatsAfterFirstCall).toBe(0);
     });
 
     it('재시도를 기다리기 전에도 간격이 지났으면 하트비트를 보낸다(묶음 하나뿐이어도)', async () => {
       await insertTerminals(t, [{ serialNo: 'VT-01', status: S.IN_SERVICE, merchantCode: G }]);
       const seen = watch(31_000, (_s, call) => (call === 1 ? new PartnerTransientError('브릿지VAN 시리얼 조회 응답 503') : null));
-      const done = await run();
+      const done = await run(ACK);
       expect(done).toMatchObject({ status: VanRunStatus.COMPLETED, confirmed: 1, retries: 1 });
       expect(seen.calls).toBe(2);
       expect(seen.beatsAfterFirstCall).toBe(1);
@@ -252,6 +254,45 @@ describe('VAN 등록 대조 — 집합 비교·재검증·결과·알림·스테
       expect(dropped.error).toMatch(/VanSafetyValveError: 수집 4건이 마지막 완료 실행 #\d+의 10건의 50% 미만/);
       await partners.seedVan(Array.from({ length: 6 }, (_, i) => reg(`T-VD-${i}`, `VD-${i}`, 'CANCELLED')));
       expect(await run()).toMatchObject({ status: VanRunStatus.COMPLETED, fetched: 6 });
+    });
+
+    it('fix: 급감 확인 플래그(acknowledgeDrop)는 그 실행만 수집 급감 검사를 건너뛰고, 실행 행·알림에 남는다', async () => {
+      await partners.seedVan(Array.from({ length: 10 }, (_, i) => reg(`T-VA-${i}`, `VA-${i}`, 'CANCELLED')));
+      expect(await run()).toMatchObject({ status: VanRunStatus.COMPLETED, acknowledgeDrop: false });
+      await partners.seedVan(Array.from({ length: 2 }, (_, i) => reg(`T-VA-${i}`, `VA-${i}`, 'CANCELLED')));
+      // 확인한 실행: 10 → 2(20%)여도 COMPLETED
+      const acked = await run(ACK);
+      expect(acked).toMatchObject({ status: VanRunStatus.COMPLETED, fetched: 2, acknowledgeDrop: true });
+      const event = await em().findOneOrFail(OutboxEvent, { type: 'van.reconciliation_completed', payload: { runId: acked.id } });
+      expect(event.payload).toMatchObject({ acknowledgeDrop: true });
+      // 확인은 그 실행만: 다음 실행의 기준은 확인한 실행(2건)이고, 다시 급감하면 플래그 없이는 FAILED
+      await partners.seedVan([reg('T-VA-0', 'VA-0', 'CANCELLED')]);
+      expect(await run()).toMatchObject({ status: VanRunStatus.COMPLETED, fetched: 1 }); // 2 → 1은 50%라 통과
+      await partners.seedVan([]);
+      expect((await run()).error).toMatch(/VanSafetyValveError/);
+    });
+
+    it('fix: VAN이 0건인데 우리 운영 중 단말기가 있으면(첫 실행이어도) FAILED. 확인 플래그를 주면 돈다', async () => {
+      await insertTerminals(t, Array.from({ length: 3 }, (_, i) => ({ serialNo: `VE-${i + 1}`, status: S.IN_SERVICE, merchantCode: G })));
+      const empty = await run();
+      expect(empty).toMatchObject({ status: VanRunStatus.FAILED, fetched: 0, candidates: 0, acknowledgeDrop: false });
+      expect(empty.error).toMatch(/VanSafetyValveError: 수집 0건인데 운영 중 단말기가 3대/);
+      const acked = await run(ACK);
+      expect(acked).toMatchObject({ status: VanRunStatus.COMPLETED, fetched: 0, candidates: 3, confirmed: 3 });
+    });
+
+    it('fix: 후보 상한의 분모는 max(수집 수, 우리 운영 중 수) — VAN이 적게 줘도 우리 쪽 규모로 상한을 잡는다', async () => {
+      env.vanCandidateAbsCap = 3;
+      env.vanCandidateMaxPct = 50;
+      // 운영 중 10대 중 6대만 VAN에 있음 → 수집 6, 후보 4. 수집 기준 상한 max(3, 3) = 3이면 FAILED, 운영 중 기준 max(3, 5) = 5면 통과
+      await insertTerminals(t, Array.from({ length: 10 }, (_, i) => ({ serialNo: `VC-${String(i + 1).padStart(2, '0')}`, status: S.IN_SERVICE, merchantCode: G })));
+      await partners.seedVan(Array.from({ length: 6 }, (_, i) => reg(`T-VC-${i}`, `VC-${String(i + 1).padStart(2, '0')}`, 'ACTIVE')));
+      expect(await run()).toMatchObject({ status: VanRunStatus.COMPLETED, fetched: 6, candidates: 4, confirmed: 4 });
+    });
+
+    it('fix: POST /van-reconciliations 본문 { acknowledgeDrop } 검증(불리언만, 모르는 필드 거절)', async () => {
+      expect((await t.http().post('/van-reconciliations').set({ 'X-Operator': 'kim' }).send({ acknowledgeDrop: 'yes' })).status).toBe(400);
+      expect((await t.http().post('/van-reconciliations').set({ 'X-Operator': 'kim' }).send({ force: true })).status).toBe(400);
     });
 
     it('키 정규화: VAN 시리얼이 대소문자·공백만 다르면 같은 단말기다(SQL과 재검증이 같은 판단, VAN 조회는 VAN 쪽 표기로)', async () => {
@@ -286,7 +327,7 @@ describe('VAN 등록 대조 — 집합 비교·재검증·결과·알림·스테
         { serialNo: 'VP-02', status: S.IN_SERVICE, merchantCode: G },
       ]);
       watch(0, (serialNo) => (serialNo === 'VP-01' ? new PartnerPermanentError('브릿지VAN 시리얼 조회 응답 400') : null));
-      const done = await run();
+      const done = await run(ACK);
       expect(done).toMatchObject({ status: VanRunStatus.COMPLETED, candidates: 2, confirmed: 1, resolved: 0, unverifiable: 1 });
       expect((await items(done.id)).map((it) => [it.serialNo, it.verified, it.reason])).toEqual([
         ['VP-01', false, '재검증 실패: PartnerPermanentError: 브릿지VAN 시리얼 조회 응답 400'],

@@ -13,7 +13,7 @@ export enum AnomalyRule {
   ALLOCATED_NO_SHIPMENT = 'ALLOCATED_NO_SHIPMENT',
   /** 운영 중인데 가맹점 없음 */
   IN_SERVICE_NO_MERCHANT = 'IN_SERVICE_NO_MERCHANT',
-  /** 운영 중인데 마지막 하트비트가 N일(기본 3) 넘게 전(device_connectivity가 오프라인) */
+  /** 운영 중인데 마지막 하트비트가 N일(기본 3) 넘게 전(online 값과 상관없이), 하트비트가 한 번도 없으면 운영 시작이 N일 넘게 전 */
   OFFLINE_TOO_LONG = 'OFFLINE_TOO_LONG',
 }
 

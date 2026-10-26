@@ -116,3 +116,7 @@
 - [ ] 비정규화 컬럼(status_changed_at)과 이력 테이블의 일관성 — 한 곳에서만 쓰기, 백필, 상관 서브쿼리 대 컬럼 (decisions/0034)
 - [ ] MySQL strict 모드(STRICT_TRANS_TABLES, NO_ZERO_DATE)와 ALTER TABLE ADD COLUMN NOT NULL의 암묵 기본값 (decisions/0034)
 - [ ] ORM의 대량 INSERT(insertMany)가 엔티티 기본값·훅을 건너뛰는 이유 (troubleshooting/0022)
+- [ ] 큰 표의 백필 UPDATE 한 문장(undo·잠금·복제 지연) 대 PK 범위로 나눠 돌리기 — 단말기 수십만이면 status_changed_at 백필을 나눠야 하나 (decisions/0034, Migration20261026034551)
+- [ ] INSERT … ON DUPLICATE KEY UPDATE와 함수 인덱스 unique, affectedRows(1·2·0)와 CLIENT_FOUND_ROWS (decisions/0034 fix)
+- [ ] 옵티마이저 통계와 UPDATE 실행계획, 인덱스 힌트(FORCE INDEX)의 대가 (decisions/0034 fix)
+- [ ] MySQL 소수 초 저장의 반올림과 TIME_TRUNCATE_FRACTIONAL (decisions/0034 fix)

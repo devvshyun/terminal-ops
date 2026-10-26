@@ -1,8 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { EntityManager as CoreEntityManager } from '@mikro-orm/core';
 import type { Redis } from 'ioredis';
 import { UniqueConstraintViolationException } from '@mikro-orm/mysql';
 import { Anomaly, AnomalyRule as R } from '../src/anomaly/anomaly.entity.js';
-import { AnomalyService } from '../src/anomaly/anomaly.service.js';
+import { AnomalyService, openRowsUpdateSql, type ScanResult } from '../src/anomaly/anomaly.service.js';
 import { DAY_MS } from '../src/config/env-number.js';
 import { DeviceConnectivity } from '../src/device/device-connectivity.entity.js';
 import { RedisLock } from '../src/redis/redis-lock.js';
@@ -144,5 +145,84 @@ describe('이상 단말기 찾기 (F4, decisions/0034)', () => {
     } finally {
       await lock.release(key, token!);
     }
+  });
+  const HOUR = 3_600_000;
+  const G = 'GANGNAM-KIMBAP';
+  const openOf = async (terminalIds: number[]) =>
+    em().find(Anomaly, { terminalId: { $in: terminalIds }, resolvedAt: null }, { orderBy: { terminalId: 'asc', rule: 'asc' } });
+
+  it('fix: 오프라인 규칙 — 하트비트가 한 번도 없으면 운영 시작(status_changed_at)으로, 있으면 online 값과 상관없이 마지막 하트비트로 본다', async () => {
+    const at = new Date(NOW.getTime() + 6 * HOUR);
+    const more = await insertTerminals(t, [
+      { serialNo: 'AF-01', status: S.IN_SERVICE, merchantCode: G, statusChangedAt: daysAgo(5) }, // 하트비트 없음, 운영 5일 → 걸림
+      { serialNo: 'AF-02', status: S.IN_SERVICE, merchantCode: G, statusChangedAt: daysAgo(2) }, // 하트비트 없음, 운영 2일 → 아님
+      { serialNo: 'AF-03', status: S.IN_SERVICE, merchantCode: G, statusChangedAt: daysAgo(30) }, // online=1인데 마지막 하트비트 5일 전 → 걸림
+      { serialNo: 'AF-04', status: S.IN_SERVICE, merchantCode: G, statusChangedAt: daysAgo(30) }, // online=1, 1일 전 → 아님
+    ]);
+    const conn = (serialNo: string, lastSeenDays: number) => ({
+      terminalId: more.get(serialNo)!,
+      online: true,
+      lastSeenAt: daysAgo(lastSeenDays),
+      firmwareVersion: '1.0.0',
+      changedAt: daysAgo(30),
+    });
+    await em().insertMany(DeviceConnectivity, [conn('AF-03', 5), conn('AF-04', 1)]);
+    await svc.scan(at);
+    const rows = await openOf([...more.values()]);
+    expect(rows.map((a) => [a.terminalId, a.rule, a.detail])).toEqual([
+      [more.get('AF-01'), R.OFFLINE_TOO_LONG, { lastSeenAt: null, since: daysAgo(5).toISOString(), days: 5 }],
+      [more.get('AF-03'), R.OFFLINE_TOO_LONG, { lastSeenAt: daysAgo(5).toISOString(), days: 5 }],
+    ]);
+  });
+
+  it('fix: 기준일 경계 ±1시간 — 기준보다 1시간 전은 걸리고 1시간 뒤는 아니다(시간대가 어긋나면 둘 다 뒤집힌다, troubleshooting/0016)', async () => {
+    const at = new Date(NOW.getTime() + 7 * HOUR);
+    const more = await insertTerminals(t, [
+      { serialNo: 'AB-01', status: S.DELIVERED, merchantCode: G, statusChangedAt: new Date(at.getTime() - 7 * DAY_MS - HOUR) },
+      { serialNo: 'AB-02', status: S.DELIVERED, merchantCode: G, statusChangedAt: new Date(at.getTime() - 7 * DAY_MS + HOUR) },
+    ]);
+    await svc.scan(at);
+    expect((await openOf([...more.values()])).map((a) => [a.terminalId, a.rule])).toEqual([[more.get('AB-01'), R.DELIVERED_NOT_INSTALLED]]);
+  });
+
+  it('fix: 찾기 두 번이 겹쳐도(잠금 만료) 500이 아니고, (단말기, 규칙)마다 열린 이상은 하나. 늦은 쪽은 새로 걸린 것으로 세지 않는다', async () => {
+    const more = await insertTerminals(t, [
+      { serialNo: 'AO-01', status: S.SHIPPED, merchantCode: G, statusChangedAt: daysAgo(20) },
+      { serialNo: 'AO-02', status: S.ALLOCATED, merchantCode: G, statusChangedAt: daysAgo(10) },
+    ]);
+    const aoIds = [...more.values()];
+    const t1 = new Date(NOW.getTime() + 8 * HOUR);
+    const t2 = new Date(t1.getTime() + 1000);
+    // 늦은 찾기(t2)가 열린 이상을 읽은 직후, 잠금이 만료돼 들어온 다른 찾기(t1)가 끝까지 돈다(잠금 없이 내부 찾기를 부름)
+    const find = CoreEntityManager.prototype.find;
+    let entered = false;
+    let early: ScanResult | undefined;
+    const spy = vi.spyOn(CoreEntityManager.prototype, 'find').mockImplementation(async function (this: CoreEntityManager, ...args: unknown[]) {
+      const result = await (find as (...a: unknown[]) => Promise<unknown>).apply(this, args);
+      if (!entered && args[0] === Anomaly) {
+        entered = true;
+        early = await (svc as unknown as { scanLocked: (now: Date) => Promise<ScanResult> }).scanLocked(t1);
+      }
+      return result;
+    } as never);
+    let late: ScanResult;
+    try {
+      late = await svc.scan(t2);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(early!.newMatches.filter((m) => aoIds.includes(m.terminalId)).map((m) => m.serialNo)).toEqual(['AO-01', 'AO-02']);
+    expect(late.newMatches.filter((m) => aoIds.includes(m.terminalId))).toEqual([]);
+    const rows = await openOf(aoIds);
+    expect(rows.map((a) => [a.terminalId, a.rule, a.detectedAt.getTime(), a.lastSeenAt.getTime()])).toEqual([
+      [more.get('AO-01'), R.SHIPPED_TOO_LONG, t1.getTime(), t2.getTime()],
+      [more.get('AO-02'), R.ALLOCATED_NO_SHIPMENT, t1.getTime(), t2.getTime()],
+    ]);
+  });
+  it('fix: 열린 이상 PK 갱신은 resolved_at 조건이 있어도 PRIMARY 범위로 돈다(EXPLAIN UPDATE, troubleshooting/0014)', async () => {
+    const ids = (await openRows()).slice(0, 3).map((a) => a.id);
+    // 힌트가 없으면 통계에 따라 (resolved_at, rule) 보조 인덱스 범위를 고를 수 있다(빈 표에서 확인, decisions/0034)
+    const [hinted] = await em().execute<{ key: string; type: string }[]>(`explain ${openRowsUpdateSql('last_seen_at', 3)}`, [NOW, ...ids]);
+    expect(hinted).toMatchObject({ key: 'PRIMARY', type: 'range' });
   });
 });

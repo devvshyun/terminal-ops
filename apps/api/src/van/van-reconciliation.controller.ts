@@ -1,5 +1,6 @@
-import { Controller, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { Operator } from '../common/operator.decorator.js';
+import { StartVanReconciliationDto } from './dto/start-van-reconciliation.dto.js';
 import { VanItemsQuery } from './dto/van-items.query.js';
 import { toVanRunView, VanReconciliationService } from './van-reconciliation.service.js';
 
@@ -8,11 +9,11 @@ import { toVanRunView, VanReconciliationService } from './van-reconciliation.ser
 export class VanReconciliationController {
   constructor(private readonly runs: VanReconciliationService) {}
 
-  /** 수동 실행. 진행 중인 실행이 있으면 409 VAN_RECONCILIATION_RUNNING */
+  /** 수동 실행. 진행 중인 실행이 있으면 409 VAN_RECONCILIATION_RUNNING. 본문 { acknowledgeDrop: true }면 이 실행만 수집 급감 검사를 건너뛴다 */
   @Post()
   @HttpCode(202)
-  async start(@Operator() actor: string) {
-    return toVanRunView(await this.runs.request(actor));
+  async start(@Operator() actor: string, @Body() body: StartVanReconciliationDto) {
+    return toVanRunView(await this.runs.request(actor, { acknowledgeDrop: body.acknowledgeDrop === true }));
   }
 
   /** 실행 요약 + 결과 한 페이지(?kind=&verified=&afterId=&limit=) */

@@ -78,3 +78,15 @@
 - "VAN에서 시리얼은 유일"을 가정으로 적는다. 깨지면(같은 serialKey의 등록이 둘) ACTIVE > SUSPENDED > CANCELLED, 같으면 updatedAt이 나중인 것(`betterRegistration`). 수집은 페이지 안은 TS에서, 페이지 사이는 이미 넣은 행을 PK로 읽어(`run_id = ? and serial_no in (…)`, 페이지마다 한 문장) 고르고, 단건 조회도 같은 규칙. 남은 한계: 나중 페이지의 등록이 이기면 스테이징 시리얼 표기는 처음 것으로 남는다(PK는 merge하지 않음).
 - 후보 하나의 영구 오류(Minor): 재검증의 VAN 단건이 `PartnerPermanentError`(4xx·형식)면 그 후보만 결과 행 verified=false + `reason`(`재검증 실패: …`)으로 남기고 실행은 끝낸다. 실행 행 `unverifiable`에 수를 두고 `resolved`(풀림)에서 뺀다. 알림 문구는 있을 때만 "확인 불가 N건". 재시도를 다 쓴 429·5xx는 VAN 장애라 지금처럼 실행 FAILED. 마이그레이션 `Migration20261026033754`(run `unverifiable int default 0`, item `reason varchar(200) null`).
 - 스테이징 정리(`cleanupSnapshots`)는 결과를 확정한 뒤의 일이라 따로 try/catch에서 경고만 남긴다(전에는 실패하면 `fail()`이 불렸지만 조건이 RUNNING이라 0행이었다 — 결과는 같았고, 테스트로 고정만 했다).
+
+## 갱신(2026-10-26, fix 커밋 3): 수집 급감 확인 플래그, VAN 0건 안전장치, 후보 상한 분모
+
+- 문제(리뷰): 수집 급감 안전장치에 빠져나갈 길이 없었다. VAN 등록이 정말로 크게 줄었으면(대량 해지 정리) 마지막 COMPLETED가 기준이라 다음 실행도 계속 FAILED다. 첫 실행(이전 COMPLETED 없음)에서 VAN이 빈 목록을 주면 검사를 건너뛰어, 우리 운영 중 단말기 전부가 후보가 됐다.
+- 빠져나갈 길:
+  1. env(`VAN_FETCH_MIN_PCT=0`)를 잠깐 바꿔 재시작 — 배포가 필요하고, 누가 왜 넘겼는지 남지 않는다.
+  2. 기준 실행을 운영자가 고름 — 운영자가 실행 번호를 알아야 한다.
+  3. **`POST /van-reconciliations` 본문 `{ acknowledgeDrop: true }`(검증된 DTO, 불리언만, 모르는 필드 400)** — 그 실행만 수집 급감 검사를 건너뛴다. 실행 행 `acknowledge_drop`(마이그레이션 `Migration20261026040250`, `tinyint(1) not null default false`)과 요약 알림 payload·문구(`(수집 급감 확인 후 실행)`)에 남아 감사할 수 있다. 확인한 실행이 COMPLETED면 다음 실행의 기준이 된다.
+  - → 3. 주기 실행은 플래그를 주지 않는다(사람이 확인한 것만). 후보 수 상한은 플래그와 상관없이 검사한다(단건 조회 폭주는 막는다).
+- VAN 0건 안전장치: 수집 0건인데 우리 운영 중 단말기가 있으면 FAILED(`수집 0건인데 운영 중 단말기가 N대입니다…`). 이전 실행이 없어도 검사한다. 정말로 비었으면 확인 플래그로 돌린다. `VAN_FETCH_MIN_PCT=0`이면 두 검사를 모두 끈다(같은 "수집 급감" 안전장치라서). 기존 테스트 중 "VAN 없음 + 우리 운영 중"을 일부러 만든 5개(재검증 블록 하트비트, 시간 기준 하트비트 3개, 확인 불가)는 확인 플래그로 돌게 바꿨다.
+- 후보 상한 분모: `max(VAN_CANDIDATE_ABS_CAP, max(수집 수, 우리 운영 중 수) × VAN_CANDIDATE_MAX_PCT%)`. 수집 수만 쓰면 VAN이 적게 줄수록 상한이 작아져 정상 규모의 어긋남까지 막혔다(운영 중 10대 중 6대만 VAN에 있는 경우 상한 3 → 5, 테스트 먼저 실패). 운영 중 수는 실행마다 `count(*) … status = 'IN_SERVICE'` 한 번(status 앞부분 인덱스 범위).
+- 시리얼 ASCII 가정(정리): `serialKey`(trim + `toUpperCase`)가 SQL collation(`utf8mb4_0900_ai_ci`)과 같은 동치라는 것은 ASCII에서만 맞다. 악센트(`é`와 `E`는 ai_ci에서 같고 toUpperCase로는 다름), `ß`(JS 대문자는 `SS`), 터키어 i 같은 경우는 갈린다. 우리 쪽 시리얼은 `^[A-Z0-9-]{4,32}$`로 막혀 있고 VAN 쪽만 열려 있다 — VAN이 ASCII가 아닌 시리얼을 주면 SQL은 같은 단말기로, TS 재검증은 다른 단말기로 볼 수 있다(그 후보는 재검증에서 "VAN에 없음"으로 남는다). 생기면 수집 단계에서 ASCII가 아닌 시리얼을 따로 세어 경고하는 쪽을 먼저 본다.

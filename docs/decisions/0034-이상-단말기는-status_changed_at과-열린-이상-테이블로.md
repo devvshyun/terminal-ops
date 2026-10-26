@@ -24,3 +24,18 @@
 - API: `GET /anomalies?rule=&open=&afterId=&limit=`(afterId 키셋, 단말기 시리얼·지금 상태를 붙임), `POST /anomaly-scans`(X-Operator, 동기 200, 새로 걸린 시리얼 앞 100개). 알림은 Task 6.
 - 결과·대가: 전이 UPDATE에 열 하나가 늘고 (status, status_changed_at) 인덱스가 상태가 바뀔 때마다 갱신된다(status 단독 인덱스를 지워 인덱스 수는 같다). 이력과 status_changed_at이 어긋날 수 있는 경로: 전이 서비스를 거치지 않는 쓰기(테스트 헬퍼, 운영자가 DB를 직접 고침). `insertMany`는 엔티티 기본값을 쓰지 않아 직접 넣는 곳은 값을 꼭 넣어야 한다(troubleshooting/0022).
 - 다시 볼 조건: 규칙이 "상태가 된 뒤 다른 사건이 없음"(예: 배정 뒤 운송장 발급 실패)처럼 이력 내용을 봐야 할 때, 실험 0011에서 1이 충분히 빠르면.
+
+## 갱신(2026-10-26, fix 커밋): 찾기 겹침 멱등, 오프라인 규칙 빈틈, 경계 테스트
+
+- 찾기 겹침(리뷰): Redis 잠금(5분)이 만료된 뒤 두 찾기가 겹치면, 늦게 쓰는 쪽이 앞 찾기가 이미 연 (단말기, 규칙)을 다시 INSERT해 열린 이상 unique에 걸리고 500이 났다. 테스트 먼저 실패: 늦은 찾기가 열린 이상을 읽은 직후 다른 찾기(잠금 없이 내부 `scanLocked`)가 끝까지 돌게 하면 `UniqueConstraintViolationException: Duplicate entry '13-SHIPPED_TOO_LONG' for key 'anomaly.anomaly_open_unique'`.
+  1. unique 위반을 잡아 409 `SCAN_IN_PROGRESS` — 늦은 찾기의 일(계속·풀림 갱신까지)이 통째로 롤백된다. 주기 job이면 그날 찾기가 빠진다.
+  2. **INSERT … ON DUPLICATE KEY UPDATE `last_seen_at` = values(`last_seen_at`)** (QueryBuilder `insert().onConflict().merge(['lastSeenAt'])`) — 겹쳐도 끝까지 돌고 (단말기, 규칙)마다 열린 이상은 하나.
+  - → 2. MySQL 8.4에서 함수 인덱스(부분 unique 흉내)도 ON DUPLICATE KEY의 대상이 되는지 테스트로 확인했다(열린 행 하나, detected_at은 앞 찾기 시각, last_seen_at은 늦은 찾기 시각). 생성되는 SQL: `insert into anomaly (…) values (…) on duplicate key update last_seen_at = values(last_seen_at)`(8.0.20부터 `values()`는 deprecated 경고 대상이지만 8.4에서 동작).
+  - "새로 걸림" 수와 알림: ON DUPLICATE KEY는 몇 행이 실제로 들어갔는지 행 단위로 알려 주지 않는다(affectedRows가 1·2·0을 섞고, FOUND_ROWS 플래그면 바뀌지 않은 갱신도 1). 그래서 같은 트랜잭션에서 `resolved_at is null and detected_at = 이번 찾기 시각`인 열린 행을 다시 읽어 그 키만 "새로 걸림"으로 센다. 나머지는 "계속"으로 센다(겹침 경고 로그). 한계: 두 찾기의 시각이 밀리초까지 같으면 둘 다 새로 걸림으로 센다(알림 중복 정도).
+  - PK `IN (…)` 갱신의 `resolved_at is null`은 뺄 수 없다: 겹친 찾기가 이미 닫은 행의 resolved_at을 늦은 시각으로 덮거나, 닫힌 행의 last_seen_at을 바꾼다. EXPLAIN UPDATE(테스트 DB, MySQL 8.4.13): 거의 빈 표에서는 `key: anomaly_resolved_at_rule_index, type: range, rows: 1` — 옵티마이저가 보조 인덱스 범위를 골랐다(그 범위의 next-key 락이 troubleshooting/0014와 같은 모양). 행이 20개쯤 있는 표에서는 같은 문장이 `key: PRIMARY`. 통계에 따라 바뀌므로 문장에 `force index (primary)`를 넣었다(`openRowsUpdateSql`, 원시 SQL). 테스트가 그 문장의 EXPLAIN이 `PRIMARY`·`range`인지 본다.
+- 오프라인 규칙 빈틈(리뷰): 전에는 device_connectivity에서 출발해 `online = 0`만 봤다.
+  - 하트비트가 한 번도 없는 운영 중 단말기(설치 뒤 켜지지 않음)는 행이 없어 영영 안 걸렸다.
+  - 오프라인 판정 job이 밀리거나 멈추면 online=1로 남은 행은 마지막 하트비트가 며칠 전이어도 안 걸렸다.
+  - 고침: 운영 중 단말기에서 출발해 LEFT JOIN — `c.last_seen_at < 기준`(online 값은 보지 않음) 또는 `c.terminal_id is null and t.status_changed_at < 기준`. 하트비트가 없으면 detail은 `{ lastSeenAt: null, since: 운영 시작, days }`. 스냅샷 job이 last_seen_at을 주기적으로 MySQL에 쓰므로(decisions/0029) 기준(3일)에 비해 늦음은 무시할 만하다. 테스트 먼저 실패(`expected [] to deeply equal [ …(2) ]`).
+- 경계 테스트: 배송 완료 기준(7일)보다 1시간 전·1시간 뒤 두 대. 시간대가 9시간 어긋나면(troubleshooting/0016) 둘 다 뒤집힌다. 지금 코드에서 처음부터 통과(회귀 방지용).
+- 이력 시각 정정: 위 "이력은 datetime(초)이라 1초 안에서 같다"는 버림이 아니라 반올림이다. MySQL은 소수 초를 기본으로 반올림해 저장한다(sql_mode에 TIME_TRUNCATE_FRACTIONAL이 없을 때). status_changed_at이 12:00:00.600이면 이력 occurred_at은 12:00:01 — 이력이 최대 0.5초 늦을 수 있고, 둘의 차이는 ±1초 안이다. 이력으로 "그 상태가 된 시각"을 비교할 때는 1초 여유를 둔다.

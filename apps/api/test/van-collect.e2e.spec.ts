@@ -176,7 +176,7 @@ describe('VAN 등록 대조 — 실행·커서 수집·스테이징 (F9)', () =>
     await partners.configure({ bridgevan: { delayMs: 300 } }); // 페이지 3개 × 0.3초: 두 번째 POST가 진행 중에 들어간다
     const res = await t.http().post('/van-reconciliations').set(OP);
     expect(res.status).toBe(202);
-    expect(res.body).toMatchObject({ status: 'RUNNING', trigger: 'MANUAL', requestedBy: 'kim', pages: 0 });
+    expect(res.body).toMatchObject({ status: 'RUNNING', trigger: 'MANUAL', requestedBy: 'kim', pages: 0, acknowledgeDrop: false });
     const again = await t.http().post('/van-reconciliations').set(OP);
     expect(again.status).toBe(409);
     expect(again.body.code).toBe('VAN_RECONCILIATION_RUNNING');
@@ -187,5 +187,12 @@ describe('VAN 등록 대조 — 실행·커서 수집·스테이징 (F9)', () =>
     expect(done).toMatchObject({ pages: 3, fetched: 1200, error: null });
     expect((await t.http().get('/van-reconciliations/999999')).status).toBe(404);
     expect((await t.http().post('/van-reconciliations')).status).toBe(400); // 작업자 헤더 없음
+
+    // 급감 확인 플래그(fix): 본문으로 받아 실행 행에 남긴다
+    await partners.configure({ bridgevan: { delayMs: 0 } });
+    const acked = await t.http().post('/van-reconciliations').set(OP).send({ acknowledgeDrop: true });
+    expect(acked.status).toBe(202);
+    expect(acked.body).toMatchObject({ status: 'RUNNING', acknowledgeDrop: true });
+    await waitFor(async () => (await t.http().get(`/van-reconciliations/${acked.body.id}`)).body.status === 'COMPLETED');
   });
 });

@@ -32,7 +32,8 @@ function ageRules(d: AnomalyThresholds): { rule: AnomalyRule; statuses: S[]; day
  * (SQL의 NOW()는 세션 시간대(SYSTEM=KST)라 UTC로 저장한 값과 비교하면 9시간 어긋난다, troubleshooting/0016).
  * - 상태 경과 규칙: `terminal (status, status_changed_at)` 인덱스 범위 하나(상태가 여럿이면 범위 여럿)
  * - 가맹점 없음: 같은 인덱스의 status 앞부분 + merchant_id 확인
- * - 오프라인: device_connectivity(offline이고 마지막 하트비트가 기준보다 전) ⟶ terminal PK, 운영 중만
+ * - 오프라인: 운영 중 단말기 LEFT JOIN device_connectivity — 마지막 하트비트가 기준보다 전(online 값과 상관없이),
+ *   또는 하트비트 행이 아예 없고 운영 시작(status_changed_at)이 기준보다 전(설치 뒤 한 번도 켜지지 않음)
  * 결과는 (terminalId, rule) 순서.
  */
 export async function findAnomalies(em: EntityManager, now: Date, d: AnomalyThresholds = env.anomalyDays): Promise<AnomalyMatch[]> {
@@ -61,13 +62,22 @@ export async function findAnomalies(em: EntityManager, now: Date, d: AnomalyThre
       detail: { status: S.IN_SERVICE, since: fromDbDatetime(row.status_changed_at).toISOString() },
     });
   }
-  const offline = await em.execute<{ id: number; serial_no: string; last_seen_at: string }[]>(
-    `select t.id, t.serial_no, c.last_seen_at
-       from device_connectivity c join terminal t on t.id = c.terminal_id
-      where c.online = 0 and c.last_seen_at < ? and t.status = 'IN_SERVICE'`,
-    [new Date(now.getTime() - d.offlineTooLong * DAY_MS)],
+  // online 플래그는 보지 않는다: 오프라인 판정 job·스냅샷이 밀리거나 멈춰 online=1로 남은 행도 마지막 하트비트가 오래됐으면 걸린다
+  const offlineCutoff = new Date(now.getTime() - d.offlineTooLong * DAY_MS);
+  const offline = await em.execute<{ id: number; serial_no: string; status_changed_at: string; last_seen_at: string | null }[]>(
+    `select t.id, t.serial_no, t.status_changed_at, c.last_seen_at
+       from terminal t left join device_connectivity c on c.terminal_id = t.id
+      where t.status = 'IN_SERVICE'
+        and (c.last_seen_at < ? or (c.terminal_id is null and t.status_changed_at < ?))`,
+    [offlineCutoff, offlineCutoff],
   );
   for (const row of offline) {
+    if (row.last_seen_at === null) {
+      // 하트비트가 한 번도 없음: 운영 시작부터 센다
+      const since = fromDbDatetime(row.status_changed_at);
+      out.push({ terminalId: row.id, serialNo: row.serial_no, rule: AnomalyRule.OFFLINE_TOO_LONG, detail: { lastSeenAt: null, since: since.toISOString(), days: days(since) } });
+      continue;
+    }
     const lastSeen = fromDbDatetime(row.last_seen_at);
     out.push({ terminalId: row.id, serialNo: row.serial_no, rule: AnomalyRule.OFFLINE_TOO_LONG, detail: { lastSeenAt: lastSeen.toISOString(), days: days(lastSeen) } });
   }

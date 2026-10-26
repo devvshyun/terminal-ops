@@ -41,6 +41,12 @@ const ITEM_INSERT_CHUNK = 500;
 /** 실행 job 옵션: 실패해도 BullMQ가 다시 돌리지 않는다(실행 행에 FAILED와 이유를 남기고, 다음 실행이 처음부터 한다) */
 const RUN_JOB_OPTIONS = { attempts: 1, removeOnComplete: true, removeOnFail: 100 };
 
+/** 실행 시작 옵션 */
+export interface StartOptions {
+  /** 운영자가 수집 급감을 확인함: 이 실행만 수집 급감 검사를 건너뛴다(decisions/0033) */
+  acknowledgeDrop?: boolean;
+}
+
 export interface VanRunJobData {
   runId: number;
 }
@@ -115,7 +121,7 @@ interface RunProgress {
  * 3. compare: 스테이징 ⟷ terminal·merchant를 SQL 두 문장으로 비교해 어긋남 후보를 거른다(한 스냅숏, 읽기 전용 트랜잭션).
  * 4. reverify: 후보마다 VAN 단건(시리얼)과 우리 쪽을 지금 값으로 다시 읽어, 여전히 어긋난 것만 확정한다(스캔 도중 변경의 거짓 양성 제거).
  * 5. finish: 한 트랜잭션에서 실행 행 완료 + 결과 행 INSERT + Outbox 요약 알림 1행. 그 뒤 이전 실행의 스테이징을 지운다.
- * 3과 4 사이: 안전장치(수집 수 급감, 후보 수 상한)에 걸리면 재검증 없이 FAILED(이유).
+ * 3과 4 사이: 안전장치(수집 수 급감·VAN 0건, 후보 수 상한)에 걸리면 재검증 없이 FAILED(이유). 운영자가 확인한 실행(acknowledgeDrop)은 수집 급감만 건너뛴다.
  * 수집 페이지·재검증 블록마다, 그리고 마지막 하트비트 뒤 env.vanHeartbeatIntervalMs가 지났으면 재검증 동시 묶음 사이·재시도 대기 앞에서도
  * 하트비트(조건 status=RUNNING)를 보내고, 0행이면(멈춘 실행으로 정리됨) 그 자리에서 멈춘다.
  * 실행은 report 큐 job 하나가 처음부터 끝까지 한다(device 큐에 무거운 일을 넣지 않는다, experiments/0010).
@@ -134,11 +140,14 @@ export class VanReconciliationService {
     @InjectQueue(QUEUE.REPORT) private readonly queue: Queue,
   ) {}
 
-  /** 실행 행을 만든다. 진행 중인 실행이 있으면 409 VAN_RECONCILIATION_RUNNING */
-  async start(trigger: VanRunTrigger, actor: string, now = new Date()): Promise<VanReconciliationRun> {
+  /**
+   * 실행 행을 만든다. 진행 중인 실행이 있으면 409 VAN_RECONCILIATION_RUNNING.
+   * opts.acknowledgeDrop: 운영자가 수집 급감을 확인함 — 이 실행만 수집 급감 검사를 건너뛴다(실행 행에 남는다)
+   */
+  async start(trigger: VanRunTrigger, actor: string, now = new Date(), opts: StartOptions = {}): Promise<VanReconciliationRun> {
     await this.failStale(now);
     const em = this.em.fork();
-    const run = em.create(VanReconciliationRun, { trigger, requestedBy: actor, startedAt: now, heartbeatAt: now });
+    const run = em.create(VanReconciliationRun, { trigger, requestedBy: actor, startedAt: now, heartbeatAt: now, acknowledgeDrop: opts.acknowledgeDrop === true });
     try {
       await em.flush();
     } catch (error) {
@@ -151,8 +160,8 @@ export class VanReconciliationService {
   }
 
   /** 수동 실행: 실행 행을 만들고 report 큐에 넣는다. 큐에 못 넣으면 그 실행을 FAILED로 남기고 던진다 */
-  async request(actor: string): Promise<VanReconciliationRun> {
-    const run = await this.start(VanRunTrigger.MANUAL, actor);
+  async request(actor: string, opts: StartOptions = {}): Promise<VanReconciliationRun> {
+    const run = await this.start(VanRunTrigger.MANUAL, actor, new Date(), opts);
     try {
       await this.queue.add('van-reconcile', { runId: run.id } satisfies VanRunJobData, { ...RUN_JOB_OPTIONS, jobId: `van-run-${run.id}` });
     } catch (error) {
@@ -193,16 +202,17 @@ export class VanReconciliationService {
       const collected = await this.collect(runId);
       phaseMs.collect = elapsed(t);
       Object.assign(progress, collected);
-      await this.checkFetched(runId, collected.fetched);
+      const inService = await this.countInService();
+      await this.checkFetched(runId, collected.fetched, inService, current.acknowledgeDrop);
       t = performance.now();
       const candidates = await this.compare(runId);
       phaseMs.compare = elapsed(t);
       progress.candidates = candidates.length;
-      this.checkCandidates(collected.fetched, candidates.length);
+      this.checkCandidates(collected.fetched, inService, candidates.length);
       t = performance.now();
       const checked = await this.reverify(runId, candidates);
       phaseMs.reverify = elapsed(t);
-      await this.finish(runId, { ...collected, retries: collected.retries + checked.retries }, candidates.length, checked.items, phaseMs);
+      await this.finish(runId, { ...collected, retries: collected.retries + checked.retries }, candidates.length, checked.items, phaseMs, current.acknowledgeDrop);
     } catch (error) {
       if (error instanceof VanRunNotRunningError) {
         this.logger.warn(error.message);
@@ -224,30 +234,52 @@ export class VanReconciliationService {
   }
 
   /**
-   * 안전장치 ①: 수집 수가 마지막 COMPLETED 실행의 env.vanFetchMinPct% 미만이면 VanSafetyValveError.
-   * VAN이 빈 목록·일부만 주는 장애면 "운영 중인데 VAN에 없음"이 대량으로 생긴다. 기준은 FAILED가 아니라 마지막 COMPLETED(반쪽 수집을 기준으로 삼지 않게).
+   * 안전장치 ①: 수집 급감이면 VanSafetyValveError.
+   * - VAN 0건인데 우리 운영 중 단말기가 있음(첫 실행이어도 — 비교할 이전 실행이 없을 때의 빈 응답)
+   * - 수집 수가 마지막 COMPLETED 실행의 env.vanFetchMinPct% 미만. 기준은 FAILED가 아니라 마지막 COMPLETED(반쪽 수집을 기준으로 삼지 않게)
+   * VAN이 빈 목록·일부만 주는 장애면 "운영 중인데 VAN에 없음"이 대량으로 생긴다. env.vanFetchMinPct=0이면 둘 다 끈다.
+   * 운영자가 급감을 확인한 실행(acknowledgeDrop)은 이 검사만 건너뛴다(경고 로그, 실행 행·알림에 남음). 후보 수 상한(②)은 그대로.
    */
-  private async checkFetched(runId: number, fetched: number): Promise<void> {
+  private async checkFetched(runId: number, fetched: number, inService: number, acknowledged: boolean): Promise<void> {
     if (env.vanFetchMinPct === 0) return;
+    if (acknowledged) {
+      this.logger.warn(`VAN 대조 ${runId}: 급감 확인 플래그로 수집 급감 검사를 건너뜀(수집 ${fetched}, 운영 중 ${inService})`);
+      return;
+    }
+    if (fetched === 0 && inService > 0) {
+      throw new VanSafetyValveError(
+        `수집 0건인데 운영 중 단말기가 ${inService}대입니다(VAN 장애·빈 응답 의심, 재검증하지 않음). 확인했으면 acknowledgeDrop으로 다시 실행하세요.`,
+      );
+    }
     const [last] = await this.em
       .fork()
       .find(VanReconciliationRun, { status: VanRunStatus.COMPLETED, id: { $lt: runId } }, { fields: ['id', 'fetched'], orderBy: { id: 'desc' }, limit: 1 });
     if (!last || last.fetched === 0) return;
     if (fetched * 100 < last.fetched * env.vanFetchMinPct) {
       throw new VanSafetyValveError(
-        `수집 ${fetched}건이 마지막 완료 실행 #${last.id}의 ${last.fetched}건의 ${env.vanFetchMinPct}% 미만입니다(VAN 장애·빈 응답 의심, 재검증하지 않음).`,
+        `수집 ${fetched}건이 마지막 완료 실행 #${last.id}의 ${last.fetched}건의 ${env.vanFetchMinPct}% 미만입니다(VAN 장애·빈 응답 의심, 재검증하지 않음). 확인했으면 acknowledgeDrop으로 다시 실행하세요.`,
       );
     }
   }
 
-  /** 안전장치 ②: 후보가 max(env.vanCandidateAbsCap, 수집 수 × env.vanCandidateMaxPct%)를 넘으면 VanSafetyValveError */
-  private checkCandidates(fetched: number, candidates: number): void {
-    const cap = Math.max(env.vanCandidateAbsCap, Math.floor((fetched * env.vanCandidateMaxPct) / 100));
+  /**
+   * 안전장치 ②: 후보가 max(env.vanCandidateAbsCap, max(수집 수, 우리 운영 중 수) × env.vanCandidateMaxPct%)를 넘으면 VanSafetyValveError.
+   * 분모에 우리 운영 중 수도 넣는다 — VAN이 적게 줄수록(수집 수가 작을수록) 상한이 작아져 정상 규모의 어긋남까지 막지 않게.
+   */
+  private checkCandidates(fetched: number, inService: number, candidates: number): void {
+    const base = Math.max(fetched, inService);
+    const cap = Math.max(env.vanCandidateAbsCap, Math.floor((base * env.vanCandidateMaxPct) / 100));
     if (candidates > cap) {
       throw new VanSafetyValveError(
-        `후보 ${candidates}건이 상한 ${cap}건(max(${env.vanCandidateAbsCap}, 수집 ${fetched} × ${env.vanCandidateMaxPct}%))을 넘습니다(재검증하지 않음).`,
+        `후보 ${candidates}건이 상한 ${cap}건(max(${env.vanCandidateAbsCap}, max(수집 ${fetched}, 운영 중 ${inService}) × ${env.vanCandidateMaxPct}%))을 넘습니다(재검증하지 않음).`,
       );
     }
+  }
+
+  /** 우리 운영 중 단말기 수((status, status_changed_at) 인덱스의 status 앞부분 범위) */
+  private async countInService(): Promise<number> {
+    const [row] = await this.em.fork().execute<{ n: number }[]>(`select count(*) as n from terminal where status = 'IN_SERVICE'`);
+    return Number(row.n);
   }
 
   /**
@@ -423,6 +455,7 @@ export class VanReconciliationService {
     candidates: number,
     items: ItemRow[],
     phaseMs: VanPhaseMs,
+    acknowledgeDrop: boolean,
   ): Promise<void> {
     const confirmed = items.filter((it) => it.verified);
     const unverifiable = items.filter((it) => it.reason).length;
@@ -445,7 +478,7 @@ export class VanReconciliationService {
       // 묶음 원칙: 어긋남이 몇 건이든 알림은 요약 1행(experiments/0010, decisions/0029)
       tx.create(OutboxEvent, {
         type: OUTBOX_TYPE.VAN_RECONCILIATION_COMPLETED,
-        payload: { runId, fetched: collected.fetched, candidates, confirmed: summary.confirmed, resolved: summary.resolved, unverifiable, counts },
+        payload: { runId, fetched: collected.fetched, candidates, confirmed: summary.confirmed, resolved: summary.resolved, unverifiable, counts, acknowledgeDrop },
       });
     });
   }
@@ -560,6 +593,7 @@ export function toVanRunView(run: VanReconciliationRun) {
     status: run.status,
     trigger: run.trigger,
     requestedBy: run.requestedBy,
+    acknowledgeDrop: run.acknowledgeDrop,
     startedAt: run.startedAt.toISOString(),
     heartbeatAt: run.heartbeatAt.toISOString(),
     finishedAt: run.finishedAt?.toISOString() ?? null,

@@ -6,7 +6,10 @@ import { Terminal } from '../terminal/terminal.entity.js';
 import { Anomaly, AnomalyRule } from './anomaly.entity.js';
 import { findAnomalies, type AnomalyMatch, type AnomalyThresholds } from './anomaly-rules.js';
 
-/** 찾기 잠금 유지 시간. 찾기 한 번이 이보다 길면 다른 찾기가 겹칠 수 있다(겹쳐도 열린 이상 unique가 막는다) */
+/**
+ * 찾기 잠금 유지 시간. 찾기 한 번이 이보다 길면 다른 찾기가 겹칠 수 있다 — 겹쳐도 INSERT가 ON DUPLICATE KEY UPDATE라
+ * 500이 아니고 열린 이상은 (단말기, 규칙)마다 하나로 남는다(fix, decisions/0034)
+ */
 const SCAN_LOCK_TTL_MS = 5 * 60_000;
 
 /** PK IN (…) 갱신·INSERT 한 문장의 행 수 */
@@ -25,12 +28,23 @@ export interface ScanResult {
   newMatches: AnomalyMatch[];
 }
 
+/**
+ * 열린 이상 PK `IN (…)` 갱신 문장. `resolved_at is null`은 겹친 찾기가 이미 닫은 행을 다시 건드리지 않으려고 둔다(빼면 안전하지 않다).
+ * 그 조건이 있으면 옵티마이저가 (resolved_at, rule) 보조 인덱스 범위를 고를 수 있어(EXPLAIN UPDATE로 확인, decisions/0034)
+ * `force index (primary)`로 PK 범위만 잠그게 한다(troubleshooting/0014).
+ */
+export function openRowsUpdateSql(column: 'last_seen_at' | 'resolved_at', count: number): string {
+  return `update \`anomaly\` force index (primary) set \`${column}\` = ? where \`id\` in (${Array.from({ length: count }, () => '?').join(', ')}) and \`resolved_at\` is null`;
+}
+
 const keyOf = (m: { terminalId: number; rule: AnomalyRule }) => `${m.terminalId}:${m.rule}`;
 
 /**
  * 이상 단말기 찾기(F4, decisions/0034). 규칙 SQL로 지금 걸린 단말기를 모두 구하고 열린 이상과 비교해
  * ① 새로 걸린 것 INSERT ② 계속 걸린 것 last_seen_at ③ 풀린 것 resolved_at — 셋 다 한 트랜잭션, 갱신은 PK `IN (…)`
  * (보조 인덱스 범위 UPDATE의 gap 락을 피함, troubleshooting/0014). Redis 잠금으로 한 번에 하나만 돈다.
+ * 잠금이 만료돼 두 찾기가 겹치면: 늦게 쓰는 쪽의 INSERT는 열린 이상 unique에 걸려 last_seen_at만 바꾸고(ON DUPLICATE KEY UPDATE),
+ * PK 갱신은 `resolved_at is null` 조건이라 앞 찾기가 닫은 행을 다시 건드리지 않는다. "새로 걸림"은 이 찾기가 실제로 넣은 행만 센다.
  */
 @Injectable()
 export class AnomalyService {
@@ -63,27 +77,41 @@ export class AnomalyService {
     const continuing = open.filter((a) => matchKeys.has(keyOf(a))).map((a) => a.id);
     const resolved = open.filter((a) => !matchKeys.has(keyOf(a))).map((a) => a.id);
 
+    let inserted = newMatches;
     await em.transactional(async (tx) => {
       for (let i = 0; i < newMatches.length; i += CHUNK) {
-        await tx.insertMany(
-          Anomaly,
-          newMatches.slice(i, i + CHUNK).map((m) => ({ terminalId: m.terminalId, rule: m.rule, detectedAt: now, lastSeenAt: now, resolvedAt: null, detail: m.detail })),
-        );
+        // 겹친 찾기가 그사이 같은 (단말기, 규칙)을 열었으면 열린 이상 unique(함수 인덱스)에 걸려 last_seen_at만 갱신한다
+        await tx
+          .createQueryBuilder(Anomaly)
+          .insert(newMatches.slice(i, i + CHUNK).map((m) => ({ terminalId: m.terminalId, rule: m.rule, detectedAt: now, lastSeenAt: now, resolvedAt: null, detail: m.detail })))
+          .onConflict()
+          .merge(['lastSeenAt'])
+          .execute();
+      }
+      if (newMatches.length > 0) {
+        // 실제로 이 찾기가 넣은 행 = 열린 이상 중 detected_at이 이 찾기 시각인 것. 나머지는 겹친 찾기가 먼저 연 것(계속으로 센다)
+        const mine = await tx.find(Anomaly, { resolvedAt: null, detectedAt: now }, { fields: ['terminalId', 'rule'] });
+        const mineKeys = new Set(mine.map(keyOf));
+        inserted = newMatches.filter((m) => mineKeys.has(keyOf(m)));
       }
       for (let i = 0; i < continuing.length; i += CHUNK) {
-        await tx.nativeUpdate(Anomaly, { id: { $in: continuing.slice(i, i + CHUNK) }, resolvedAt: null }, { lastSeenAt: now });
+        const ids = continuing.slice(i, i + CHUNK);
+        await tx.execute(openRowsUpdateSql('last_seen_at', ids.length), [now, ...ids]);
       }
       for (let i = 0; i < resolved.length; i += CHUNK) {
-        await tx.nativeUpdate(Anomaly, { id: { $in: resolved.slice(i, i + CHUNK) }, resolvedAt: null }, { resolvedAt: now });
+        const ids = resolved.slice(i, i + CHUNK);
+        await tx.execute(openRowsUpdateSql('resolved_at', ids.length), [now, ...ids]);
       }
     });
 
     const openNow: Partial<Record<AnomalyRule, number>> = {};
     for (const m of matches) openNow[m.rule] = (openNow[m.rule] ?? 0) + 1;
-    if (newMatches.length + resolved.length > 0) {
-      this.logger.log(`이상 단말기 찾기: 새로 ${newMatches.length}, 계속 ${continuing.length}, 풀림 ${resolved.length}`);
+    const merged = newMatches.length - inserted.length;
+    if (merged > 0) this.logger.warn(`이상 단말기 찾기가 겹침: ${merged}건은 다른 찾기가 먼저 열어 last_seen_at만 갱신`);
+    if (inserted.length + resolved.length > 0) {
+      this.logger.log(`이상 단말기 찾기: 새로 ${inserted.length}, 계속 ${continuing.length + merged}, 풀림 ${resolved.length}`);
     }
-    return { detected: newMatches.length, continuing: continuing.length, resolved: resolved.length, open: openNow, newMatches };
+    return { detected: inserted.length, continuing: continuing.length + merged, resolved: resolved.length, open: openNow, newMatches: inserted };
   }
 
   /** 이상 목록 한 페이지(id 순, afterId 뒤부터). 단말기 시리얼·지금 상태를 붙인다 */

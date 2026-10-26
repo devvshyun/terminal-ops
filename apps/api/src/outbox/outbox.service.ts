@@ -68,6 +68,7 @@ export function textOf(event: Pick<OutboxEvent, 'type' | 'payload'>): string {
     confirmed?: number;
     resolved?: number;
     unverifiable?: number;
+    acknowledgeDrop?: boolean;
     counts?: Partial<Record<VanMismatchKind, number>>;
   };
   if (event.type === OUTBOX_TYPE.VAN_RECONCILIATION_COMPLETED) {
@@ -75,7 +76,7 @@ export function textOf(event: Pick<OutboxEvent, 'type' | 'payload'>): string {
       .map(([kind, label]) => `${label} ${p.counts?.[kind as VanMismatchKind] ?? 0}`)
       .join(', ');
     const unverifiable = p.unverifiable ? `, 확인 불가 ${p.unverifiable}건` : '';
-    return `[단말온] VAN 등록 대조 #${p.runId}: 어긋남 ${p.confirmed}건(${byKind}), 재검증으로 풀림 ${p.resolved}건${unverifiable}, VAN 등록 ${p.fetched}건`;
+    return `[단말온] VAN 등록 대조 #${p.runId}: 어긋남 ${p.confirmed}건(${byKind}), 재검증으로 풀림 ${p.resolved}건${unverifiable}, VAN 등록 ${p.fetched}건${p.acknowledgeDrop ? ' (수집 급감 확인 후 실행)' : ''}`;
   }
   if (event.type === OUTBOX_TYPE.DEVICE_OFFLINE_BULK || event.type === OUTBOX_TYPE.DEVICE_ONLINE_BULK) {
     const what = event.type === OUTBOX_TYPE.DEVICE_OFFLINE_BULK ? '오프라인' : '온라인 복귀';

@@ -48,5 +48,9 @@ describe('알림 문구(textOf)', () => {
     expect(textOf({ type: 'van.reconciliation_completed', payload: { ...payload, resolved: 1, unverifiable: 2 } })).toBe(
       '[단말온] VAN 등록 대조 #7: 어긋남 1000건(미등록 400, 운영 아님 0, 가맹점 다름 600, 정지 0), 재검증으로 풀림 1건, 확인 불가 2건, VAN 등록 50000건',
     );
+    // 급감 확인 플래그로 돈 실행은 그 사실을 적는다(fix: 감사용)
+    expect(textOf({ type: 'van.reconciliation_completed', payload: { ...payload, acknowledgeDrop: true } })).toBe(
+      '[단말온] VAN 등록 대조 #7: 어긋남 1000건(미등록 400, 운영 아님 0, 가맹점 다름 600, 정지 0), 재검증으로 풀림 3건, VAN 등록 50000건 (수집 급감 확인 후 실행)',
+    );
   });
 });
