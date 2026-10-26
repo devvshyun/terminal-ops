@@ -11,7 +11,8 @@ export class InspectionItem {
   @PrimaryKey()
   id!: number;
 
-  @ManyToOne(() => TerminalModel)
+  // FK 열 단독 인덱스를 만들지 않는다: unique(model_id, code)이 이 열로 시작해 FK 검사·조회를 대신한다(decisions/0032)
+  @ManyToOne(() => TerminalModel, { index: false })
   model!: Rel<TerminalModel>;
 
   @Property({ length: 30 })

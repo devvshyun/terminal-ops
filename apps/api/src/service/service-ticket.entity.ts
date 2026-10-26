@@ -24,7 +24,8 @@ export class ServiceTicket {
   id!: number;
 
   /** 고장 접수된 단말기 */
-  @ManyToOne(() => Terminal)
+  // FK 열 단독 인덱스를 만들지 않는다: (terminal_id, status) 인덱스이 이 열로 시작해 FK 검사·조회를 대신한다(decisions/0032)
+  @ManyToOne(() => Terminal, { index: false })
   terminal!: Rel<Terminal>;
 
   @ManyToOne(() => Merchant)

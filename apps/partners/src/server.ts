@@ -1,10 +1,11 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { bridgevanGet, bridgevanList, bridgevanSeed } from './bridgevan.js';
 import { bungaeCreateWaybill, bungaeTrack } from './bungae.js';
 import { BadJsonError, readJson, sendJson } from './http.js';
 import { neurimboCreateInvoice, neurimboTrack } from './neurimbo.js';
 import { seumCreatePurchaseOrder, seumDeliveryNote } from './seum.js';
 import { PartnersState, type ConfigPatch } from './state.js';
-import { toktokHook, toktokSummary } from './toktok.js';
+import { toktokFile, toktokHook, toktokSummary, toktokUpload } from './toktok.js';
 
 async function route(state: PartnersState, req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://partners');
@@ -24,6 +25,8 @@ async function route(state: PartnersState, req: IncomingMessage, res: ServerResp
   }
   if (method === 'GET' && path === '/__admin/stats') return sendJson(res, 200, state.stats);
   if (method === 'GET' && path === '/__admin/toktok/messages') return sendJson(res, 200, toktokSummary(state));
+  if (method === 'GET' && (m = path.match(/^\/__admin\/toktok\/files\/([^/]+)$/))) return toktokFile(state, decodeURIComponent(m[1]), res);
+  if (method === 'POST' && path === '/__admin/bridgevan/registrations') return bridgevanSeed(state, req, res);
 
   // 번개택배(JSON)
   if (method === 'POST' && path === '/bungae/v1/waybills') return bungaeCreateWaybill(state, req, res);
@@ -41,7 +44,14 @@ async function route(state: PartnersState, req: IncomingMessage, res: ServerResp
     return seumDeliveryNote(state, decodeURIComponent(m[1]), res);
   }
 
-  // 톡톡메신저 웹훅
+  // 브릿지VAN: 등록 단말기 목록(커서 페이지)·단건
+  if (method === 'GET' && path === '/bridgevan/v1/terminals') return bridgevanList(state, url, res);
+  if (method === 'GET' && (m = path.match(/^\/bridgevan\/v1\/terminals\/([^/]+)$/))) {
+    return bridgevanGet(state, decodeURIComponent(m[1]), res);
+  }
+
+  // 톡톡메신저 웹훅·파일 올리기(메시지 첨부)
+  if (method === 'POST' && path === '/toktok/files') return toktokUpload(state, req, res);
   if (method === 'POST' && (m = path.match(/^\/toktok\/hooks\/([^/]+)$/))) {
     return toktokHook(state, decodeURIComponent(m[1]), req, res);
   }

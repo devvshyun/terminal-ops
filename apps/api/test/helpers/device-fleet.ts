@@ -29,6 +29,7 @@ export async function seedInService(t: TestApp, prefix: string, count: number, m
         model,
         merchant,
         status: TerminalStatus.IN_SERVICE,
+        statusChangedAt: now,
         version: 1,
         createdAt: now,
         updatedAt: now,

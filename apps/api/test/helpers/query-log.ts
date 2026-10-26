@@ -18,14 +18,18 @@ export function captureQueries(orm: MikroORM) {
   const queries: string[] = [];
   /** 값까지 채워 실제로 보낸 SQL(MikroORM이 context.formatted로 넘김). raw() 값이 어떻게 들어갔는지 볼 때 쓴다 */
   const formatted: string[] = [];
+  /** 쿼리마다 DB 왕복 시간(ms, MikroORM이 context.took로 넘김 — 쿼리를 만드는 JS 시간은 빠진다). begin·commit은 0 */
+  const took: number[] = [];
   conn.logQuery = function (query: string, context?: unknown) {
     queries.push(query);
     formatted.push((context as { formatted?: string } | undefined)?.formatted ?? query);
+    took.push((context as { took?: number } | undefined)?.took ?? 0);
     return original.call(this, query, context);
   };
   return {
     queries,
     formatted,
+    took,
     /** select로 시작하는 쿼리 수 */
     selects: () => queries.filter((q) => /^select /i.test(q)).length,
     stop: () => {

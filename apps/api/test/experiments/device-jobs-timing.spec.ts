@@ -50,7 +50,7 @@ describe(`실험 0010 — device 큐 job 시간 (단말기 ${N}대)`, () => {
     for (let i = 0; i < N; i += 1000) {
       await em.insertMany(
         Terminal,
-        serials.slice(i, i + 1000).map((serialNo) => ({ serialNo, model: model.id, status: TerminalStatus.IN_SERVICE, version: 1, createdAt: new Date(), updatedAt: new Date() })),
+        serials.slice(i, i + 1000).map((serialNo) => ({ serialNo, model: model.id, status: TerminalStatus.IN_SERVICE, statusChangedAt: new Date(), version: 1, createdAt: new Date(), updatedAt: new Date() })),
       );
     }
     await t.app.get(ActiveSetService).rebuild();

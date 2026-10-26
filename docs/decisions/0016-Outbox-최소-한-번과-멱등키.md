@@ -21,3 +21,4 @@
 - 다시 볼 조건: 알림 종류가 늘면 type별 채널·문구를 분리한다.
 - 갱신(2026-10-23 Day 3): relay가 행마다 add하던 것을 addBulk 한 번으로 바꿨다 → decisions/0024, experiments/0006
 - 갱신(2026-10-23 Day 4): Outbox type이 늘었다(`device.offline`, `device.online`, Task 7에서 펌웨어 3종). 알림 문구는 `textOf`가 type별로 만든다("다시 볼 조건"의 type별 문구). relay는 IN_SERVICE 진입·이탈 이벤트를 device 큐에도 넣는다(decisions/0028).
+- 갱신(2026-10-26 Day 5): type `van.reconciliation_completed`(대조 한 번에 요약 1행). Task 6에서 `anomaly.detected`·`anomaly.detected_bulk`를 더한다.

@@ -12,7 +12,8 @@ export class Firmware {
   @PrimaryKey()
   id!: number;
 
-  @ManyToOne(() => TerminalModel)
+  // FK 열 단독 인덱스를 만들지 않는다: unique(model_id, version)이 이 열로 시작해 FK 검사·조회를 대신한다(decisions/0032)
+  @ManyToOne(() => TerminalModel, { index: false })
   model!: Rel<TerminalModel>;
 
   @Property({ length: 20 })
@@ -106,7 +107,8 @@ export class FirmwareRolloutTarget {
   @PrimaryKey()
   id!: number;
 
-  @ManyToOne(() => FirmwareRollout)
+  // FK 열 단독 인덱스를 만들지 않는다: unique(rollout_id, terminal_id)이 이 열로 시작해 FK 검사·조회를 대신한다(decisions/0032)
+  @ManyToOne(() => FirmwareRollout, { index: false })
   rollout!: Rel<FirmwareRollout>;
 
   @ManyToOne(() => Terminal)

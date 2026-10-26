@@ -228,7 +228,7 @@ describe('접속 상태 — 오프라인 판정·스냅샷·조회 (F8, decision
       const model = await e.findOneOrFail(TerminalModel, { code: 'SN-100' });
       await e.insertMany(
         Terminal,
-        many.map((serialNo) => ({ serialNo, model: model.id, status: TerminalStatus.IN_SERVICE, version: 1, createdAt: new Date(), updatedAt: new Date() })),
+        many.map((serialNo) => ({ serialNo, model: model.id, status: TerminalStatus.IN_SERVICE, statusChangedAt: new Date(), version: 1, createdAt: new Date(), updatedAt: new Date() })),
       );
       await t.app.get(ActiveSetService).rebuild();
     });

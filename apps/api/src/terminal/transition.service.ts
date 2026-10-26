@@ -54,7 +54,10 @@ export class TransitionService {
       if (!check.ok) throw new InvalidTransitionError(check.reason);
 
       const from = terminal.status;
+      const now = new Date();
       terminal.status = cmd.to;
+      // 상태가 된 시각은 상태와 같은 UPDATE로(이상 단말기 찾기의 기준, decisions/0034). 이력에도 같은 시각을 쓴다.
+      terminal.statusChangedAt = now;
       cmd.mutate?.(terminal);
       // version 검사 UPDATE를 이력 INSERT보다 먼저 보낸다. INSERT가 먼저면 FK 검사의 공유 락끼리 엉켜 데드락이 난다(troubleshooting/0004).
       await tx.flush();
@@ -65,6 +68,7 @@ export class TransitionService {
         source: cmd.source,
         actor: cmd.actor,
         reason: cmd.reason,
+        occurredAt: now,
       });
       this.recordOutbox(tx, terminal, from, cmd);
       return terminal;
@@ -87,8 +91,11 @@ export class TransitionService {
       checkTransition(it.terminal.status, it.to, ctx.source, { requiresReinspection: it.terminal.model.requiresReinspection }),
     );
     const from = items.map((it) => it.terminal.status);
+    const now = new Date();
     items.forEach((it, i) => {
-      if (checks[i].ok) it.terminal.status = it.to;
+      if (!checks[i].ok) return;
+      it.terminal.status = it.to;
+      it.terminal.statusChangedAt = now;
     });
     // UPDATE를 이력 INSERT보다 먼저 보낸다(troubleshooting/0004).
     await tx.flush();
@@ -101,6 +108,7 @@ export class TransitionService {
         source: ctx.source,
         actor: ctx.actor,
         reason: it.reason,
+        occurredAt: now,
       });
       this.recordOutbox(tx, it.terminal, from[i], { to: it.to, source: ctx.source, actor: ctx.actor, reason: it.reason });
     });
@@ -125,6 +133,7 @@ export class TransitionService {
       source,
       actor,
       reason,
+      occurredAt: terminal.statusChangedAt,
     });
     this.recordOutbox(em, terminal, null, { to: terminal.status, source, actor, reason });
     return history;

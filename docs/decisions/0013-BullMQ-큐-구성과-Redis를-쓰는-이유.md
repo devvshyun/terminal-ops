@@ -12,3 +12,4 @@
 - 테스트 격리: 큐 접두사를 테스트 파일마다 다르게(`test-<pid>-<시각>`), 워커를 쓰는 파일은 `obliterate`, globalSetup이 `test-*`를 지운다. 개발 서버는 `terminal-ops`.
 - 결과·대가: Redis가 없으면 API 테스트 전부가 돌지 않는다(큐 모듈이 기본 모듈). sweep 간격 동안은 배송 완료가 늦게 반영된다(기본 30초).
 - 다시 볼 조건: 운송장이 수만 건이 되면 sweep 한 번에 전부 넣지 않고 last_synced_at 순으로 나눠 넣는다.
+- 갱신(2026-10-26 Day 5): report 큐를 더했다(VAN 대조, Task 6의 이상 찾기, Task 8의 주간 리포트). concurrency 1, 실행 job은 attempts 1(재시도는 호출마다). device 큐에 무거운 집계를 넣지 않으려고 나눴다(experiments/0010).
