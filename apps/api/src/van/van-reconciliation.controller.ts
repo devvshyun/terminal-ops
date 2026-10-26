@@ -1,5 +1,6 @@
-import { Controller, Get, HttpCode, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { Controller, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { Operator } from '../common/operator.decorator.js';
+import { VanItemsQuery } from './dto/van-items.query.js';
 import { toVanRunView, VanReconciliationService } from './van-reconciliation.service.js';
 
 /** VAN 등록 대조(F9). 실행은 report 큐에서 비동기로 돈다 — 요청은 실행 행만 만들고 202로 끝난다. */
@@ -14,8 +15,10 @@ export class VanReconciliationController {
     return toVanRunView(await this.runs.request(actor));
   }
 
+  /** 실행 요약 + 결과 한 페이지(?kind=&verified=&afterId=&limit=) */
   @Get(':id')
-  async get(@Param('id', ParseIntPipe) id: number) {
-    return toVanRunView(await this.runs.get(id));
+  async get(@Param('id', ParseIntPipe) id: number, @Query() query: VanItemsQuery) {
+    const run = toVanRunView(await this.runs.get(id));
+    return { ...run, ...(await this.runs.items(id, query)) };
   }
 }

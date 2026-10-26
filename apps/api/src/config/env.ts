@@ -90,6 +90,8 @@ export const env = {
    * 페이지 하나의 재시도(5번, 지수 백오프·Retry-After)보다 넉넉히 길게 둔다(decisions/0033). 전의 VAN_RUN_STALE_MS(시작 후 경과)를 대신한다
    */
   vanRunHeartbeatStaleMs: intFromEnv('VAN_RUN_HEARTBEAT_STALE_MS', 300_000, MS),
+  /** 재검증 때 브릿지VAN 단건 조회를 동시에 몇 개까지 보내나 */
+  vanReverifyConcurrency: intFromEnv('VAN_REVERIFY_CONCURRENCY', 8, { min: 1, max: 64 }),
   /** SyncRun에 남길 작업 프로세스 이름(워커 2개 실험에서 구분용) */
   workerName: process.env.WORKER_NAME ?? `pid-${process.pid}`,
 };

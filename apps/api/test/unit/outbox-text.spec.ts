@@ -38,4 +38,11 @@ describe('알림 문구(textOf)', () => {
       '[단말온] 펌웨어 배포 #3 2.0.0: 중단 (운영자 중단: han)',
     );
   });
+
+  it('VAN 대조 요약은 실행 번호, 종류별 어긋남(없는 종류는 0), 재검증으로 풀린 수, VAN 등록 수 (decisions/0033)', () => {
+    const payload = { runId: 7, fetched: 50000, candidates: 1003, confirmed: 1000, resolved: 3, counts: { NOT_REGISTERED: 400, MERCHANT_MISMATCH: 600 } };
+    expect(textOf({ type: 'van.reconciliation_completed', payload })).toBe(
+      '[단말온] VAN 등록 대조 #7: 어긋남 1000건(미등록 400, 운영 아님 0, 가맹점 다름 600, 정지 0), 재검증으로 풀림 3건, VAN 등록 50000건',
+    );
+  });
 });

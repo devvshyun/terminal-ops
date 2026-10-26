@@ -20,6 +20,8 @@ export const OUTBOX_TYPE = {
   FIRMWARE_STAGE_ADVANCED: 'firmware.stage_advanced',
   FIRMWARE_ROLLOUT_COMPLETED: 'firmware.rollout_completed',
   FIRMWARE_ROLLOUT_ABORTED: 'firmware.rollout_aborted',
+  /** VAN 등록 대조 한 번의 요약(F9, 어긋남 수와 상관없이 1행, decisions/0033) */
+  VAN_RECONCILIATION_COMPLETED: 'van.reconciliation_completed',
 } as const;
 
 /**

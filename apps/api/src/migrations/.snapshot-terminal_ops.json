@@ -3308,6 +3308,173 @@
       "comment": null
     },
     {
+      "name": "van_reconciliation_item",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "unsigned": true,
+          "autoincrement": true,
+          "primary": true,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "integer"
+        },
+        "kind": {
+          "name": "kind",
+          "type": "enum('not_registered','registered_but_not_in_service','merchant_mismatch','suspended_while_in_service')",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [
+            "NOT_REGISTERED",
+            "REGISTERED_BUT_NOT_IN_SERVICE",
+            "MERCHANT_MISMATCH",
+            "SUSPENDED_WHILE_IN_SERVICE"
+          ],
+          "mappedType": "enum"
+        },
+        "our_value": {
+          "name": "our_value",
+          "type": "varchar(100)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": 100,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "string"
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "int",
+          "unsigned": true,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "integer"
+        },
+        "serial_no": {
+          "name": "serial_no",
+          "type": "varchar(32)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": 32,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "string"
+        },
+        "van_value": {
+          "name": "van_value",
+          "type": "varchar(100)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": 100,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "string"
+        },
+        "verified": {
+          "name": "verified",
+          "type": "tinyint(1)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "collation": null,
+          "enumItems": [],
+          "mappedType": "boolean"
+        }
+      },
+      "indexes": [
+        {
+          "columnNames": [
+            "id"
+          ],
+          "composite": false,
+          "constraint": true,
+          "keyName": "PRIMARY",
+          "primary": true,
+          "unique": true
+        },
+        {
+          "columnNames": [
+            "run_id"
+          ],
+          "composite": false,
+          "constraint": false,
+          "keyName": "van_reconciliation_item_run_id_index",
+          "primary": false,
+          "unique": false
+        }
+      ],
+      "checks": [],
+      "triggers": [],
+      "foreignKeys": {
+        "van_reconciliation_item_run_id_foreign": {
+          "columnNames": [
+            "run_id"
+          ],
+          "constraintName": "van_reconciliation_item_run_id_foreign",
+          "localTableName": "van_reconciliation_item",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "van_reconciliation_run"
+        }
+      },
+      "comment": null
+    },
+    {
       "name": "van_reconciliation_run",
       "columns": {
         "candidates": {

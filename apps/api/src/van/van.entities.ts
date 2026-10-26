@@ -1,5 +1,5 @@
-import { OptionalProps, PrimaryKeyProp } from '@mikro-orm/core';
-import { Entity, Enum, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
+import { OptionalProps, PrimaryKeyProp, type Rel } from '@mikro-orm/core';
+import { Entity, Enum, ManyToOne, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 
 /** 브릿지VAN(가상) 등록 상태 */
 export enum VanStatus {
@@ -7,6 +7,19 @@ export enum VanStatus {
   SUSPENDED = 'SUSPENDED', // VAN이 일시 정지
   CANCELLED = 'CANCELLED', // 해지
 }
+
+/** 어긋남 종류(decisions/0033) */
+export enum VanMismatchKind {
+  /** 우리는 운영 중(IN_SERVICE)인데 VAN에 없거나 해지(CANCELLED) — 결제가 안 된다 */
+  NOT_REGISTERED = 'NOT_REGISTERED',
+  /** VAN은 ACTIVE인데 우리는 운영 중이 아님(회수·폐기 등) — 해지 요청이 빠졌다 */
+  REGISTERED_BUT_NOT_IN_SERVICE = 'REGISTERED_BUT_NOT_IN_SERVICE',
+  /** 둘 다 활성인데 가맹점이 다르다(우리 가맹점이 없는 경우 포함) — 정산이 엉뚱한 가맹점으로 간다 */
+  MERCHANT_MISMATCH = 'MERCHANT_MISMATCH',
+  /** VAN이 정지(SUSPENDED)했는데 우리는 운영 중 */
+  SUSPENDED_WHILE_IN_SERVICE = 'SUSPENDED_WHILE_IN_SERVICE',
+}
+
 
 export enum VanRunStatus {
   RUNNING = 'RUNNING',
@@ -132,4 +145,35 @@ export class VanRegistrationSnapshot {
 
   @Property({ type: 'datetime', length: 3 })
   vanUpdatedAt!: Date;
+}
+
+/**
+ * 대조 결과 한 줄. 집합 비교가 찾은 후보마다 하나 — 재검증 뒤에도 어긋나면 verified=true(그때의 종류·값),
+ * 재검증에서 풀렸으면 verified=false(비교 때의 종류·값, 스캔 도중 변경 등으로 생긴 거짓 양성).
+ * 목록은 (run_id, id) 순서로 넘긴다 — run_id 인덱스의 항목에 PK(id)가 붙어 있어 따로 복합 인덱스가 필요 없다.
+ */
+@Entity({ tableName: 'van_reconciliation_item' })
+export class VanReconciliationItem {
+  @PrimaryKey()
+  id!: number;
+
+  @ManyToOne(() => VanReconciliationRun)
+  run!: Rel<VanReconciliationRun>;
+
+  @Property({ length: 32 })
+  serialNo!: string;
+
+  @Enum({ items: () => VanMismatchKind })
+  kind!: VanMismatchKind;
+
+  /** 우리 쪽 값(예: `IN_SERVICE / GANGNAM-KIMBAP`) */
+  @Property({ length: 100 })
+  ourValue!: string;
+
+  /** VAN 쪽 값(예: `SUSPENDED / GANGNAM-KIMBAP`, `VAN에 없음`) */
+  @Property({ length: 100 })
+  vanValue!: string;
+
+  @Property()
+  verified!: boolean;
 }
