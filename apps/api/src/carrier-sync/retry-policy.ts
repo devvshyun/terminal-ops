@@ -2,7 +2,8 @@ import { NotFoundException } from '@nestjs/common';
 import { NotFoundError } from '@mikro-orm/core';
 import { UnrecoverableError, type JobsOptions } from 'bullmq';
 import { InvalidTransitionError } from '../common/domain-errors.js';
-import { PartnerPermanentError, PartnerRateLimitedError } from '../common/partner-errors.js';
+import { PartnerPermanentError } from '../common/partner-errors.js';
+import { partnerBackoffMs } from '../common/partner-retry.js';
 
 /** 추적 job 기본 옵션. 완료·최종 실패한 job을 지워야 다음 sweep이 같은 jobId로 다시 넣을 수 있다(decisions/0013). */
 export const TRACK_JOB_OPTIONS: JobsOptions = {
@@ -12,15 +13,12 @@ export const TRACK_JOB_OPTIONS: JobsOptions = {
   removeOnFail: true,
 };
 
-const BASE_DELAY_MS = 500;
-
 /**
  * 'carrier' 백오프: 429면 택배사가 알려 준 Retry-After만큼, 그 밖에는 500ms·1s·2s·4s… 지수 백오프(decisions/0014).
- * Worker 옵션 settings.backoffStrategy로 등록한다.
+ * Worker 옵션 settings.backoffStrategy로 등록한다. 규칙은 한 job 안의 재시도(withPartnerRetry)와 같다(partnerBackoffMs).
  */
 export function carrierBackoff(attemptsMade: number, _type?: string, err?: Error): number {
-  if (err instanceof PartnerRateLimitedError) return Math.max(err.retryAfterMs, BASE_DELAY_MS);
-  return BASE_DELAY_MS * 2 ** (attemptsMade - 1);
+  return partnerBackoffMs(attemptsMade, err);
 }
 
 /**

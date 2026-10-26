@@ -83,6 +83,10 @@ export const env = {
   scanLockTtlMs: intFromEnv('SCAN_LOCK_TTL_MS', 30_000, MS),
   /** A/S 교체 단말기 예약(Redis) 유지 시간. 운송장 발급 + 교체 트랜잭션이 이보다 길면 예약이 풀린다(decisions/0026) */
   replacementLockTtlMs: intFromEnv('REPLACEMENT_LOCK_TTL_MS', 30_000, MS),
+  /** 브릿지VAN 등록 목록 한 페이지 크기(F9, decisions/0033) */
+  bridgevanPageSize: intFromEnv('BRIDGEVAN_PAGE_SIZE', 500, { min: 1, max: 1000 }),
+  /** 이보다 오래 RUNNING인 VAN 대조 실행은 멈춘 것(프로세스가 죽음)으로 보고, 새 실행을 시작할 때 FAILED로 바꾼다 */
+  vanRunStaleMs: intFromEnv('VAN_RUN_STALE_MS', 3_600_000, MS),
   /** SyncRun에 남길 작업 프로세스 이름(워커 2개 실험에서 구분용) */
   workerName: process.env.WORKER_NAME ?? `pid-${process.pid}`,
 };

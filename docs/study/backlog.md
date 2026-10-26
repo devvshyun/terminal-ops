@@ -110,3 +110,5 @@
 - [ ] 원하는 상태(desired)와 관측한 상태(observed)를 비교해 결과를 정하기 — 보고가 없을 때 관측으로 성공 판정(troubleshooting/0021, decisions/0031)
 - [ ] 왼쪽 접두사(leftmost prefix) 규칙과 중복 인덱스 찾기 — 같은 열로 시작하는 인덱스, InnoDB 보조 인덱스에 PK가 붙는 것 (decisions/0032)
 - [ ] MySQL FK가 인덱스를 요구하는 이유와 ERROR 1553 (decisions/0032)
+- [ ] 커서(키셋) 페이지네이션과 offset의 중복·누락, 안정적인 정렬 키 (decisions/0033, apps/partners/src/bridgevan.ts)
+- [ ] MySQL 생성 열(virtual·stored)과 함수 인덱스, NULL이 unique에서 서로 다른 것 — 부분 unique 흉내 (decisions/0033)
