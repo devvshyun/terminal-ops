@@ -6,7 +6,7 @@ import { BusinessError } from '../common/domain-errors.js';
 import { QUEUE } from '../queue/queue-names.js';
 import { toVanRunView, VanReconciliationService, type VanRunJobData } from '../van/van-reconciliation.service.js';
 import { VanRunStatus } from '../van/van.entities.js';
-import { WeeklyReportService } from './weekly-report.service.js';
+import { isPermanentWeeklyReportError, WeeklyReportService } from './weekly-report.service.js';
 
 /**
  * report 큐: 오래 걸리는 집계 job(VAN 대조, 이상 단말기 찾기, 주간 리포트). device 큐(concurrency 1, 짧은 job)와 나눠
@@ -57,7 +57,12 @@ export class ReportProcessor extends WorkerHost {
       case 'weekly-report': {
         // 실패(톡톡 오류 등)는 던진다 — BullMQ가 다시 하고(WEEKLY_REPORT_JOB_OPTS), 행에 lastError가 남아 같은 파일로 이어서 보낸다.
         // 지난주를 보낸 뒤 직전 4주 중 못 보낸 주도 이어 보낸다(Task 8 리뷰, decisions/0035)
-        const { report, alreadySent, carriedOver } = await this.reports.sendScheduled();
+        // 영구 오류(한도 초과 422·톡톡 413 등)는 다시 해도 같다 — UnrecoverableError로 감싸 재시도 없이 실패(리뷰 반영)
+        const { report, alreadySent, carriedOver } = await this.reports.sendScheduled().catch((error: unknown) => {
+          if (!isPermanentWeeklyReportError(error)) throw error;
+          const reason = error instanceof BusinessError ? `${error.code}: ${error.message}` : `${(error as Error).name}: ${(error as Error).message}`;
+          throw new UnrecoverableError(`weekly-report 영구 오류(다시 하지 않음) — ${reason}`);
+        });
         if (alreadySent) this.logger.warn(`weekly-report 건너뜀: ${report.weekStart} 주는 이미 보냄`);
         else this.logger.log(`weekly-report 끝: ${report.weekStart} 주 ${report.status}, ${report.fileSize}바이트`);
         if (carriedOver.length > 0) this.logger.log(`weekly-report 이어 보냄: ${carriedOver.map((c) => `${c.weekStart} ${c.status}`).join(', ')}`);

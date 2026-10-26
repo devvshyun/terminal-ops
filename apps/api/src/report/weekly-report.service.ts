@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EntityManager, UniqueConstraintViolationException } from '@mikro-orm/mysql';
 import { BusinessError } from '../common/domain-errors.js';
+import { PartnerPermanentError } from '../common/partner-errors.js';
 import { MAX_RETRY_AFTER_MS } from '../common/partner-http.js';
 import { withPartnerRetry } from '../common/partner-retry.js';
 import { DAY_MS } from '../config/env-number.js';
@@ -48,6 +49,14 @@ export interface ScheduledSendResult extends SendResult {
   carriedOver: { weekStart: string; status: WeeklyReportStatus }[];
 }
 
+/**
+ * 다시 해도 같은 결과인 오류: 파일 한도 초과(422 WEEKLY_REPORT_TOO_LARGE)와 톡톡 영구 오류(413 등 4xx·형식 오류, PartnerPermanentError).
+ * 주기 job은 이것을 BullMQ 재시도(5번)로 넘기지 않는다(리뷰 반영, decisions/0035).
+ */
+export function isPermanentWeeklyReportError(error: unknown): boolean {
+  return error instanceof PartnerPermanentError || (error instanceof BusinessError && error.code === 'WEEKLY_REPORT_TOO_LARGE');
+}
+
 /** 메신저가 같은 리포트를 한 번으로 볼 수 있게 주마다 하나 */
 export const weeklyReportIdempotencyKey = (weekStart: string) => `weekly-report-${weekStart}`;
 
@@ -73,16 +82,22 @@ export class WeeklyReportService {
 
   /**
    * 주기 job: now 기준 지난주를 보내고, 그 앞 4주 안에서 못 보낸 주(PENDING·GENERATED)를 최근 주부터 이어 보낸다(Task 8 리뷰).
-   * 한 주가 실패해도 나머지는 해 보고, 끝에 첫 오류를 던진다(BullMQ가 job을 다시 한다 — 보낸 주는 멱등이라 건너뛴다).
+   * 한 주가 실패해도 나머지는 해 보고, 끝에 오류를 던진다(BullMQ가 job을 다시 한다 — 보낸 주는 멱등이라 건너뛴다).
+   * 리뷰 반영: 다시 해도 같은 영구 오류(isPermanentWeeklyReportError)는 재시도 5번을 쓰지 않게 나눈다.
+   * - 앞선 주의 영구 오류는 warn만(행에 lastError가 남아 수동으로 본다), job 오류로 올리지 않는다.
+   * - 일시 오류가 하나라도 있으면 그것을 먼저 던진다(지난주 영구 오류 뒤에 가려져 재시도가 막히지 않게).
+   * - 지난주 영구 오류만 남으면 그것을 던진다 — 처리기가 UnrecoverableError로 감싸 재시도 없이 실패시킨다.
    */
   async sendScheduled(now = new Date()): Promise<ScheduledSendResult> {
     const latest = previousKstWeek(now);
-    const errors: unknown[] = [];
+    const transient: unknown[] = [];
+    let latestPermanent: unknown = null;
     let latestResult: SendResult | null = null;
     try {
       latestResult = await this.send(latest, now);
     } catch (error) {
-      errors.push(error);
+      if (isPermanentWeeklyReportError(error)) latestPermanent = error;
+      else transient.push(error);
     }
     const carriedOver: ScheduledSendResult['carriedOver'] = [];
     for (const weekStart of await this.unsentWeeksBefore(latest)) {
@@ -90,11 +105,16 @@ export class WeeklyReportService {
         const { report } = await this.send(parseKstWeekStart(weekStart)!, now);
         carriedOver.push({ weekStart, status: report.status });
       } catch (error) {
-        this.logger.warn(`주간 리포트 이어 보내기 실패 ${weekStart}: ${String(error)}`);
-        errors.push(error);
+        if (isPermanentWeeklyReportError(error)) {
+          this.logger.warn(`주간 리포트 이어 보내기 실패 ${weekStart}(영구 오류, 다시 하지 않음): ${String(error)}`);
+        } else {
+          this.logger.warn(`주간 리포트 이어 보내기 실패 ${weekStart}: ${String(error)}`);
+          transient.push(error);
+        }
       }
     }
-    if (errors.length > 0) throw errors[0];
+    if (transient.length > 0) throw transient[0];
+    if (latestPermanent) throw latestPermanent;
     return { ...latestResult!, carriedOver };
   }
 
@@ -163,7 +183,8 @@ export class WeeklyReportService {
       }
     } catch (error) {
       const message = (error instanceof Error ? `${error.name}: ${error.message}` : String(error)).slice(0, 500);
-      await this.em.fork().nativeUpdate(WeeklyReport, { id: row.id }, { lastError: message });
+      // status != SENT: 잠금 TTL이 지나 다른 요청이 그사이 보냈으면 SENT 행에 오류를 덮어쓰지 않는다(리뷰 반영)
+      await this.em.fork().nativeUpdate(WeeklyReport, { id: row.id, status: { $ne: WeeklyReportStatus.SENT } }, { lastError: message });
       throw error;
     }
     await this.em

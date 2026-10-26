@@ -200,6 +200,7 @@ describe(`실험 0011 — 실행계획 (단말기 ${N}대)`, () => {
   }, LONG);
 
   afterAll(async () => {
+    if (!t) return; // beforeAll이 앱을 만들기 전에 실패하면 원래 오류를 가리지 않게
     await deleteTestKeys(t.app.get<Redis>(REDIS));
     // 큰 표를 남기지 않는다(다음 테스트가 어차피 resetDatabase를 하지만, 디스크·버퍼 풀을 비워 둔다)
     await resetDatabase(t.orm);
