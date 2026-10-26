@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { UnrecoverableError, type Job } from 'bullmq';
 import { AnomalyService } from '../anomaly/anomaly.service.js';
@@ -11,6 +12,9 @@ import { toVanRunView, VanReconciliationService, type VanRunJobData } from '../v
  */
 @Processor(QUEUE.REPORT, { concurrency: 1 })
 export class ReportProcessor extends WorkerHost {
+  /** 주기 job은 밤에 사람 없이 돈다. 건너뜀은 warn, 끝나면 한 줄 요약(fix: 로그만 보고 그날 돌았는지 알 수 있게) */
+  private readonly logger = new Logger(ReportProcessor.name);
+
   constructor(
     private readonly van: VanReconciliationService,
     private readonly anomalies: AnomalyService,
@@ -24,17 +28,26 @@ export class ReportProcessor extends WorkerHost {
         const runId = (job.data as Partial<VanRunJobData>).runId;
         if (typeof runId !== 'number') throw new UnrecoverableError(`van-reconcile: runId가 없습니다: ${JSON.stringify(job.data)}`);
         const run = toVanRunView(await this.van.execute(runId));
+        this.logger.log(`van-reconcile 끝: 실행 #${runId} ${run.status}, 어긋남 ${run.confirmed}`);
         return { runId, status: run.status, confirmed: run.confirmed };
       }
-      case 'van-reconcile-scheduled':
-        return this.van.runScheduled();
+      case 'van-reconcile-scheduled': {
+        const result = await this.van.runScheduled();
+        if (result.skipped) this.logger.warn('van-reconcile-scheduled 건너뜀: 진행 중인 VAN 대조가 있음');
+        else this.logger.log(`van-reconcile-scheduled 끝: 실행 #${result.runId} ${result.status}`);
+        return result;
+      }
       case 'anomaly-scan':
         try {
           const { newMatches: _new, ...summary } = await this.anomalies.scan();
+          this.logger.log(`anomaly-scan 끝: 새로 ${summary.detected}, 계속 ${summary.continuing}, 풀림 ${summary.resolved}`);
           return summary;
         } catch (error) {
           // 수동 찾기가 돌고 있으면 이번 주기는 건너뛴다(그 찾기가 같은 일을 한다)
-          if (error instanceof BusinessError && error.code === 'ANOMALY_SCAN_RUNNING') return { skipped: true };
+          if (error instanceof BusinessError && error.code === 'ANOMALY_SCAN_RUNNING') {
+            this.logger.warn('anomaly-scan 건너뜀: 다른 이상 찾기가 돌고 있음');
+            return { skipped: true };
+          }
           throw error;
         }
       default:

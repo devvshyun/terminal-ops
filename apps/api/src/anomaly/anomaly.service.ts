@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { raw } from '@mikro-orm/core';
 import { EntityManager } from '@mikro-orm/mysql';
 import { BusinessError } from '../common/domain-errors.js';
 import { env } from '../config/env.js';
@@ -39,7 +40,9 @@ export interface ScanResult {
  * `force index (primary)`로 PK 범위만 잠그게 한다(troubleshooting/0014).
  */
 export function openRowsUpdateSql(column: 'last_seen_at' | 'resolved_at', count: number): string {
-  return `update \`anomaly\` force index (primary) set \`${column}\` = ? where \`id\` in (${Array.from({ length: count }, () => '?').join(', ')}) and \`resolved_at\` is null`;
+  // last_seen_at은 뒤로 돌리지 않는다(fix): 겹친 찾기 중 먼저 시작한(시각이 이른) 쪽이 늦게 쓰면 나중 찾기가 쓴 값을 덮었다
+  const value = column === 'last_seen_at' ? 'greatest(`last_seen_at`, ?)' : '?';
+  return `update \`anomaly\` force index (primary) set \`${column}\` = ${value} where \`id\` in (${Array.from({ length: count }, () => '?').join(', ')}) and \`resolved_at\` is null`;
 }
 
 const keyOf = (m: { terminalId: number; rule: AnomalyRule }) => `${m.terminalId}:${m.rule}`;
@@ -85,16 +88,18 @@ export class AnomalyService {
     let inserted = newMatches;
     await em.transactional(async (tx) => {
       for (let i = 0; i < newMatches.length; i += CHUNK) {
-        // 겹친 찾기가 그사이 같은 (단말기, 규칙)을 열었으면 열린 이상 unique(함수 인덱스)에 걸려 last_seen_at만 갱신한다
+        // 겹친 찾기가 그사이 같은 (단말기, 규칙)을 열었으면 열린 이상 unique(함수 인덱스)에 걸려 last_seen_at만 갱신한다.
+        // 이 찾기의 시각이 더 이르면(먼저 시작했지만 늦게 씀) 뒤로 돌리지 않게 greatest(fix, connectivity의 mergeExpr와 같은 방식)
         await tx
           .createQueryBuilder(Anomaly)
           .insert(newMatches.slice(i, i + CHUNK).map((m) => ({ terminalId: m.terminalId, rule: m.rule, detectedAt: now, lastSeenAt: now, resolvedAt: null, detail: m.detail })))
           .onConflict()
-          .merge(['lastSeenAt'])
+          .merge({ lastSeenAt: raw('greatest(`last_seen_at`, values(`last_seen_at`))') })
           .execute();
       }
       if (newMatches.length > 0) {
-        // 실제로 이 찾기가 넣은 행 = 열린 이상 중 detected_at이 이 찾기 시각인 것. 나머지는 겹친 찾기가 먼저 연 것(계속으로 센다)
+        // 실제로 이 찾기가 넣은 행 = 열린 이상 중 detected_at이 이 찾기 시각인 것. 나머지는 겹친 찾기가 먼저 연 것(계속으로 센다).
+        // 가정: 겹친 두 찾기의 now가 밀리초까지 같지 않다(같으면 둘 다 자기가 넣은 것으로 세어 알림이 두 번 갈 수 있다, decisions/0034)
         const mine = await tx.find(Anomaly, { resolvedAt: null, detectedAt: now }, { fields: ['terminalId', 'rule'] });
         const mineKeys = new Set(mine.map(keyOf));
         inserted = newMatches.filter((m) => mineKeys.has(keyOf(m)));

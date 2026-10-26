@@ -171,8 +171,8 @@ export class VanReconciliationService {
     return run;
   }
 
-  /** 주기 실행(job scheduler). 진행 중인 실행이 있으면 건너뛴다 */
-  async runScheduled(): Promise<{ runId: number | null; skipped?: boolean }> {
+  /** 주기 실행(job scheduler). 진행 중인 실행이 있으면 건너뛴다. 끝나면 실행 번호와 끝난 상태(로그용) */
+  async runScheduled(): Promise<{ runId: number | null; status?: VanRunStatus; skipped?: boolean }> {
     let run: VanReconciliationRun;
     try {
       run = await this.start(VanRunTrigger.SCHEDULED, VAN_SYSTEM_ACTOR);
@@ -180,8 +180,8 @@ export class VanReconciliationService {
       if (error instanceof BusinessError && error.code === 'VAN_RECONCILIATION_RUNNING') return { runId: null, skipped: true };
       throw error;
     }
-    await this.execute(run.id);
-    return { runId: run.id };
+    const done = await this.execute(run.id);
+    return { runId: run.id, status: done.status };
   }
 
   /**

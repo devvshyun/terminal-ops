@@ -47,3 +47,11 @@
 - 문구: `[단말온] 이상 단말기 A-0001: 배송 완료 후 미설치 (8일)`, `[단말온] 이상 단말기 30대 새로 발견 (회수 지연 5, 배송 지연 25, 판정 T)` — 규칙 순서, 0인 규칙은 뺀다. 규칙 이름은 `ANOMALY_RULE_LABEL`.
 - 찾기와 같은 트랜잭션의 Outbox라 유실이 없다(decisions/0016).
 - fix 커밋(겹침 멱등)과 합침: 알림은 계획의 `newMatches`가 아니라 "이 찾기가 실제로 넣은 행"(detected_at = 이번 시각)으로 만든다. 겹친 찾기가 먼저 연 이상은 그 찾기가 이미 알렸으므로 두 번 알리지 않는다.
+
+## 갱신(2026-10-26, Task 6 뒤 fix 커밋): 다시 운영에 들어온 단말기 오탐, last_seen_at 역행, 알림 시각 KST
+
+- 오프라인 오탐(리뷰): 기준이 `c.last_seen_at < 기준`이라 회수 뒤 다시 설치된 단말기(마지막 하트비트가 지난 운영 때 것)는 운영에 들어온 날 바로 OFFLINE_TOO_LONG에 걸렸다. 테스트 먼저 실패: 하트비트 10일 전 + 운영 시작 1시간 전 단말기가 걸림(`expected [ …(2) ] to deeply equal [ Array(1) ]`).
+  - 선택지: 1) `last_seen_at < 기준 and status_changed_at < 기준` 두 조건 — 맞지만 detail의 경과일을 어느 쪽에서 셀지 따로 정해야 한다. 2) **`greatest(coalesce(c.last_seen_at, t.status_changed_at), t.status_changed_at) < 기준` 한 식** — "마지막으로 살아 있다고 볼 수 있는 시각"(하트비트와 운영 시작 중 늦은 것) 하나로 조건과 detail(`since`, `days`)을 함께 정한다. 하트비트 없음(LEFT JOIN 행 없음)도 같은 식으로 덮는다.
+  - → 2. `device_connectivity.last_seen_at`은 NOT NULL이라 `c.last_seen_at`이 NULL인 것은 행이 없을 때뿐이다(코드 주석). detail은 `{ lastSeenAt: 마지막 하트비트 또는 null, since: 그 식의 값, days }` — 하트비트가 있는 경우에도 since가 붙는다(전에는 `{ lastSeenAt, days }`). 이 식은 인덱스를 쓰지 않지만 전에도 운영 중 단말기 전체를 LEFT JOIN했으므로 읽는 행은 같다.
+- last_seen_at 역행(리뷰): 겹친 찾기 중 먼저 시작해 시각이 이른 쪽이 늦게 쓰면 ON DUPLICATE KEY의 `last_seen_at = values(last_seen_at)`와 계속 갱신 `set last_seen_at = ?`가 나중 찾기가 쓴 값을 뒤로 돌렸다. 테스트 먼저 실패(바깥 찾기 t1, 안쪽 찾기 t2 = t1 + 1초: 계속 행의 last_seen_at이 t1). 고침: ON DUPLICATE는 `greatest(last_seen_at, values(last_seen_at))`(QueryBuilder `merge({ lastSeenAt: raw(…) })`, connectivity의 `mergeExpr`와 같은 방식), PK 갱신 `openRowsUpdateSql('last_seen_at')`은 `greatest(last_seen_at, ?)`. resolved_at 갱신은 그대로(`resolved_at is null` 조건이 이미 막는다). "이 찾기가 넣은 행 = detected_at이 이번 now" 판별은 겹친 두 찾기의 now가 밀리초까지 같지 않다고 가정한다(코드 주석, 같으면 알림 중복 정도).
+- 알림 문구의 시각: `판정 2026-10-26T17:00:00.000Z` 대신 `판정 2026-10-27 02:00:00 KST`(`formatKst`, common/kst.ts — 주간 리포트의 KST 날짜와 한 모듈). payload의 `detectedAt`·`lastSeenAt`은 UTC ISO 그대로(기계가 읽는 값). 같은 이유로 접속 알림의 하트비트 시각도 KST로 바꿨다(사람이 읽는 시각이 한 알림 줄 안에서 섞이지 않게).

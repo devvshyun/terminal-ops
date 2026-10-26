@@ -1,9 +1,10 @@
 import type { Queue } from 'bullmq';
+import { CRON_TZ } from '../config/env-cron.js';
 import { env } from '../config/env.js';
 import { QUEUE, type QueueName } from '../queue/queue-names.js';
 
-/** cron 주기 작업의 시간대. 서버 시간대와 상관없이 한국 시간으로 돈다(decisions/0035) */
-export const SCHEDULE_TZ = 'Asia/Seoul';
+/** cron 주기 작업의 시간대. 서버 시간대와 상관없이 한국 시간으로 돈다(decisions/0035). env의 cron 검증과 같은 값 */
+export const SCHEDULE_TZ = CRON_TZ;
 
 /** 주기: 간격(ms) 또는 cron 식 + 시간대. BullMQ upsertJobScheduler의 repeat 옵션에 그대로 넘긴다 */
 export type JobSchedule = { every: number } | { pattern: string; tz: string };

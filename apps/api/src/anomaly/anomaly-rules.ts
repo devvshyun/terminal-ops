@@ -72,24 +72,28 @@ export async function findAnomalies(em: EntityManager, now: Date, d: AnomalyThre
       detail: { status: S.IN_SERVICE, since: fromDbDatetime(row.status_changed_at).toISOString() },
     });
   }
-  // online 플래그는 보지 않는다: 오프라인 판정 job·스냅샷이 밀리거나 멈춰 online=1로 남은 행도 마지막 하트비트가 오래됐으면 걸린다
+  // online 플래그는 보지 않는다: 오프라인 판정 job·스냅샷이 밀리거나 멈춰 online=1로 남은 행도 마지막 하트비트가 오래됐으면 걸린다.
+  // 기준은 "마지막 하트비트와 운영 시작 중 늦은 시각" 하나(fix): 회수 뒤 다시 설치된 단말기는 하트비트가 지난 운영 때 것이라
+  // last_seen_at만 보면 운영에 들어온 날 바로 걸렸다. 하트비트가 없으면 coalesce로 운영 시작만 본다.
+  // device_connectivity.last_seen_at은 NOT NULL이라 c.last_seen_at이 NULL인 것은 LEFT JOIN에 행이 없을 때뿐이다.
+  // since·days도 같은 값에서 센다(알림의 경과일과 조건이 어긋나지 않게).
   const offlineCutoff = new Date(now.getTime() - d.offlineTooLong * DAY_MS);
-  const offline = await em.execute<{ id: number; serial_no: string; status_changed_at: string; last_seen_at: string | null }[]>(
-    `select t.id, t.serial_no, t.status_changed_at, c.last_seen_at
+  const offline = await em.execute<{ id: number; serial_no: string; last_seen_at: string | null; since: string }[]>(
+    `select t.id, t.serial_no, c.last_seen_at,
+            greatest(coalesce(c.last_seen_at, t.status_changed_at), t.status_changed_at) as since
        from terminal t left join device_connectivity c on c.terminal_id = t.id
       where t.status = 'IN_SERVICE'
-        and (c.last_seen_at < ? or (c.terminal_id is null and t.status_changed_at < ?))`,
-    [offlineCutoff, offlineCutoff],
+        and greatest(coalesce(c.last_seen_at, t.status_changed_at), t.status_changed_at) < ?`,
+    [offlineCutoff],
   );
   for (const row of offline) {
-    if (row.last_seen_at === null) {
-      // 하트비트가 한 번도 없음: 운영 시작부터 센다
-      const since = fromDbDatetime(row.status_changed_at);
-      out.push({ terminalId: row.id, serialNo: row.serial_no, rule: AnomalyRule.OFFLINE_TOO_LONG, detail: { lastSeenAt: null, since: since.toISOString(), days: days(since) } });
-      continue;
-    }
-    const lastSeen = fromDbDatetime(row.last_seen_at);
-    out.push({ terminalId: row.id, serialNo: row.serial_no, rule: AnomalyRule.OFFLINE_TOO_LONG, detail: { lastSeenAt: lastSeen.toISOString(), days: days(lastSeen) } });
+    const since = fromDbDatetime(row.since);
+    out.push({
+      terminalId: row.id,
+      serialNo: row.serial_no,
+      rule: AnomalyRule.OFFLINE_TOO_LONG,
+      detail: { lastSeenAt: row.last_seen_at === null ? null : fromDbDatetime(row.last_seen_at).toISOString(), since: since.toISOString(), days: days(since) },
+    });
   }
   return out.sort((a, b) => a.terminalId - b.terminalId || (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : 0));
 }

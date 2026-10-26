@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { cronFromEnv } from './env-cron.js';
 import { DAY_MS, intFromEnv } from './env-number.js';
 import { resolveHeartbeatWriteMode } from './heartbeat-write-mode.js';
 import { checkVanHeartbeatTiming } from '../van/van-limits.js';
@@ -118,9 +119,9 @@ export const env = {
   },
   /** 한 번 찾기에서 새 이상이 이보다 많으면 단말기별 알림 대신 묶음 한 건(anomaly.detected_bulk, decisions/0034) */
   anomalyBulkEventThreshold: intFromEnv('ANOMALY_BULK_EVENT_THRESHOLD', 20, COUNT),
-  /** 주기 작업 cron(시간대 Asia/Seoul). 잘못된 식이면 스케줄러 등록(서버 시작)이 실패한다 */
-  anomalyScanCron: process.env.ANOMALY_SCAN_CRON ?? '0 2 * * *',
-  vanReconcileCron: process.env.VAN_RECONCILE_CRON ?? '0 3 * * *',
+  /** 주기 작업 cron(분 시 일 월 요일 다섯 칸, 시간대 Asia/Seoul). 잘못된 식이면 env를 읽을 때 던진다(cronFromEnv, decisions/0035) */
+  anomalyScanCron: cronFromEnv('ANOMALY_SCAN_CRON', '0 2 * * *'),
+  vanReconcileCron: cronFromEnv('VAN_RECONCILE_CRON', '0 3 * * *'),
   /** SyncRun에 남길 작업 프로세스 이름(워커 2개 실험에서 구분용) */
   workerName: process.env.WORKER_NAME ?? `pid-${process.pid}`,
 };

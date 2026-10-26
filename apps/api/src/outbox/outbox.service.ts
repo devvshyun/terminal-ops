@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { UnrecoverableError, type JobsOptions, type Queue } from 'bullmq';
 import { EntityManager, IsolationLevel, LockMode } from '@mikro-orm/mysql';
+import { formatKst } from '../common/kst.js';
 import { PartnerPermanentError } from '../common/partner-errors.js';
 import { QUEUE } from '../queue/queue-names.js';
 import { ANOMALY_RULE_LABEL } from '../anomaly/anomaly-rules.js';
@@ -49,7 +50,7 @@ export function idempotencyKeyOf(id: number): string {
 /** 묶음 알림 문구에 적는 시리얼 수(나머지는 "외 N대") */
 const BULK_TEXT_SERIALS = 5;
 
-/** 알림 문구. type마다 다르다(decisions/0016 "다시 볼 조건"). */
+/** 알림 문구. type마다 다르다(decisions/0016 "다시 볼 조건"). 시각은 KST로 적는다(payload는 UTC ISO 그대로, fix) */
 export function textOf(event: Pick<OutboxEvent, 'type' | 'payload'>): string {
   const p = event.payload as {
     serialNo?: string;
@@ -84,7 +85,7 @@ export function textOf(event: Pick<OutboxEvent, 'type' | 'payload'>): string {
       .filter(([rule]) => (p.byRule?.[rule as AnomalyRule] ?? 0) > 0)
       .map(([rule, label]) => `${label} ${p.byRule![rule as AnomalyRule]}`)
       .join(', ');
-    return `[단말온] 이상 단말기 ${p.count}대 새로 발견 (${byRule}, 판정 ${p.detectedAt})`;
+    return `[단말온] 이상 단말기 ${p.count}대 새로 발견 (${byRule}, 판정 ${formatKst(p.detectedAt)})`;
   }
   if (event.type === OUTBOX_TYPE.VAN_RECONCILIATION_COMPLETED) {
     const byKind = Object.entries(KIND_LABEL)
@@ -97,10 +98,10 @@ export function textOf(event: Pick<OutboxEvent, 'type' | 'payload'>): string {
     const what = event.type === OUTBOX_TYPE.DEVICE_OFFLINE_BULK ? '오프라인' : '온라인 복귀';
     const shown = (p.serials ?? []).slice(0, BULK_TEXT_SERIALS);
     const rest = (p.count ?? 0) - shown.length;
-    return `[단말온] 단말기 ${p.count}대 ${what} (${shown.join(', ')}${rest > 0 ? ` 외 ${rest}대` : ''}, 판정 ${p.detectedAt})`;
+    return `[단말온] 단말기 ${p.count}대 ${what} (${shown.join(', ')}${rest > 0 ? ` 외 ${rest}대` : ''}, 판정 ${formatKst(p.detectedAt)})`;
   }
-  if (event.type === OUTBOX_TYPE.DEVICE_OFFLINE) return `[단말온] ${p.serialNo}: 오프라인 (마지막 하트비트 ${p.lastSeenAt})`;
-  if (event.type === OUTBOX_TYPE.DEVICE_ONLINE) return `[단말온] ${p.serialNo}: 온라인 복귀 (하트비트 ${p.lastSeenAt})`;
+  if (event.type === OUTBOX_TYPE.DEVICE_OFFLINE) return `[단말온] ${p.serialNo}: 오프라인 (마지막 하트비트 ${formatKst(p.lastSeenAt)})`;
+  if (event.type === OUTBOX_TYPE.DEVICE_ONLINE) return `[단말온] ${p.serialNo}: 온라인 복귀 (하트비트 ${formatKst(p.lastSeenAt)})`;
   if (event.type === OUTBOX_TYPE.FIRMWARE_STAGE_ADVANCED) {
     return `[단말온] 펌웨어 배포 #${p.rolloutId} ${p.version}: ${(p.stage ?? 0) + 1}단계(${p.percent}%) 시작`;
   }

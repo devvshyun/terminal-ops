@@ -85,7 +85,7 @@ describe('이상 단말기 찾기 (F4, decisions/0034)', () => {
     expect(an01.lastSeenAt.getTime()).toBe(NOW.getTime());
     // 원시 SQL datetime을 UTC로 읽었는지(troubleshooting/0016): since가 정확히 8일 전
     expect(an01.detail).toEqual({ status: 'DELIVERED', since: daysAgo(8).toISOString(), days: 8 });
-    expect(rows.at(-1)!.detail).toEqual({ lastSeenAt: daysAgo(4).toISOString(), days: 4 });
+    expect(rows.at(-1)!.detail).toEqual({ lastSeenAt: daysAgo(4).toISOString(), since: daysAgo(4).toISOString(), days: 4 });
   });
 
   it('다시 찾으면 계속 걸린 것은 last_seen_at만, 풀린 것은 resolved_at, 다시 걸리면 새 행(닫힌 행과 겹쳐도 됨)', async () => {
@@ -171,7 +171,23 @@ describe('이상 단말기 찾기 (F4, decisions/0034)', () => {
     const rows = await openOf([...more.values()]);
     expect(rows.map((a) => [a.terminalId, a.rule, a.detail])).toEqual([
       [more.get('AF-01'), R.OFFLINE_TOO_LONG, { lastSeenAt: null, since: daysAgo(5).toISOString(), days: 5 }],
-      [more.get('AF-03'), R.OFFLINE_TOO_LONG, { lastSeenAt: daysAgo(5).toISOString(), days: 5 }],
+      [more.get('AF-03'), R.OFFLINE_TOO_LONG, { lastSeenAt: daysAgo(5).toISOString(), since: daysAgo(5).toISOString(), days: 5 }],
+    ]);
+  });
+
+  it('fix 2: 마지막 하트비트가 오래됐어도 오늘 운영에 다시 들어온 단말기는 아니다. 기준은 greatest(마지막 하트비트, 운영 시작)', async () => {
+    const at = new Date(NOW.getTime() + 9 * HOUR);
+    const more = await insertTerminals(t, [
+      // 회수 → 재설치: 하트비트는 10일 전(지난 운영 때)이지만 운영 시작은 1시간 전 → 아님
+      { serialNo: 'AR-01', status: S.IN_SERVICE, merchantCode: G, statusChangedAt: new Date(at.getTime() - HOUR) },
+      // 하트비트 10일 전, 운영 시작 5일 전 → 걸림. since·days는 운영 시작(둘 중 늦은 값)에서 센다
+      { serialNo: 'AR-02', status: S.IN_SERVICE, merchantCode: G, statusChangedAt: daysAgo(5) },
+    ]);
+    const conn = (serialNo: string) => ({ terminalId: more.get(serialNo)!, online: false, lastSeenAt: daysAgo(10), firmwareVersion: '1.0.0', changedAt: daysAgo(10) });
+    await em().insertMany(DeviceConnectivity, [conn('AR-01'), conn('AR-02')]);
+    await svc.scan(at);
+    expect((await openOf([...more.values()])).map((a) => [a.terminalId, a.rule, a.detail])).toEqual([
+      [more.get('AR-02'), R.OFFLINE_TOO_LONG, { lastSeenAt: daysAgo(10).toISOString(), since: daysAgo(5).toISOString(), days: 5 }],
     ]);
   });
 
@@ -219,6 +235,34 @@ describe('이상 단말기 찾기 (F4, decisions/0034)', () => {
       [more.get('AO-02'), R.ALLOCATED_NO_SHIPMENT, t1.getTime(), t2.getTime()],
     ]);
   });
+  it('fix 3: 겹친 찾기 중 늦게 쓰는 쪽의 시각이 더 이르면 last_seen_at을 뒤로 돌리지 않는다(INSERT 겹침·계속 갱신 둘 다)', async () => {
+    const more = await insertTerminals(t, [{ serialNo: 'AL-01', status: S.SHIPPED, merchantCode: G, statusChangedAt: daysAgo(20) }]);
+    const al = more.get('AL-01')!;
+    const continuingId = ids.get('AN-03')!; // 앞 테스트부터 열려 있는 RETURN_STALLED
+    const t1 = new Date(NOW.getTime() + 10 * HOUR); // 먼저 시작했지만 늦게 쓰는 찾기
+    const t2 = new Date(t1.getTime() + 1000); // 나중에 시작했지만 먼저 끝나는 찾기
+    const find = CoreEntityManager.prototype.find;
+    let entered = false;
+    const spy = vi.spyOn(CoreEntityManager.prototype, 'find').mockImplementation(async function (this: CoreEntityManager, ...args: unknown[]) {
+      const result = await (find as (...a: unknown[]) => Promise<unknown>).apply(this, args);
+      if (!entered && args[0] === Anomaly) {
+        entered = true;
+        await (svc as unknown as { scanLocked: (now: Date) => Promise<ScanResult> }).scanLocked(t2);
+      }
+      return result;
+    } as never);
+    try {
+      await svc.scan(t1);
+    } finally {
+      spy.mockRestore();
+    }
+    const rows = await openOf([al, continuingId]);
+    expect(rows.map((a) => [a.terminalId, a.detectedAt.getTime() <= t2.getTime(), a.lastSeenAt.getTime()])).toEqual([
+      [continuingId, true, t2.getTime()],
+      [al, true, t2.getTime()],
+    ]);
+  });
+
   it('fix: 열린 이상 PK 갱신은 resolved_at 조건이 있어도 PRIMARY 범위로 돈다(EXPLAIN UPDATE, troubleshooting/0014)', async () => {
     const ids = (await openRows()).slice(0, 3).map((a) => a.id);
     // 힌트가 없으면 통계에 따라 (resolved_at, rule) 보조 인덱스 범위를 고를 수 있다(빈 표에서 확인, decisions/0034)

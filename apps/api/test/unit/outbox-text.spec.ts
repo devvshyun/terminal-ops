@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { formatKst } from '../../src/common/kst.js';
 import { textOf } from '../../src/outbox/outbox.service.js';
 
 describe('알림 문구(textOf)', () => {
@@ -10,20 +11,27 @@ describe('알림 문구(textOf)', () => {
     expect(text).toBe('[단말온] A-0001: 신규 → RECEIVED (kim) 신규 등록');
   });
 
-  it('접속 상태는 오프라인·온라인 복귀와 마지막 하트비트 시각', () => {
+  it('fix 5: formatKst는 UTC 시각을 한국 시간 벽시계로 쓴다(서버 시간대 무관), 시각이 아니면 받은 글자 그대로', () => {
+    expect(formatKst('2026-10-23T00:00:00.000Z')).toBe('2026-10-23 09:00:00 KST');
+    expect(formatKst(new Date('2026-12-31T15:00:05.900Z'))).toBe('2027-01-01 00:00:05 KST'); // 날·해가 바뀜, 밀리초는 버림
+    expect(formatKst('T')).toBe('T');
+    expect(formatKst(undefined)).toBe('undefined');
+  });
+
+  it('접속 상태는 오프라인·온라인 복귀와 마지막 하트비트 시각(KST로 적는다, payload는 UTC ISO 그대로)', () => {
     expect(textOf({ type: 'device.offline', payload: { serialNo: 'A-0001', lastSeenAt: '2026-10-23T00:00:00.000Z' } })).toBe(
-      '[단말온] A-0001: 오프라인 (마지막 하트비트 2026-10-23T00:00:00.000Z)',
+      '[단말온] A-0001: 오프라인 (마지막 하트비트 2026-10-23 09:00:00 KST)',
     );
     expect(textOf({ type: 'device.online', payload: { serialNo: 'A-0001', lastSeenAt: '2026-10-23T00:05:00.000Z' } })).toBe(
-      '[단말온] A-0001: 온라인 복귀 (하트비트 2026-10-23T00:05:00.000Z)',
+      '[단말온] A-0001: 온라인 복귀 (하트비트 2026-10-23 09:05:00 KST)',
     );
   });
 
-  it('묶음 알림은 대수와 앞 5대, 나머지는 "외 N대"', () => {
+  it('묶음 알림은 대수와 앞 5대, 나머지는 "외 N대", 판정 시각은 KST', () => {
     const serials = Array.from({ length: 100 }, (_, i) => `A-${String(i + 1).padStart(4, '0')}`);
     expect(
       textOf({ type: 'device.offline_bulk', payload: { count: 120, serials, truncated: true, detectedAt: '2026-10-23T00:00:00.000Z' } }),
-    ).toBe('[단말온] 단말기 120대 오프라인 (A-0001, A-0002, A-0003, A-0004, A-0005 외 115대, 판정 2026-10-23T00:00:00.000Z)');
+    ).toBe('[단말온] 단말기 120대 오프라인 (A-0001, A-0002, A-0003, A-0004, A-0005 외 115대, 판정 2026-10-23 09:00:00 KST)');
     expect(textOf({ type: 'device.online_bulk', payload: { count: 3, serials: ['A-1', 'A-2', 'A-3'], truncated: false, detectedAt: 'T' } })).toBe(
       '[단말온] 단말기 3대 온라인 복귀 (A-1, A-2, A-3, 판정 T)',
     );
@@ -64,5 +72,8 @@ describe('알림 문구(textOf)', () => {
     expect(
       textOf({ type: 'anomaly.detected_bulk', payload: { count: 30, byRule: { SHIPPED_TOO_LONG: 25, RETURN_STALLED: 5 }, detectedAt: 'T' } }),
     ).toBe('[단말온] 이상 단말기 30대 새로 발견 (회수 지연 5, 배송 지연 25, 판정 T)');
+    expect(
+      textOf({ type: 'anomaly.detected_bulk', payload: { count: 21, byRule: { RETURN_STALLED: 21 }, detectedAt: '2026-10-25T17:00:00.000Z' } }),
+    ).toBe('[단말온] 이상 단말기 21대 새로 발견 (회수 지연 21, 판정 2026-10-26 02:00:00 KST)');
   });
 });
