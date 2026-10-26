@@ -1,9 +1,11 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import ExcelJS from 'exceljs';
 import type { Redis } from 'ioredis';
+import { env } from '../src/config/env.js';
 import { RedisLock } from '../src/redis/redis-lock.js';
 import { REDIS } from '../src/redis/redis.provider.js';
 import { WeeklyReport, WeeklyReportStatus } from '../src/report/weekly-report.entity.js';
+import { WeeklyReportQueries } from '../src/report/weekly-report.queries.js';
 import { WeeklyReportService } from '../src/report/weekly-report.service.js';
 import { SHEET_NAMES } from '../src/report/weekly-report.xlsx.js';
 import { TerminalStatus as S } from '../src/terminal/terminal-status.js';
@@ -37,6 +39,7 @@ describe('주간 운영 리포트 — xlsx, 톡톡 첨부, 멱등, 내려받기 
   beforeEach(async () => {
     await partners.reset();
   });
+  afterEach(() => vi.restoreAllMocks());
   afterAll(async () => {
     await deleteTestKeys(t.app.get<Redis>(REDIS));
     await t.app.close();
@@ -80,9 +83,89 @@ describe('주간 운영 리포트 — xlsx, 톡톡 첨부, 멱등, 내려받기 
   });
 
   it('같은 주를 다시 보내면 아무것도 하지 않는다(alreadySent, 올리기·메시지 0번)', async () => {
-    const res = await send('2026-10-19');
+    // 리뷰 반영: 앞 테스트에 기대지 않고 이 테스트가 보낸 주로 본다
+    expect((await send('2026-09-28')).body).toMatchObject({ status: 'SENT', alreadySent: false });
+    await partners.reset();
+    const res = await send('2026-09-28');
     expect(res.body).toMatchObject({ status: 'SENT', alreadySent: true, attempts: 1 });
     expect(await partners.toktok()).toMatchObject({ total: 0, files: 0 });
+  });
+
+  it('리뷰 반영: 메시지 단계만 실패하면 올린 fileId를 바로 저장하고, 다시 보낼 때 올리지 않고 그 파일로 보낸다', async () => {
+    await partners.configure({ toktok: { hookFailRate: 1 } });
+    expect((await send('2026-09-21')).status).toBe(502);
+    const r1 = await row('2026-09-21');
+    expect(r1).toMatchObject({ status: WeeklyReportStatus.GENERATED, attempts: 1 });
+    expect(r1.toktokFileId).toMatch(/^TF\d+$/);
+    expect(r1.lastError).toMatch(/톡톡메신저 응답 500/);
+    expect((await partners.stats()).calls).toMatchObject({ 'toktok.file': 1, 'toktok.hook': 3 });
+
+    await partners.configure({ toktok: { hookFailRate: 0 } });
+    const ok = await send('2026-09-21');
+    expect(ok.body).toMatchObject({ status: 'SENT', attempts: 2, lastError: null });
+    expect((await partners.stats()).calls).toMatchObject({ 'toktok.file': 1, 'toktok.hook': 4 }); // 다시 올리지 않았다
+    const toktok = await partners.toktok();
+    expect(toktok).toMatchObject({ total: 1, files: 1 });
+    expect(toktok.messages[0].attachments[0].fileId).toBe(r1.toktokFileId);
+    expect((await row('2026-09-21')).toktokFileId).toBe(r1.toktokFileId);
+  }, 20_000);
+
+  it('리뷰 반영: 저장한 fileId를 메신저가 모르면(UNKNOWN_FILE 400) 한 번 다시 올려 보낸다', async () => {
+    await partners.configure({ toktok: { hookFailRate: 1 } });
+    expect((await send('2026-09-14')).status).toBe(502);
+    const old = (await row('2026-09-14')).toktokFileId;
+    await partners.reset(); // 메신저가 올린 파일을 잊었다
+    const ok = await send('2026-09-14');
+    expect(ok.body).toMatchObject({ status: 'SENT', attempts: 2, lastError: null });
+    expect((await partners.stats()).calls).toMatchObject({ 'toktok.file': 1, 'toktok.hook': 2 }); // 400 한 번 → 올리기 → 메시지
+    const toktok = await partners.toktok();
+    expect(toktok.total).toBe(1);
+    const fileId = toktok.messages[0].attachments[0].fileId;
+    expect(fileId).not.toBe(old);
+    expect((await row('2026-09-14')).toktokFileId).toBe(fileId);
+  }, 20_000);
+
+  it('리뷰 반영: 메신저가 파일이 크다고 하면(413) 다시 하지 않고 502, 행은 GENERATED·lastError', async () => {
+    await partners.configure({ toktok: { maxFileBytes: 100 } });
+    const res = await send('2026-08-31');
+    expect(res.status).toBe(502);
+    expect(res.body.reason).toBe('PartnerPermanentError');
+    expect((await partners.stats()).calls['toktok.file']).toBe(1);
+    const r = await row('2026-08-31');
+    expect(r).toMatchObject({ status: WeeklyReportStatus.GENERATED, attempts: 1, toktokFileId: null });
+    expect(r.lastError).toMatch(/톡톡메신저 파일 응답 413/);
+  });
+
+  it('리뷰 반영: 만든 파일이 톡톡 한도(TOKTOK_MAX_FILE_BYTES)를 넘으면 올리기 전에 422, 저장하지 않고 lastError·attempts를 남긴다', async () => {
+    const saved = env.toktokMaxFileBytes;
+    env.toktokMaxFileBytes = 1000;
+    try {
+      const res = await send('2026-08-24');
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('WEEKLY_REPORT_TOO_LARGE');
+    } finally {
+      env.toktokMaxFileBytes = saved;
+    }
+    expect((await partners.stats()).calls['toktok.file']).toBeUndefined();
+    const r = await row('2026-08-24');
+    expect(r).toMatchObject({ status: WeeklyReportStatus.PENDING, attempts: 1, fileSize: null });
+    expect(r.lastError).toMatch(/WEEKLY_REPORT_TOO_LARGE|바이트/);
+  });
+
+  it('리뷰 반영: 집계가 실패해도 lastError·attempts를 남기고, 다시 보내면 만든다', async () => {
+    vi.spyOn(t.app.get(WeeklyReportQueries), 'collect').mockRejectedValueOnce(new Error('집계 실패(테스트)'));
+    expect((await send('2026-08-17')).status).toBe(500);
+    expect(await row('2026-08-17')).toMatchObject({ status: WeeklyReportStatus.PENDING, attempts: 1, lastError: 'Error: 집계 실패(테스트)' });
+    expect((await send('2026-08-17')).body).toMatchObject({ status: 'SENT', attempts: 2, lastError: null });
+  });
+
+  it('리뷰 반영: 같은 주를 동시에 두 번 보내면 하나는 409(또는 이미 보냄)이고 메시지는 한 번', async () => {
+    const [a, b] = await Promise.all([send('2026-08-10'), send('2026-08-10')]);
+    const statuses = [a.status, b.status].sort();
+    expect([[200, 409], [200, 200]]).toContainEqual(statuses);
+    if (statuses[1] === 200) expect([a.body.alreadySent, b.body.alreadySent].sort()).toEqual([false, true]);
+    expect((await partners.toktok()).total).toBe(1);
+    expect((await row('2026-08-10')).attempts).toBe(1);
   });
 
   it('톡톡이 계속 실패하면 502이고 행은 GENERATED(파일 저장, lastError). 다시 보내면 같은 파일로 보낸다', async () => {
@@ -111,6 +194,7 @@ describe('주간 운영 리포트 — xlsx, 톡톡 첨부, 멱등, 내려받기 
     });
     expect(file.status).toBe(200);
     expect(file.headers['content-type']).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    expect(file.headers['cache-control']).toBe('no-store'); // 리뷰 반영: 운영 수치 파일을 중간 캐시가 들고 있지 않게
     expect(file.headers['content-disposition']).toBe(
       `attachment; filename="weekly-report-2026-10-19.xlsx"; filename*=UTF-8''${encodeURIComponent('단말온-주간리포트-2026-10-19.xlsx')}`,
     );
@@ -140,4 +224,27 @@ describe('주간 운영 리포트 — xlsx, 톡톡 첨부, 멱등, 내려받기 
     const { report, alreadySent } = await t.app.get(WeeklyReportService).sendScheduled(new Date('2026-11-02T00:00:00.000Z'));
     expect([report.weekStart, report.status, alreadySent]).toEqual(['2026-10-26', WeeklyReportStatus.SENT, false]);
   });
+
+  it('리뷰 반영: 주기 job은 지난주를 먼저 보내고, 직전 4주 중 못 보낸 주(PENDING·GENERATED)를 최근 주부터 이어 보낸다', async () => {
+    // 2027-03-08(월) 09:00 KST → 지난주 2027-03-01. 4주 안: 02-15(GENERATED), 02-01(PENDING). 5주 전 01-25(GENERATED)는 두고 간다
+    await partners.configure({ toktok: { hookFailRate: 1 } });
+    expect((await send('2027-02-15')).status).toBe(502);
+    expect((await send('2027-01-25')).status).toBe(502);
+    await partners.configure({ toktok: { hookFailRate: 0 } });
+    vi.spyOn(t.app.get(WeeklyReportQueries), 'collect').mockRejectedValueOnce(new Error('집계 실패(테스트)'));
+    expect((await send('2027-02-01')).status).toBe(500);
+
+    const result = await t.app.get(WeeklyReportService).sendScheduled(new Date('2027-03-08T00:00:00.000Z'));
+    expect([result.report.weekStart, result.report.status, result.alreadySent]).toEqual(['2027-03-01', WeeklyReportStatus.SENT, false]);
+    expect(result.carriedOver).toEqual([
+      { weekStart: '2027-02-15', status: WeeklyReportStatus.SENT },
+      { weekStart: '2027-02-01', status: WeeklyReportStatus.SENT },
+    ]);
+    expect((await partners.toktok()).messages.map((m) => m.idempotencyKey)).toEqual([
+      'weekly-report-2027-03-01',
+      'weekly-report-2027-02-15',
+      'weekly-report-2027-02-01',
+    ]);
+    expect((await row('2027-01-25')).status).toBe(WeeklyReportStatus.GENERATED);
+  }, 30_000);
 });

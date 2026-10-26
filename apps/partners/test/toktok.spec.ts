@@ -76,5 +76,14 @@ describe('톡톡메신저 웹훅', () => {
       expect((await upload(file)).status).toBe(500);
       expect((await messages()).files).toBe(0);
     });
+
+    it('Task 8 리뷰: hookFailRate=1이면 파일 올리기는 되고 메시지(웹훅)만 500 — "메시지 단계 실패" 장면', async () => {
+      await p.configure({ toktok: { hookFailRate: 1 } });
+      const res = await upload(file);
+      expect(res.status).toBe(201);
+      const { fileId } = await res.json();
+      expect((await send({ idempotencyKey: 'k1', text: 'x', attachments: [fileId] })).status).toBe(500);
+      expect(await messages()).toMatchObject({ total: 0, files: 1 });
+    });
   });
 });

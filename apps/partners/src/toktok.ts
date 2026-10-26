@@ -5,8 +5,8 @@ import type { PartnersState } from './state.js';
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
 
 /** 골칫거리: 가끔 실패한다. 실패한 요청은 저장하지 않는다(받지 못한 것으로 본다). 응답을 보냈으면 true */
-function failed(state: PartnersState, res: ServerResponse): boolean {
-  if (!state.chance(state.config.toktok.failRate)) return false;
+function failed(state: PartnersState, res: ServerResponse, rate = state.config.toktok.failRate): boolean {
+  if (!state.chance(rate)) return false;
   state.stats.status5xx += 1;
   sendJson(res, 500, { error: 'TEMPORARY' });
   return true;
@@ -25,7 +25,7 @@ export async function toktokHook(state: PartnersState, channel: string, req: Inc
   }
   const unknown = (attachments as string[]).filter((id) => !state.files.has(id));
   if (unknown.length > 0) return sendJson(res, 400, { error: 'UNKNOWN_FILE', message: `올리지 않은 파일: ${unknown.join(', ')}` });
-  if (failed(state, res)) return;
+  if (failed(state, res) || failed(state, res, state.config.toktok.hookFailRate)) return;
   state.messages.push({
     channel,
     idempotencyKey: body.idempotencyKey,

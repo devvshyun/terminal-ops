@@ -27,6 +27,8 @@ export interface NeurimboConfig {
 export interface ToktokConfig {
   /** 500을 낼 확률(0~1). 실패한 요청은 저장하지 않는다(웹훅·파일 올리기 모두). */
   failRate: number;
+  /** 메시지(웹훅)만 500을 낼 확률(0~1). 파일 올리기는 되고 메시지 단계만 실패하는 장면용(Task 8 리뷰). failRate와 따로 굴린다 */
+  hookFailRate: number;
   /** 올릴 수 있는 파일 크기 상한(바이트, base64를 푼 크기) */
   maxFileBytes: number;
 }
@@ -81,7 +83,7 @@ export function defaultConfig(): PartnersConfig {
     seed: 42,
     bungae: { advancePerPoll: 1, duplicateRate: 0, rateLimitPerSec: 20, force429Rate: 0, retryAfterSec: 1, delayMs: 0 },
     neurimbo: { advancePerPoll: 1, delayMs: 0, error5xxRate: 0, shuffle: false },
-    toktok: { failRate: 0, maxFileBytes: 5 * 1024 * 1024 },
+    toktok: { failRate: 0, hookFailRate: 0, maxFileBytes: 5 * 1024 * 1024 },
     seum: { shortfall: 0, foreignSerials: 0, error5xxRate: 0 },
     bridgevan: { maxLimit: 1000, delayMs: 0, error5xxRate: 0, force429Rate: 0, retryAfterSec: 1, mutateDuringScan: 0 },
   };

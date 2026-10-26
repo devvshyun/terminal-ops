@@ -131,3 +131,5 @@
 - [ ] 커버링 인덱스와 보조 인덱스 → PK 되읽기 비용, 버퍼 풀보다 큰 표에서 범위 스캔 대 전체 훑기 (experiments/0011, decisions/0036)
 - [ ] 인덱스 하나가 INSERT에 더하는 비용 — 대량 INSERT와 한 건 커밋(redo flush, innodb_flush_log_at_trx_commit)의 비용 구성 (experiments/0011)
 - [ ] 식(greatest·coalesce)에 감싼 열은 sargable이 아니다 — 같은 뜻의 열 비교로 풀어 쓰기 (experiments/0011, decisions/0034)
+- [ ] 엑셀 열 너비와 한글(전각) 글자 폭 — exceljs `width`는 글자 수 단위라 한글 열이 좁게 나온다 (src/report/weekly-report.xlsx.ts, Task 8 리뷰 Minor 11)
+- [ ] 잠금 TTL 정하기 — 최악 소요 계산 대 연장(watchdog, Redisson 방식), 펜싱 토큰 (decisions/0035 Task 8 리뷰)

@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, NotFoundException, Param, Post, StreamableFile } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Header, HttpCode, NotFoundException, Param, Post, StreamableFile } from '@nestjs/common';
+import { attachmentDisposition } from '../common/content-disposition.js';
 import { Operator } from '../common/operator.decorator.js';
 import { SendWeeklyReportDto } from './dto/send-weekly-report.dto.js';
 import { parseKstWeekStart, previousKstWeek, type KstWeek } from './kst-week.js';
@@ -30,8 +31,9 @@ export class WeeklyReportController {
     return toWeeklyReportView(await this.reports.get(weekOf(weekStart).weekStart));
   }
 
-  /** 저장된 xlsx 내려받기. 파일 이름이 한글이라 filename*(RFC 5987)로 보낸다 */
+  /** 저장된 xlsx 내려받기. 파일 이름이 한글이라 filename*(RFC 5987)로 보낸다. 운영 수치라 중간 캐시에 남지 않게 no-store */
   @Get(':weekStart/file')
+  @Header('Cache-Control', 'no-store')
   async file(@Param('weekStart') weekStart: string) {
     const report = await this.reports.get(weekOf(weekStart).weekStart);
     const file = await this.reports.file(report.id);
@@ -39,7 +41,7 @@ export class WeeklyReportController {
     return new StreamableFile(file, {
       type: XLSX_CONTENT_TYPE,
       length: file.length,
-      disposition: `attachment; filename="weekly-report-${report.weekStart}.xlsx"; filename*=UTF-8''${encodeURIComponent(report.fileName)}`,
+      disposition: attachmentDisposition(report.fileName, `weekly-report-${report.weekStart}.xlsx`),
     });
   }
 }

@@ -52,12 +52,20 @@ describe('fix 4: report 큐 주기 job 로그(건너뜀은 warn, 끝나면 한 �
   it('Task 8 weekly-report: 보내면 주·상태·크기 한 줄, 이미 보낸 주면 warn', async () => {
     const sendScheduled = vi
       .fn()
-      .mockResolvedValueOnce({ report: { weekStart: '2026-10-19', status: 'SENT', fileSize: 12345 }, alreadySent: false })
-      .mockResolvedValueOnce({ report: { weekStart: '2026-10-19', status: 'SENT', fileSize: 12345 }, alreadySent: true });
+      .mockResolvedValueOnce({ report: { weekStart: '2026-10-19', status: 'SENT', fileSize: 12345 }, alreadySent: false, carriedOver: [] })
+      .mockResolvedValueOnce({ report: { weekStart: '2026-10-19', status: 'SENT', fileSize: 12345 }, alreadySent: true, carriedOver: [] })
+      // Task 8 리뷰: 직전 4주 중 못 보낸 주를 이어 보냈으면 한 줄 더
+      .mockResolvedValueOnce({
+        report: { weekStart: '2026-10-19', status: 'SENT', fileSize: 12345 },
+        alreadySent: true,
+        carriedOver: [{ weekStart: '2026-10-05', status: 'SENT' }, { weekStart: '2026-09-28', status: 'SENT' }],
+      });
     const { p, log, warn } = setup({}, {}, { sendScheduled });
-    await expect(p.process(job('weekly-report'))).resolves.toEqual({ weekStart: '2026-10-19', status: 'SENT', alreadySent: false });
+    await expect(p.process(job('weekly-report'))).resolves.toEqual({ weekStart: '2026-10-19', status: 'SENT', alreadySent: false, carriedOver: [] });
     expect(log).toHaveBeenCalledWith('weekly-report 끝: 2026-10-19 주 SENT, 12345바이트');
     await p.process(job('weekly-report'));
     expect(warn).toHaveBeenCalledWith('weekly-report 건너뜀: 2026-10-19 주는 이미 보냄');
+    await expect(p.process(job('weekly-report'))).resolves.toMatchObject({ carriedOver: [{ weekStart: '2026-10-05' }, { weekStart: '2026-09-28' }] });
+    expect(log).toHaveBeenCalledWith('weekly-report 이어 보냄: 2026-10-05 SENT, 2026-09-28 SENT');
   });
 });

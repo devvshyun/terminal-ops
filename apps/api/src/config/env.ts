@@ -83,6 +83,11 @@ export const env = {
   neurimboRatePerSec: intFromEnv('NEURIMBO_RATE_PER_SEC', 5, COUNT),
   /** 알림을 보낼 톡톡메신저 채널 */
   toktokChannel: process.env.TOKTOK_CHANNEL ?? 'ops',
+  /**
+   * 톡톡메신저가 받는 첨부 크기 상한(바이트). 주간 리포트가 만든 파일이 이보다 크면 올리기 전에 422로 멈춘다(Task 8 리뷰, decisions/0035).
+   * 상한은 mediumblob 최대(16,777,215)
+   */
+  toktokMaxFileBytes: intFromEnv('TOKTOK_MAX_FILE_BYTES', 5 * 1024 * 1024, { min: 1, max: 16_777_215 }),
   /** 박스 스캔 처리 중 잠금(Redis) 유지 시간. 처리가 이보다 길면 잠금이 풀린다(decisions/0020) */
   scanLockTtlMs: intFromEnv('SCAN_LOCK_TTL_MS', 30_000, MS),
   /** A/S 교체 단말기 예약(Redis) 유지 시간. 운송장 발급 + 교체 트랜잭션이 이보다 길면 예약이 풀린다(decisions/0026) */

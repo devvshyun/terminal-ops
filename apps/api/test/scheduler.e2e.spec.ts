@@ -45,6 +45,9 @@ describe('주기 작업 삭제 (scheduler:clear, decisions/0015)', () => {
     const weekly = await queueOf(QUEUE.REPORT).getJobScheduler('weekly-report');
     expect(weekly).toMatchObject({ pattern: env.weeklyReportCron, tz: SCHEDULE_TZ });
     expect(weekly!.next).toBe(nextCronRun(env.weeklyReportCron, before).getTime());
+    // Task 8 리뷰: 주간 리포트 job만 BullMQ 재시도(5번, 지수 백오프) — 실패하면 다음 주까지 안 돌기 때문
+    expect(weekly!.template?.opts).toMatchObject({ attempts: 5, backoff: { type: 'exponential', delay: 60_000 }, removeOnComplete: true });
+    expect((await queueOf(QUEUE.REPORT).getJobScheduler('anomaly-scan-daily'))!.template?.opts?.attempts).toBeUndefined();
     expect(await queueOf(QUEUE.REPORT).getJobCounts('waiting', 'delayed')).toEqual({ waiting: 0, delayed: 3 });
 
     expect(await clearJobSchedulers(queueOf)).toEqual(JOB_SCHEDULERS.map((s) => s.id));

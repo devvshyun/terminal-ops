@@ -55,11 +55,13 @@ export class ReportProcessor extends WorkerHost {
           throw error;
         }
       case 'weekly-report': {
-        // 실패(톡톡 오류 등)는 던진다 — 행에 lastError가 남고, 같은 주를 다시 보내면(수동 POST·다음 job) 같은 파일로 이어서 보낸다
-        const { report, alreadySent } = await this.reports.sendScheduled();
+        // 실패(톡톡 오류 등)는 던진다 — BullMQ가 다시 하고(WEEKLY_REPORT_JOB_OPTS), 행에 lastError가 남아 같은 파일로 이어서 보낸다.
+        // 지난주를 보낸 뒤 직전 4주 중 못 보낸 주도 이어 보낸다(Task 8 리뷰, decisions/0035)
+        const { report, alreadySent, carriedOver } = await this.reports.sendScheduled();
         if (alreadySent) this.logger.warn(`weekly-report 건너뜀: ${report.weekStart} 주는 이미 보냄`);
         else this.logger.log(`weekly-report 끝: ${report.weekStart} 주 ${report.status}, ${report.fileSize}바이트`);
-        return { weekStart: report.weekStart, status: report.status, alreadySent };
+        if (carriedOver.length > 0) this.logger.log(`weekly-report 이어 보냄: ${carriedOver.map((c) => `${c.weekStart} ${c.status}`).join(', ')}`);
+        return { weekStart: report.weekStart, status: report.status, alreadySent, carriedOver };
       }
       default:
         throw new UnrecoverableError(`모르는 report job: ${job.name}`);

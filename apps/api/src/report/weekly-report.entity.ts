@@ -40,7 +40,10 @@ export class WeeklyReport {
   @Property({ type: 'datetime', length: 3, nullable: true })
   sentAt: Date | null = null;
 
-  /** 마지막으로 올린 첨부의 톡톡 fileId */
+  /**
+   * 올린 첨부의 톡톡 fileId. 올리기가 성공하자마자(메시지 전에) 저장한다 — 메시지 단계가 실패해 다시 보낼 때 다시 올리지 않고 이 파일을 쓴다.
+   * 메신저가 모르는 id가 되면(UNKNOWN_FILE) 한 번 다시 올리고 바꾼다(Task 8 리뷰, decisions/0035)
+   */
   @Property({ type: 'varchar', length: 64, nullable: true })
   toktokFileId: string | null = null;
 
