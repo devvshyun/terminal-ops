@@ -11,8 +11,12 @@ describe('VAN 실행 하트비트 시간 검사 (decisions/0033)', () => {
     expect(() => checkVanHeartbeatTiming({ staleMs: 300_000, intervalMs: 30_000, timeoutMs: 3000 })).not.toThrow();
     // 간격이 기준 이상이면 살아 있는 실행도 멈춘 것으로 보인다
     expect(() => checkVanHeartbeatTiming({ staleMs: 30_000, intervalMs: 30_000, timeoutMs: 3000 })).toThrow(/VAN_HEARTBEAT_INTERVAL_MS/);
-    // 30s + 22.5s = 52.5s > 50s
-    expect(() => checkVanHeartbeatTiming({ staleMs: 50_000, intervalMs: 30_000, timeoutMs: 3000 })).toThrow(/VAN_RUN_HEARTBEAT_STALE_MS=50000.*52500/);
-    expect(() => checkVanHeartbeatTiming({ staleMs: 52_500, intervalMs: 30_000, timeoutMs: 3000 })).not.toThrow();
+    // 최종 리뷰 반영(Minor 1): 확인 지점(재시도 대기 앞)에서 간격이 아직 안 지났으면 하트비트 없이 Retry-After 상한(60s)까지 잔다
+    // → 30s + 22.5s + 60s = 112.5s. 전에는 Retry-After를 빼고 52.5s로 셌다
+    expect(() => checkVanHeartbeatTiming({ staleMs: 100_000, intervalMs: 30_000, timeoutMs: 3000 })).toThrow(
+      /VAN_RUN_HEARTBEAT_STALE_MS=100000.*112500.*Retry-After 상한 60000/,
+    );
+    expect(() => checkVanHeartbeatTiming({ staleMs: 112_499, intervalMs: 30_000, timeoutMs: 3000 })).toThrow(/112500/);
+    expect(() => checkVanHeartbeatTiming({ staleMs: 112_500, intervalMs: 30_000, timeoutMs: 3000 })).not.toThrow();
   });
 });
