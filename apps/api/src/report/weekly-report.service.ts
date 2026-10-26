@@ -131,7 +131,19 @@ export class WeeklyReportService {
     return rows.map((r) => r.weekStart);
   }
 
+  /**
+   * 최종 리뷰 반영(Important 1): 끝나지 않은 주(week.to > now — 이번 주·미래 주)는 거절한다. 받아 주면 반쪽 데이터 리포트가
+   * 그 주 행에 SENT로 굳고, 다음 월요일 주기 job이 그 주를 alreadySent로 건너뛰어 완전한 리포트가 영영 나가지 않는다.
+   * 주기 job은 늘 지난주(to ≤ now)라 걸리지 않는다. 잠금·행을 만들기 전에 막는다(decisions/0035).
+   */
   async send(week: KstWeek, now = new Date()): Promise<SendResult> {
+    if (week.to.getTime() > now.getTime()) {
+      throw new BusinessError(
+        422,
+        'WEEK_NOT_ENDED',
+        `${week.weekStart} 주는 아직 끝나지 않았습니다(${week.to.toISOString()}에 끝남). 끝난 주만 보낼 수 있습니다.`,
+      );
+    }
     const key = this.lock.keyOf('report-lock', `weekly-${week.weekStart}`);
     const token = await this.lock.acquire(key, weeklyReportLockTtlMs());
     if (!token) throw new BusinessError(409, 'WEEKLY_REPORT_IN_PROGRESS', `${week.weekStart} 주간 리포트를 다른 요청이 보내는 중입니다.`);

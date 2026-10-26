@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs';
 import type { Redis } from 'ioredis';
 import { env } from '../src/config/env.js';
 import { RedisLock } from '../src/redis/redis-lock.js';
+import { kstWeekOf, parseKstWeekStart } from '../src/report/kst-week.js';
 import { REDIS } from '../src/redis/redis.provider.js';
 import { WeeklyReport, WeeklyReportStatus } from '../src/report/weekly-report.entity.js';
 import { WeeklyReportQueries } from '../src/report/weekly-report.queries.js';
@@ -207,6 +208,24 @@ describe('주간 운영 리포트 — xlsx, 톡톡 첨부, 멱등, 내려받기 
     expect((await t.http().get('/reports/weekly/2026-09-07/file')).status).toBe(404);
   });
 
+  it('최종 리뷰 반영: 끝나지 않은 주(이번 주·미래 주)는 422 WEEK_NOT_ENDED로 거절하고 행을 만들지 않는다', async () => {
+    const thisWeek = kstWeekOf(new Date());
+    const nextWeek = kstWeekOf(new Date(thisWeek.to.getTime()));
+    for (const week of [thisWeek, nextWeek]) {
+      const res = await send(week.weekStart);
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('WEEK_NOT_ENDED');
+      expect(await em().findOne(WeeklyReport, { weekStart: week.weekStart })).toBeNull();
+    }
+    expect(await partners.toktok()).toMatchObject({ total: 0, files: 0 });
+    // 서비스 경로도 같다(주기 job은 늘 지난주라 걸리지 않는다). 주가 끝나는 순간(to)부터 보낼 수 있다
+    const service = t.app.get(WeeklyReportService);
+    const week = parseKstWeekStart('2026-07-06')!;
+    await expect(service.send(week, new Date(week.to.getTime() - 1))).rejects.toMatchObject({ code: 'WEEK_NOT_ENDED' });
+    expect(await em().findOne(WeeklyReport, { weekStart: '2026-07-06' })).toBeNull();
+    expect((await service.send(week, week.to)).report.status).toBe(WeeklyReportStatus.SENT);
+  });
+
   it('같은 주를 다른 요청이 보내는 중이면 409 WEEKLY_REPORT_IN_PROGRESS', async () => {
     const lock = t.app.get(RedisLock);
     const key = lock.keyOf('report-lock', 'weekly-2026-10-05');
@@ -227,14 +246,18 @@ describe('주간 운영 리포트 — xlsx, 톡톡 첨부, 멱등, 내려받기 
 
   it('리뷰 반영: 주기 job은 지난주를 먼저 보내고, 직전 4주 중 못 보낸 주(PENDING·GENERATED)를 최근 주부터 이어 보낸다', async () => {
     // 2027-03-08(월) 09:00 KST → 지난주 2027-03-01. 4주 안: 02-15(GENERATED), 02-01(PENDING). 5주 전 01-25(GENERATED)는 두고 간다
+    // 최종 리뷰 반영: 미래 주는 HTTP로 보낼 수 없어(422 WEEK_NOT_ENDED) 서비스를 그 주가 끝난 시각(now)으로 부른다
+    const at = new Date('2027-03-08T00:00:00.000Z');
+    const service = t.app.get(WeeklyReportService);
+    const sendAt = (weekStart: string) => service.send(parseKstWeekStart(weekStart)!, at);
     await partners.configure({ toktok: { hookFailRate: 1 } });
-    expect((await send('2027-02-15')).status).toBe(502);
-    expect((await send('2027-01-25')).status).toBe(502);
+    await expect(sendAt('2027-02-15')).rejects.toMatchObject({ name: 'PartnerTransientError' });
+    await expect(sendAt('2027-01-25')).rejects.toMatchObject({ name: 'PartnerTransientError' });
     await partners.configure({ toktok: { hookFailRate: 0 } });
     vi.spyOn(t.app.get(WeeklyReportQueries), 'collect').mockRejectedValueOnce(new Error('집계 실패(테스트)'));
-    expect((await send('2027-02-01')).status).toBe(500);
+    await expect(sendAt('2027-02-01')).rejects.toThrow('집계 실패(테스트)');
 
-    const result = await t.app.get(WeeklyReportService).sendScheduled(new Date('2027-03-08T00:00:00.000Z'));
+    const result = await service.sendScheduled(at);
     expect([result.report.weekStart, result.report.status, result.alreadySent]).toEqual(['2027-03-01', WeeklyReportStatus.SENT, false]);
     expect(result.carriedOver).toEqual([
       { weekStart: '2027-02-15', status: WeeklyReportStatus.SENT },
