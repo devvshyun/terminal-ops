@@ -113,3 +113,6 @@
 - [ ] 커서(키셋) 페이지네이션과 offset의 중복·누락, 안정적인 정렬 키 (decisions/0033, apps/partners/src/bridgevan.ts)
 - [ ] MySQL 생성 열(virtual·stored)과 함수 인덱스, NULL이 unique에서 서로 다른 것 — 부분 unique 흉내 (decisions/0033)
 - [ ] 테이블 collation(ai_ci, NO PAD)과 앱 쪽 문자열 비교를 같은 동치로 맞추기 (decisions/0033 fix 커밋 2)
+- [ ] 비정규화 컬럼(status_changed_at)과 이력 테이블의 일관성 — 한 곳에서만 쓰기, 백필, 상관 서브쿼리 대 컬럼 (decisions/0034)
+- [ ] MySQL strict 모드(STRICT_TRANS_TABLES, NO_ZERO_DATE)와 ALTER TABLE ADD COLUMN NOT NULL의 암묵 기본값 (decisions/0034)
+- [ ] ORM의 대량 INSERT(insertMany)가 엔티티 기본값·훅을 건너뛰는 이유 (troubleshooting/0022)

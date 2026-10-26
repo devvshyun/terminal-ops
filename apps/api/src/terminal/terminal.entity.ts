@@ -5,10 +5,14 @@ import { PurchaseOrder } from '../purchase-order/purchase-order.entity.js';
 import { TerminalModel } from './terminal-model.entity.js';
 import { TerminalStatus } from './terminal-status.js';
 
+/**
+ * (status, status_changed_at) 복합 인덱스: "어떤 상태로 N일 넘게 있는 단말기"(이상 단말기 찾기, F4)를 범위 하나로 찾는다.
+ * status 하나만으로 찾는 쿼리(운영 중 단말기 목록 등)도 이 인덱스의 앞부분을 쓴다 — 그래서 status 단독 인덱스는 없앴다(decisions/0034).
+ */
 @Entity({ tableName: 'terminal' })
-@Index({ properties: ['status'] })
+@Index({ properties: ['status', 'statusChangedAt'] })
 export class Terminal {
-  [OptionalProps]?: 'status' | 'version' | 'createdAt' | 'updatedAt';
+  [OptionalProps]?: 'status' | 'statusChangedAt' | 'version' | 'createdAt' | 'updatedAt';
 
   @PrimaryKey()
   id!: number;
@@ -30,6 +34,13 @@ export class Terminal {
 
   @Enum({ items: () => TerminalStatus })
   status: TerminalStatus = TerminalStatus.RECEIVED;
+
+  /**
+   * 지금 상태가 된 시각. 전이 서비스가 상태와 같은 UPDATE에서 바꾸고, 같은 값을 이력 occurred_at에 쓴다(decisions/0034).
+   * updatedAt은 가맹점·version 등 다른 변경에도 바뀌어 "그 상태가 된 시각"으로 쓸 수 없다.
+   */
+  @Property({ type: 'datetime', length: 3 })
+  statusChangedAt: Date = new Date();
 
   /** 낙관적 락. flush할 때 WHERE version = ? 로 확인하고 1 올린다. */
   @Property({ version: true })

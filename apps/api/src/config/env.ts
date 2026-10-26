@@ -29,6 +29,8 @@ const CLIENT_PORT = { min: 1, max: 65_535 };
 const MS = { min: 1, max: DAY_MS };
 /** 초당 횟수·개수 */
 const COUNT = { min: 1, max: 100_000 };
+/** 기준일 */
+const DAYS = { min: 1, max: 365 };
 
 export const env = {
   port: intFromEnv('API_PORT', 3000, PORT),
@@ -103,6 +105,14 @@ export const env = {
   vanCandidateMaxPct: intFromEnv('VAN_CANDIDATE_MAX_PCT', 20, { min: 1, max: 100 }),
   /** 안전장치: 수집 수가 마지막 COMPLETED 실행의 이 %보다 적으면 FAILED로. 0이면 검사하지 않는다 */
   vanFetchMinPct: intFromEnv('VAN_FETCH_MIN_PCT', 50, { min: 0, max: 100 }),
+  /** 이상 단말기 찾기(F4) 규칙의 기준일(decisions/0034) */
+  anomalyDays: {
+    deliveredNotInstalled: intFromEnv('ANOMALY_DELIVERED_DAYS', 7, DAYS),
+    returnStalled: intFromEnv('ANOMALY_RETURN_STALLED_DAYS', 14, DAYS),
+    shippedTooLong: intFromEnv('ANOMALY_SHIPPED_DAYS', 10, DAYS),
+    allocatedNoShipment: intFromEnv('ANOMALY_ALLOCATED_DAYS', 3, DAYS),
+    offlineTooLong: intFromEnv('ANOMALY_OFFLINE_DAYS', 3, DAYS),
+  },
   /** SyncRun에 남길 작업 프로세스 이름(워커 2개 실험에서 구분용) */
   workerName: process.env.WORKER_NAME ?? `pid-${process.pid}`,
 };

@@ -11,6 +11,8 @@ export interface TerminalSeed {
   merchantCode?: string | null;
   /** 기본 SN-100 */
   modelCode?: string;
+  /** 지금 상태가 된 시각(기본 지금). insertMany는 엔티티 기본값을 쓰지 않아 꼭 넣는다(troubleshooting/0022) */
+  statusChangedAt?: Date;
 }
 
 /**
@@ -31,6 +33,7 @@ export async function insertTerminals(t: TestApp, rows: TerminalSeed[]): Promise
         model: models.get(r.modelCode ?? 'SN-100')!,
         merchant: r.merchantCode ? merchants.get(r.merchantCode)! : null,
         status: r.status,
+        statusChangedAt: r.statusChangedAt ?? now,
         version: 1,
         createdAt: now,
         updatedAt: now,

@@ -18,6 +18,7 @@ import { ServiceModule } from './service/service.module.js';
 import { DeviceModule } from './device/device.module.js';
 import { FirmwareModule } from './firmware/firmware.module.js';
 import { VanModule } from './van/van.module.js';
+import { AnomalyModule } from './anomaly/anomaly.module.js';
 import { WorkersModule } from './workers/workers.module.js';
 import { SchedulerModule } from './scheduler/scheduler.module.js';
 
@@ -46,6 +47,7 @@ export interface AppOptions {
     DeviceModule,
     FirmwareModule,
     VanModule,
+    AnomalyModule,
   ],
   controllers: [HealthController],
   providers: [
