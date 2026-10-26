@@ -31,4 +31,17 @@ describe('intFromEnv — 숫자 환경변수 검증 (Day 4 리뷰 Minor, decisio
     vi.resetModules();
     await expect(import('../../src/config/env.js')).rejects.toThrow(/RELAY_INTERVAL_MS/);
   });
+
+  it.each(['MYSQL_PORT', 'REDIS_PORT'])('접속할 포트 %s=0은 던진다(0은 듣는 포트에만 쓰는 임의 포트)', async (name) => {
+    vi.stubEnv(name, '0');
+    vi.resetModules();
+    await expect(import('../../src/config/env.js')).rejects.toThrow(new RegExp(`${name}.*범위 1~65535 밖`));
+  });
+
+  it('API가 듣는 포트 API_PORT=0은 받는다(테스트·도구의 임의 포트)', async () => {
+    vi.stubEnv('API_PORT', '0');
+    vi.resetModules();
+    const { env } = await import('../../src/config/env.js');
+    expect(env.port).toBe(0);
+  });
 });

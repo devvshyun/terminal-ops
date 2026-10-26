@@ -20,8 +20,10 @@ function flag(name: string, fallback: boolean): boolean {
 
 const isTest = process.env.NODE_ENV === 'test';
 
-/** 포트(0은 테스트·도구용 임의 포트) */
+/** 듣는 포트(0은 테스트·도구용 임의 포트) */
 const PORT = { min: 0, max: 65_535 };
+/** 접속할 포트(MySQL·Redis). 0으로는 접속할 수 없으므로 1부터 */
+const CLIENT_PORT = { min: 1, max: 65_535 };
 /** 주기·제한 시간(ms): 1ms ~ 하루 */
 const MS = { min: 1, max: DAY_MS };
 /** 초당 횟수·개수 */
@@ -31,7 +33,7 @@ export const env = {
   port: intFromEnv('API_PORT', 3000, PORT),
   mysql: {
     host: process.env.MYSQL_HOST ?? '127.0.0.1',
-    port: intFromEnv('MYSQL_PORT', 3306, PORT),
+    port: intFromEnv('MYSQL_PORT', 3306, CLIENT_PORT),
     user: required('MYSQL_USER'),
     password: required('MYSQL_PASSWORD'),
     dbName: isTest ? required('MYSQL_TEST_DATABASE') : required('MYSQL_DATABASE'),
@@ -42,7 +44,7 @@ export const env = {
   partnerTimeoutMs: intFromEnv('PARTNER_TIMEOUT_MS', 3000, MS),
   redis: {
     host: process.env.REDIS_HOST ?? '127.0.0.1',
-    port: intFromEnv('REDIS_PORT', 6379, PORT),
+    port: intFromEnv('REDIS_PORT', 6379, CLIENT_PORT),
   },
   /**
    * BullMQ 키 접두사. 테스트는 파일마다 다른 접두사를 써서 다른 파일의 job을 보지 않는다

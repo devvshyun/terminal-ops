@@ -42,3 +42,4 @@
 - 결과·대가: FK 열 단독 조회(`where terminal_id = ?`)는 복합 인덱스의 앞부분을 쓴다. 복합 인덱스의 키가 길어 단독 인덱스보다 조금 더 읽는다.
 - 다시 볼 조건: 복합 인덱스를 지우거나 열 순서를 바꿀 때(FK가 기댈 인덱스가 없어지면 MySQL이 거절한다), 새 엔티티를 만들 때 같은 중복이 생기는지(`index: false`를 잊으면 생긴다).
 - 참고: `terminal_status_index`(status 단독)는 Task 5에서 `(status, status_changed_at)`을 만들 때 함께 지운다(decisions/0034).
+- 갱신(Task 1·2 리뷰 반영, fix): 접속할 포트 `MYSQL_PORT`·`REDIS_PORT`는 범위 1~65535(`CLIENT_PORT`). 0은 "아무 빈 포트에서 듣기"라 듣는 포트(`API_PORT`, 테스트·도구가 0을 씀)에만 뜻이 있다. 0으로 접속하면 시작한 뒤 연결 오류로 늦게 드러나므로 env를 읽을 때 던진다.

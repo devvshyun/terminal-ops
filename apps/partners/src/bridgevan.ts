@@ -7,6 +7,9 @@ export const BRIDGEVAN_DEFAULT_LIMIT = 100;
 
 const isStatus = (v: unknown): v is VanStatus => typeof v === 'string' && (VAN_STATUSES as readonly string[]).includes(v);
 const nonEmpty = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
+/** 배열·null이 아닌 일반 객체 */
+const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const isDateText = (v: unknown): v is string => typeof v === 'string' && !Number.isNaN(new Date(v).getTime());
 
 /** 커서는 "마지막으로 준 tid"를 base64url로 감싼 것. 클라이언트는 내용을 몰라도 된다(불투명) */
 export function encodeCursor(tid: string): string {
@@ -131,18 +134,24 @@ export async function bridgevanSeed(state: PartnersState, req: IncomingMessage, 
   const now = new Date().toISOString();
   const incoming: VanRegistration[] = [];
   for (const [i, raw] of list.entries()) {
-    const r = raw as Record<string, unknown>;
-    const heal = r.healTo as Record<string, unknown> | undefined;
+    const r = isPlainObject(raw) ? raw : null;
+    const heal = r?.healTo;
     if (
+      !r ||
       !nonEmpty(r.tid) ||
       !nonEmpty(r.serialNo) ||
       !nonEmpty(r.merchantCode) ||
       !isStatus(r.status) ||
-      (heal !== undefined && (typeof heal !== 'object' || (heal.status !== undefined && !isStatus(heal.status))))
+      (r.registeredAt !== undefined && !isDateText(r.registeredAt)) ||
+      (heal !== undefined &&
+        (!isPlainObject(heal) || (heal.status !== undefined && !isStatus(heal.status)) || (heal.merchantCode !== undefined && !nonEmpty(heal.merchantCode))))
     ) {
-      return sendJson(res, 400, { error: 'BAD_REQUEST', message: `registrations[${i}]: tid, serialNo, merchantCode, status(${VAN_STATUSES.join('|')})가 필요합니다.` });
+      return sendJson(res, 400, {
+        error: 'BAD_REQUEST',
+        message: `registrations[${i}]: 객체에 tid, serialNo, merchantCode(글자), status(${VAN_STATUSES.join('|')})가 필요하고, registeredAt은 날짜 글자, healTo는 { status?, merchantCode? } 객체여야 합니다.`,
+      });
     }
-    const registeredAt = typeof r.registeredAt === 'string' ? r.registeredAt : now;
+    const registeredAt = r.registeredAt === undefined ? now : new Date(r.registeredAt as string).toISOString();
     incoming.push({
       tid: r.tid,
       serialNo: r.serialNo,
@@ -150,7 +159,7 @@ export async function bridgevanSeed(state: PartnersState, req: IncomingMessage, 
       status: r.status,
       registeredAt,
       updatedAt: registeredAt,
-      ...(heal ? { healTo: { status: heal.status as VanStatus | undefined, merchantCode: heal.merchantCode as string | undefined } } : {}),
+      ...(isPlainObject(heal) ? { healTo: { status: heal.status as VanStatus | undefined, merchantCode: heal.merchantCode as string | undefined } } : {}),
     });
   }
   // 새 맵에 다 넣어 보고 겹침이 없을 때만 바꾼다(400이면 기존 등록 그대로)

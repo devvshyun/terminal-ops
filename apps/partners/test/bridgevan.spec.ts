@@ -151,4 +151,30 @@ describe('브릿지VAN — 등록 단말기 목록(커서 페이지)·단건·�
     expect((await dup.json()).error).toBe('DUPLICATE');
     expect((await scanAll(10)).seen.map((r) => r.tid)).toEqual(['VT-0001', 'VT-0002']);
   });
+
+  it('심기: 객체가 아닌 항목, healTo가 null·객체 아님, merchantCode·healTo.merchantCode가 글자 아님, registeredAt이 날짜 아님이면 400', async () => {
+    await seed(regs(2));
+    const ok = { tid: 'VT-0100', serialNo: 'SN-0100', merchantCode: 'YEOKSAM-CAFE', status: 'ACTIVE' };
+    const bad: unknown[] = [
+      null,
+      'VT-0100',
+      42,
+      [ok],
+      { ...ok, healTo: null },
+      { ...ok, healTo: 'ACTIVE' },
+      { ...ok, healTo: ['ACTIVE'] },
+      { ...ok, healTo: { merchantCode: 7 } },
+      { ...ok, merchantCode: 7 },
+      { ...ok, registeredAt: 'not-a-date' },
+      { ...ok, registeredAt: 1234 },
+    ];
+    for (const entry of bad) {
+      const res = await seed([entry]);
+      expect(res.status, JSON.stringify(entry)).toBe(400);
+      expect((await res.json()).error).toBe('BAD_REQUEST');
+    }
+    expect((await scanAll(10)).seen.map((r) => r.tid)).toEqual(['VT-0001', 'VT-0002']);
+    // 맞는 registeredAt·healTo는 그대로 받는다
+    expect((await seed([{ ...ok, registeredAt: '2026-10-01T00:00:00.000Z', healTo: { merchantCode: 'GANGNAM-KIMBAP' } }])).status).toBe(200);
+  });
 });
