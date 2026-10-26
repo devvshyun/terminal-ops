@@ -28,7 +28,7 @@ export interface WeeklyReportData {
     byRule: { rule: string; open: number }[];
     items: { serialNo: string; status: string; rule: string; detectedAt: string; lastSeenAt: string }[];
   };
-  /** 운영 중 단말기의 접속 상태(MySQL 스냅샷 기준) */
+  /** 운영 중 단말기의 접속 상태(MySQL 기준: 판정 job이 맞추는 online, 스냅샷 last_seen_at은 넓힌 창의 방어로만) */
   connectivity: { inService: number; online: number; offline: number; noRecord: number };
   /** 그 주에 진행 중이었거나 끝난 펌웨어 배포. 대상·성공·실패·시간 초과 수는 배포마다 누적(그 주 증분 아님) */
   rollouts: {
@@ -57,6 +57,12 @@ export interface WeeklyReportData {
     counts: Record<string, number>;
   } | null;
 }
+
+/**
+ * 리포트가 online=1 행을 온라인으로 세는 마지막 하트비트 창(ms) = 오프라인 기준 + 스냅샷 주기(기본 90s + 60s = 150s).
+ * 리포트는 Redis가 아니라 MySQL 스냅샷만 보므로 조회 API의 기준(HEARTBEAT_OFFLINE_AFTER_MS)을 그대로 쓰면 정상 단말기가 경계에서 오프라인이 된다.
+ */
+export const reportOnlineWindowMs = () => env.hbOfflineAfterMs + env.connectivitySnapshotIntervalMs;
 
 const n = (v: unknown) => Number(v ?? 0);
 
@@ -118,15 +124,17 @@ export class WeeklyReportQueries {
             where a.resolved_at is null
             order by a.rule, a.detected_at, a.id limit ${ANOMALY_SHEET_LIMIT}`,
         );
-        // 판정 job이 아직 online을 못 내렸어도 마지막 하트비트가 기준보다 오래면 오프라인으로 센다
-        // (조회 API connectivity.service와 같은 규칙·같은 부등호: lastSeen > now − 기준, 정확히 기준만큼 지났으면 오프라인)
+        // 온라인 = 판정 job(Redis 기준, OFFLINE_DETECT_INTERVAL_MS마다)이 맞추는 online=1(최종 리뷰 반영, decisions/0035).
+        // last_seen_at은 스냅샷 job이 CONNECTIVITY_SNAPSHOT_INTERVAL_MS마다 쓴 값이라 정상 단말기도 하트비트 주기 + 스냅샷 주기만큼 낡는다.
+        // 그래서 시각 조건은 "판정 job이 멈춰 online=1이 남은 행"을 거르는 방어로만 두고 창을 오프라인 기준 + 스냅샷 주기로 넓힌다
+        // (부등호는 조회 API와 같은 lastSeen > now − 창, 정확히 창만큼 지났으면 오프라인).
         const [conn] = await tx.execute<{ in_service: unknown; online: unknown; no_record: unknown }[]>(
           `select count(*) as in_service,
                   sum(c.online = 1 and c.last_seen_at > ?) as online,
                   sum(c.terminal_id is null) as no_record
              from terminal t left join device_connectivity c on c.terminal_id = t.id
             where t.status = 'IN_SERVICE'`,
-          [new Date(now.getTime() - env.hbOfflineAfterMs)],
+          [new Date(now.getTime() - reportOnlineWindowMs())],
         );
         const rollouts = await tx.execute<
           {

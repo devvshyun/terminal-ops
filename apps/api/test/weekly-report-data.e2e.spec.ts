@@ -140,10 +140,16 @@ describe('주간 리포트 데이터 — DB 집계와 KST 주 경계 (F11, decis
     expect(data.van).toMatchObject({ confirmed: 2, fetched: 10, counts: { NOT_REGISTERED: 2 }, unverifiable: 0, acknowledgeDrop: false });
   });
 
-  it('리뷰 반영: 온라인은 lastSeen > now − 기준(조회 API connectivity.service와 같은 부등호) — 정확히 기준만큼 지났으면 오프라인', async () => {
-    const lastSeen = sec(NOW, -30); // WR-01
+  it('최종 리뷰 반영: 온라인은 판정 job이 맞추는 online=1을 믿고, 시각 조건은 스냅샷 지연만큼 넓힌다(lastSeen > now − (오프라인 기준 + 스냅샷 주기))', async () => {
+    // device_connectivity.last_seen_at은 60초마다 쓰는 스냅샷이라 정상 단말기도 하트비트 30초 + 스냅샷 60초 ≈ 90초 낡을 수 있다
+    const lastSeen = sec(NOW, -30); // WR-01, online=1
     const q = t.app.get(WeeklyReportQueries);
-    expect((await q.collect(WEEK, new Date(lastSeen.getTime() + env.hbOfflineAfterMs - 1))).connectivity.online).toBe(1);
-    expect((await q.collect(WEEK, new Date(lastSeen.getTime() + env.hbOfflineAfterMs))).connectivity).toEqual({ inService: 3, online: 0, offline: 2, noRecord: 1 });
+    const at = (ms: number) => q.collect(WEEK, new Date(lastSeen.getTime() + ms));
+    expect((await at(80_000)).connectivity.online).toBe(1); // 리뷰가 든 예: 80초 전 하트비트
+    expect((await at(120_000)).connectivity.online).toBe(1); // 오프라인 기준(90초)은 넘었지만 스냅샷 지연 안
+    const window = env.hbOfflineAfterMs + env.connectivitySnapshotIntervalMs;
+    expect((await at(window - 1)).connectivity.online).toBe(1);
+    // 판정 job이 멈춰 online=1이 남은 경우의 방어: 넓힌 창도 지나면 오프라인(조회 API와 같은 부등호 — 정확히 창만큼이면 오프라인)
+    expect((await at(window)).connectivity).toEqual({ inService: 3, online: 0, offline: 2, noRecord: 1 });
   });
 });
