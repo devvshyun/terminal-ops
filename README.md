@@ -22,6 +22,8 @@ terminal-ops/
 │  ├─ admin/             React 19 + Vite 8 + TanStack Query 어드민(Vite 프록시 /api → api)
 │  ├─ partners/          가상 업체 서버(node:http, 포트 4010): 세움전자·번개택배·느림보물류·브릿지VAN·톡톡메신저
 │  └─ device-sim/        단말기 시뮬레이터(하트비트, 펌웨어 업데이트 결과 보고)
+├─ packages/
+│  └─ contracts/         api·어드민이 함께 보는 HTTP 계약(응답·요청 모양, 상태 값, 오류 코드). 타입만, 각 앱이 file: 의존
 ├─ infra/                MySQL 초기화(테스트 DB), 미리보기 env
 ├─ scripts/              기록 색인 생성
 └─ docs/                 기록(아래 "기록")
@@ -34,7 +36,7 @@ Node 24, Docker Desktop(WSL2)이 필요하다. 명령은 Git Bash 기준.
 ```bash
 cp .env.example .env                 # 로컬 개발 전용 값
 docker compose up -d --wait          # MySQL·Redis, healthcheck가 healthy가 될 때까지 기다린다(첫 실행은 MySQL 초기화에 수십 초)
-for a in api admin partners device-sim; do (cd apps/$a && npm ci); done
+for a in api admin partners device-sim; do (cd apps/$a && npm ci); done   # api·admin은 packages/contracts를 링크한다(따로 설치하지 않는다)
 cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB 스키마와 기준 데이터(모델·가맹점·검수 항목)
 
 # 터미널 네 개(또는 백그라운드 — 끌 때는 PID로)
@@ -46,6 +48,7 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 
 - 워커 프로세스를 띄우는 실험(0005·0014)은 먼저 `cd apps/api && npm run build` — `dist/worker.js`를 자식 프로세스로 띄우므로, 빌드하지 않으면 멈추고("먼저 npm run build 하세요"), 소스만 고치고 빌드를 잊으면 옛 워커로 잰다(경고 없음).
 - 테스트: 각 앱 폴더에서 `npm test`. api 테스트는 테스트 DB(`terminal_ops_test`)와 Redis 테스트 접두사(`test-`)만 쓰고, 가상 업체 서버를 테스트 포트(4011)에 직접 띄운다 — api 테스트를 두 개 동시에 돌리지 않는다. 실험은 `EXPERIMENTS=1 npx vitest run test/experiments/<파일> --silent=false`.
+- 타입 검사: vitest는 타입을 보지 않는다. api `npm run typecheck`(또는 `npm run build`), admin `npm run build`(tsc 포함) — api·어드민이 `packages/contracts`와 어긋나면 여기서 실패한다([decisions/0048](docs/decisions/0048-계약은-반환-타입-implements-enum-단언으로-강제한다.md)).
 - 미리보기(화면 확인)는 `infra/preview.env`(주기 작업을 등록하지 않음)를 저장소 `.env` 뒤에 읽는다. 띄우기 전 점검(빌드, 남은 주기 작업 `npm run scheduler:clear`, 같은 접두사의 다른 워커)은 그 파일 주석에 있다.
 - 주기 작업은 Redis에 남는다(BullMQ job scheduler). 지우려면 `cd apps/api && npm run scheduler:clear`(이 접두사의 주기 작업만 — Redis 전체를 비우지 않는다).
 
@@ -67,6 +70,7 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 | F12 | 택배사 어댑터(JSON·XML → 같은 이벤트) | `apps/api/src/carrier/` |
 | F13 | 검수 체크리스트와 불합격 통계 | `apps/api/src/inspection/` |
 | 어드민 | 처음 화면(운영 현황), 단말기 목록·상세, 박스 스캔, A/S, 펌웨어 배포, 이상·VAN·입고 대조·주간 리포트, 배치 실행 이력 | `apps/admin/src/pages/` |
+| 공유 타입(보강 1) | api 응답·요청 모양·상태 값·오류 코드를 한 곳에. api가 어기면 tsc 실패(view 반환 타입, DTO implements, enum ↔ 유니온 단언), 어드민은 그 타입을 import | `packages/contracts/`, `apps/api/src/common/contract-assertions.ts`, `apps/api/test/unit/contract-drift.spec.ts` |
 
 ## 실험 결과
 
@@ -109,18 +113,18 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 
 이 프로젝트의 산출물은 코드와 기록이다(규칙 `CLAUDE.md`, 양식 `docs/README.md`).
 
-- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 46·트러블슈팅 28·실험 16 (`node scripts/docs-index.mjs`로 만든다)
+- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 49·트러블슈팅 29·실험 16 (`node scripts/docs-index.mjs`로 만든다)
 - 개발일지: [`docs/devlog/`](docs/devlog/)(날짜별, 날마다 "N일차 요약"), 설계 스펙 [`docs/specs/`](docs/specs/), 구현 계획 [`docs/plans/`](docs/plans/), 날마다의 최종 리뷰 [`docs/reviews/`](docs/reviews/)
-- 7일 회고: [`docs/retrospective.md`](docs/retrospective.md) — 날별로 만든 것, 잘 된 것·안 된 것, 반복된 실수, 면접에서 말할 거리, 남은 이월
+- 7일 회고: [`docs/retrospective.md`](docs/retrospective.md) — 날별로 만든 것, 잘 된 것·안 된 것, 반복된 실수, 면접에서 말할 거리, 남은 이월과 그 뒤 보강
 - 공부거리: [`docs/study/backlog.md`](docs/study/backlog.md)
 
 ## 테스트
 
-(Day 7, 실험 0016과 리뷰 반영 뒤 실제로 돌려 센 값. api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다)
+(보강 1 공유 타입 패키지 뒤 실제로 돌려 센 값. api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다)
 
 | 앱 | 파일 | 테스트 |
 |---|---|---|
-| api(실험 제외) | 65 | 446 |
-| admin | 12 | 108 |
+| api(실험 제외) | 66 | 453 |
+| admin | 12 | 109 |
 | partners | 6 | 53 |
 | device-sim | 4 | 40 |
