@@ -1,9 +1,18 @@
-import type { Carrier, TerminalStatus, TransitionSource } from '@terminal-ops/contracts';
+import type { Carrier, Role, TerminalStatus, TransitionSource } from '@terminal-ops/contracts';
 
 /**
  * 화면에 보이는 이름만 둔다(규칙은 두지 않는다 — 가능한 전이는 서버가 준다, decisions/0040).
  * 키는 contracts의 상태 유니온이다 — 값이 하나라도 빠지거나 없는 값이 있으면 tsc가 막는다(decisions/0048). 모르는 값이 오면 값을 그대로 보여 준다(label()).
  */
+/** 역할(api decisions/0052) */
+export const ROLE_LABEL: Record<Role, string> = {
+  ADMIN: '관리자',
+  OPERATOR: '운영자',
+  MONITOR: '관제',
+  FIELD: '현장 작업자',
+  MERCHANT: '가맹점주',
+};
+
 export const TERMINAL_STATUS_LABEL: Record<TerminalStatus, string> = {
   RECEIVED: '입고',
   INSPECTED: '검수 합격',

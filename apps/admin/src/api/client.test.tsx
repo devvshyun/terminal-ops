@@ -1,23 +1,30 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ErrorBox } from '../components/ErrorBox';
-import { setOperator } from '../operator';
-import { mockApi } from '../test/render';
+import { getMe } from '../session';
+import { loginAs, mockApi } from '../test/render';
 import { api, ApiError, toQueryString } from './client';
 
 describe('api 클라이언트 (decisions/0041)', () => {
-  it('/api를 붙여 부르고, 작업자 이름이 있으면 X-Operator를 URL 인코딩해 붙인다', async () => {
+  it('/api를 붙여 부르고, 인증 헤더는 붙이지 않는다(세션은 브라우저가 붙이는 httpOnly 쿠키, 보강 2)', async () => {
     const { calls } = mockApi({ 'POST /terminals': () => ({ status: 201, body: { serialNo: 'A-1' } }) });
-    setOperator('김운영');
+    loginAs('김운영');
     expect(await api('/terminals', { method: 'POST', body: { serialNo: 'A-1' } })).toEqual({ serialNo: 'A-1' });
     expect(calls[0]).toMatchObject({ method: 'POST', path: '/terminals', body: { serialNo: 'A-1' } });
-    expect(calls[0].headers).toMatchObject({ 'X-Operator': encodeURIComponent('김운영'), 'Content-Type': 'application/json' });
+    expect(calls[0].headers).toEqual({ Accept: 'application/json', 'Content-Type': 'application/json' });
   });
 
-  it('작업자 이름이 없으면 X-Operator를 보내지 않는다', async () => {
-    const { calls } = mockApi({ 'GET /health': () => ({ body: { status: 'ok' } }) });
-    await api('/health');
-    expect(calls[0].headers['X-Operator']).toBeUndefined();
+  it('401이면 로그인 정보를 비운다(AuthGate가 로그인 화면으로). 로그인 요청 자체의 401은 비우지 않는다', async () => {
+    mockApi({
+      'GET /terminals': () => ({ status: 401, body: { statusCode: 401, code: 'UNAUTHENTICATED', message: '로그인이 필요합니다' } }),
+      'POST /auth/login': () => ({ status: 401, body: { statusCode: 401, code: 'LOGIN_FAILED', message: '틀림' } }),
+    });
+    loginAs('김운영');
+    await api('/auth/login', { method: 'POST', body: {} }).catch(() => undefined);
+    expect(getMe()).not.toBeNull();
+    const error = await api('/terminals').catch((e: unknown) => e);
+    expect(error).toMatchObject({ status: 401, code: 'UNAUTHENTICATED' });
+    expect(getMe()).toBeNull();
   });
 
   it('쿼리는 빈 값을 뺀다', () => {

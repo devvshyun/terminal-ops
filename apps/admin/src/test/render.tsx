@@ -3,7 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { vi } from 'vitest';
-import { setOperator } from '../operator';
+import type { Role } from '@terminal-ops/contracts';
+import { setMe } from '../session';
 
 /** 부른 요청 하나(가짜 fetch가 기록) */
 export interface Call {
@@ -71,7 +72,7 @@ export function renderPage(element: ReactElement, { route = '/', path = '/' }: {
   };
 }
 
-/** 작업자 이름을 저장해 둔다(쓰기 버튼이 켜지게) */
-export function loginAs(name = '김운영') {
-  setOperator(name);
+/** 로그인한 것으로 둔다(서버 세션 대신 화면의 내 정보만 — 쓰기 버튼이 켜지게). 기본 운영자 */
+export function loginAs(name = '김운영', role: Role = 'OPERATOR', merchantCode: string | null = null) {
+  setMe({ loginId: name, displayName: name, role, merchantCode });
 }

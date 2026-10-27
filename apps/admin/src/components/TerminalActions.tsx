@@ -200,6 +200,7 @@ function InspectForm({ terminal, onReload }: { terminal: TerminalDetail; onReloa
         }}
       />
       <WriteButton
+        roles={['OPERATOR', 'FIELD']}
         disabled={inspect.isPending}
         onClick={() => inspect.mutate(items.data.map((item) => ({ itemCode: item.code, passed: !failed[item.code] })))}
       >

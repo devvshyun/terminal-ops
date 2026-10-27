@@ -139,6 +139,7 @@ export function ScanPage() {
         {scanId ? <code aria-label="scanId">{scanId}</code> : null}
         <WriteButton
           className="primary"
+          roles={['OPERATOR', 'FIELD']}
           disabled={serials.length === 0 || serials.length > 500 || (kind === 'RECEIVE' && !poNo) || scan.isPending || result !== undefined}
           onClick={send}
         >

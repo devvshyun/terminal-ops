@@ -100,7 +100,7 @@ describe('박스 스캔 (F6, decisions/0020)', () => {
     expect(bodyOf(posts(calls)[1]).scanId).not.toBe(bodyOf(posts(calls)[0]).scanId);
   });
 
-  it('작업자 이름이 없으면 보내기가 꺼진다', async () => {
+  it('로그인 정보가 없으면 보내기가 꺼진다', async () => {
     mockApi({});
     renderPage(<ScanPage />);
     await userEvent.click(screen.getByLabelText(/회수 입고/));

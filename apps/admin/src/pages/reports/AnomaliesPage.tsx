@@ -47,7 +47,7 @@ export function AnomaliesPage() {
           <option value="false">닫힌 것</option>
           <option value="">전체</option>
         </select>
-        <WriteButton disabled={scan.isPending} onClick={() => scan.mutate()}>
+        <WriteButton roles={['OPERATOR', 'MONITOR']} disabled={scan.isPending} onClick={() => scan.mutate()}>
           {scan.isPending ? '찾는 중' : '지금 찾기'}
         </WriteButton>
       </div>

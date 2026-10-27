@@ -130,7 +130,7 @@ describe('단말기 상세 (F2, decisions/0040)', () => {
   });
   const open = () => renderPage(<TerminalDetailPage />, { route: '/terminals/AS-1', path: '/terminals/:serialNo' });
 
-  it('기본 정보와 타임라인(최근 것부터), 서버가 준 전이만 버튼으로. 작업자 이름이 없으면 바꾸기가 꺼진다', async () => {
+  it('기본 정보와 타임라인(최근 것부터), 서버가 준 전이만 버튼으로. 로그인 정보가 없으면 바꾸기가 꺼진다', async () => {
     mockApi(common(() => detail({ allowedTransitions: [{ to: 'DELIVERED', blockedReason: null }, { to: 'IN_STOCK', blockedReason: '재검수 필수' }] })));
     open();
     expect(await screen.findByText('강남김밥 (GANGNAM-KIMBAP)')).toBeInTheDocument();
@@ -162,7 +162,7 @@ describe('단말기 상세 (F2, decisions/0040)', () => {
     expect(await screen.findByRole('button', { name: '→ 운영 중' })).toBeInTheDocument();
     const post = calls.find((c) => c.method === 'POST')!;
     expect(post.body).toEqual({ to: 'DELIVERED', reason: '현장 확인', expectedVersion: 1 });
-    expect(post.headers['X-Operator']).toBe(encodeURIComponent('김운영'));
+    expect(post.headers['X-Operator']).toBeUndefined(); // 작업자는 서버가 세션에서 정한다(보강 2)
   });
 
   it('409 VERSION_CONFLICT면 안내와 "다시 불러오기" — 누르면 상세를 다시 읽는다', async () => {
