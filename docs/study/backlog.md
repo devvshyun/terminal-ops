@@ -147,3 +147,5 @@
 - [ ] class-validator 커스텀 검사(`ValidateBy`) — 모양(정규식)과 값(달력에 있는 날짜)을 따로 검사해야 하는 이유 (apps/api/src/common/calendar-date.ts, Day 6 Task 3 리뷰)
 - [ ] BullMQ stalled job — lockDuration·stalledInterval·maxStalledCount, 죽은 워커의 active job이 대기열로 돌아오는 시간과 한도를 넘으면 실패로 가는 길 (decisions/0042, outbox.service.ts requeueStale)
 - [ ] MySQL 1205(락 대기 타임아웃)를 409로 돌려줄지 — 50초를 기다린 뒤의 재시도 (decisions/0043)
+- [ ] 캐시 스탬피드(동시 미스)와 single-flight·잠금·조기 만료(probabilistic early expiration) 비교 (decisions/0044)
+- [ ] 캐시 무효화 전략 — TTL만 / 쓰기마다 지우기 / 쓰기 때 갱신(write-through)의 정확성·비용 (decisions/0044)

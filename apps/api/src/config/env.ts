@@ -117,6 +117,8 @@ export const env = {
    * 0이면 둘 다 검사하지 않는다. 운영자가 확인한 실행(POST 본문 acknowledgeDrop)은 이 검사만 건너뛴다(decisions/0033)
    */
   vanFetchMinPct: intFromEnv('VAN_FETCH_MIN_PCT', 50, { min: 0, max: 100 }),
+  /** 대시보드 집계 캐시(Redis) 유지 시간. 화면은 이만큼 전 집계를 볼 수 있다(cachedAt으로 알린다, decisions/0044) */
+  dashboardCacheTtlMs: intFromEnv('DASHBOARD_CACHE_TTL_MS', 30_000, MS),
   /** 이상 단말기 찾기(F4) 규칙의 기준일(decisions/0034) */
   anomalyDays: {
     deliveredNotInstalled: intFromEnv('ANOMALY_DELIVERED_DAYS', 7, DAYS),
