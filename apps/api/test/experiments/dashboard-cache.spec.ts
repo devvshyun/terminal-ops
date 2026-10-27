@@ -55,12 +55,12 @@ describe(`실험 0015 — 대시보드 캐시 (단말기 ${N}대)`, () => {
   afterAll(async () => {
     if (!t) return;
     try {
-      await clearCache();
+      await redis?.del(dashboardCacheKey()); // beforeAll이 redis를 얻기 전에 실패했으면 건너뛴다
       await resetDatabase(t.orm);
       const [left] = (await t.orm.em.fork().execute(
         'select (select count(*) from terminal) as terminals, (select count(*) from terminal_status_history) as history',
       )) as { terminals: unknown; history: unknown }[];
-      console.log(`[실험 0015] 정리 뒤 terminal ${Number(left.terminals)}행, 이력 ${Number(left.history)}행, 캐시 키 ${await redis.exists(dashboardCacheKey())}개`);
+      console.log(`[실험 0015] 정리 뒤 terminal ${Number(left.terminals)}행, 이력 ${Number(left.history)}행, 캐시 키 ${redis ? await redis.exists(dashboardCacheKey()) : '?'}개`);
     } finally {
       await t.app.close();
     }

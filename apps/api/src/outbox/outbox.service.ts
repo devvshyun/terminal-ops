@@ -178,6 +178,9 @@ export class OutboxService {
    * 대상: 만든 지 staleMs가 지난 QUEUED 행(id 순 limit개, (status, id) 인덱스). 행마다 job 상태를 보고 'unknown'(없음)일 때만 넣는다 —
    * 같은 jobId라 있어도 BullMQ가 받지 않지만, 실제로 몇 개가 없었는지 세려고 먼저 본다. 행은 바꾸지 않는다(QUEUED 그대로):
    * PENDING으로 되돌리면 relay가 행 락을 다시 잡고 project job까지 다시 넣는다(active 갱신은 주기 재구성이 맞춘다, decisions/0028).
+   * 전제: notify job은 removeOnComplete·removeOnFail true(NOTIFY_JOB_OPTIONS)라 끝난 job이 Redis에 남지 않는다. 보존을 켜면 실패로 끝난
+   * job이 'failed' 상태로 남아 여기서 건너뛰고, 같은 jobId로 넣어도 BullMQ가 무시한다 — 그때는 이 sweep을 다시 설계해야 한다.
+   * (행마다 getJobState를 차례로 부른다. limit 100에서는 충분하지만 limit을 키우면 Promise.all로 묶을 수 있다.)
    * @param opts.now 기준 시각(테스트용), opts.staleMs 기본 OUTBOX_REQUEUE_AFTER_MS
    */
   async requeueStale(opts: { staleMs?: number; limit?: number; now?: Date } = {}): Promise<{ checked: number; requeued: number[] }> {

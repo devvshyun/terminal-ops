@@ -2,7 +2,7 @@ import type { ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { getQueueToken } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { OUTBOX_TYPE, OutboxEvent, OutboxStatus } from '../../src/outbox/outbox-event.entity.js';
 import { OutboxService } from '../../src/outbox/outbox.service.js';
 import { QUEUE } from '../../src/queue/queue-names.js';
@@ -68,11 +68,16 @@ describe(`실험 0014 — 워커 강제 종료와 알림 (알림 ${N}건, 톡톡
     outbox = t.app.get(OutboxService);
     queue = t.app.get<Queue>(getQueueToken(QUEUE.OUTBOX));
   }, 60_000);
+  // 변형이 단언·대기에서 실패해도 그 변형이 띄운 워커를 여기서 끈다 — 살아 남은 워커가 다음 변형의 job을 가져가지 않게(stopWorker는 끝난 워커면 바로 돌아온다)
+  afterEach(async () => {
+    for (const w of workers) await stopWorker(w);
+  }, 60_000);
   afterAll(async () => {
     for (const w of workers) await stopWorker(w);
     await partners.reset();
     if (t?.app) {
       await resetQueues(t.app);
+      await em().nativeDelete(OutboxEvent, {}); // 실험만 돌렸을 때 outbox 행 N개가 테스트 DB에 남지 않게
       await t.app.close();
     }
   }, 60_000);
