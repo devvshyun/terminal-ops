@@ -89,6 +89,29 @@ describe('처음 화면 — 대시보드 (api decisions/0044)', () => {
     expect(screen.getByText('15건')).toBeInTheDocument();
   });
 
+  it('첫 조회가 끝나기 전에 새로고침이 실패해도 "불러오는 중"에 머물지 않고 다시 조회한다', async () => {
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let plain = 0;
+    const { calls } = mockApi({
+      ...health,
+      'GET /dashboard/summary': async (c) => {
+        if (c.query.get('refresh') === 'true') return { status: 500, body: { statusCode: 500, message: '다시 집계 실패' } };
+        plain += 1;
+        if (plain === 1) await held; // 첫 조회는 붙잡아 둔다
+        return { body: dashboardBody() };
+      },
+    });
+    renderPage(<HomePage />);
+    expect(await screen.findByRole('status')).toHaveTextContent('불러오는 중');
+    await userEvent.click(screen.getByRole('button', { name: '새로고침' }));
+    expect(await screen.findByText('15건')).toBeInTheDocument(); // 두 번째 일반 조회가 나가 카드가 그려진다
+    expect(calls.filter((c) => c.path === '/dashboard/summary' && c.query.get('refresh') !== 'true').length).toBeGreaterThanOrEqual(2);
+    release();
+  });
+
   it('접근성: 카드 제목은 h4, 집계 시각은 <time>, 불러오는 중은 status, 새로고침 중에는 버튼 이름이 바뀐다', async () => {
     let release: () => void = () => {};
     const gate = new Promise<void>((r) => (release = r));

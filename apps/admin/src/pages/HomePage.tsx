@@ -95,6 +95,8 @@ export function HomePage() {
     onMutate: () => client.cancelQueries({ queryKey: keys.dashboard }), // 진행 중인 옛 조회가 새 집계를 덮어쓰지 않게
     mutationFn: () => api<DashboardView>('/dashboard/summary', { query: { refresh: 'true' } }),
     onSuccess: (data) => client.setQueryData(keys.dashboard, data),
+    // 첫 조회 중이던 것을 취소했는데 새로고침마저 실패하면 데이터가 없는 채 멈추니, 다시 조회한다
+    onError: () => client.invalidateQueries({ queryKey: keys.dashboard }),
   });
   const data = dashboard.data;
   const now = useNow(5000);
@@ -122,7 +124,7 @@ export function HomePage() {
       <ErrorBox error={health.error} />
       <ul className="hint">
         <li>시각은 모두 한국 시간(KST)으로 보여 줍니다.</li>
-        <li>운영 현황 숫자는 서버가 최대 30초 동안 재사용하는 집계입니다. 바로 보려면 새로고침을 누르세요.</li>
+        <li>운영 현황 숫자는 서버가 잠시 재사용하는 집계입니다(기본 30초). 바로 보려면 새로고침을 누르세요.</li>
         <li>바꾸는 작업(전이·스캔·A/S 등)은 위쪽에 작업자 이름을 저장해야 할 수 있습니다. 이름은 이력에 남습니다.</li>
       </ul>
     </section>
