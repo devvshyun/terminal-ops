@@ -22,6 +22,12 @@ export class InspectionController {
     return { inspectionId: r.inspection.id, passed: r.passed, failedItems: r.failedItems, terminal: toTerminalView(r.terminal) };
   }
 
+  /** 이 단말기의 검수 기록(최근 것부터). 항목 이름을 붙인다 */
+  @Get('terminals/:serialNo/inspections')
+  async history(@Param('serialNo') serialNo: string) {
+    return this.inspections.history(serialNo);
+  }
+
   @Get('inspections/stats')
   async stats(@Query() query: InspectionStatsQuery) {
     return this.inspections.failureStats(query.modelCode);

@@ -11,6 +11,11 @@ export class ListTerminalsQuery {
   @IsString()
   modelCode?: string;
 
+  /** 배정 가맹점 코드 */
+  @IsOptional()
+  @IsString()
+  merchantCode?: string;
+
   /** 시리얼 앞부분 */
   @IsOptional()
   @IsString()

@@ -135,3 +135,6 @@
 - [ ] 테스트의 시간 — 고정 시계·가짜 타이머·실제 시각을 섞을 때 생기는 날짜 의존 실패 (troubleshooting/0026)
 - [ ] 의존 방향과 계층 — 아래층(알림·리포트)이 위층(도메인 규칙)을 import하지 않게, import 문 검사 테스트 (decisions/0037)
 - [ ] 비동기 요청 패턴 — 202 Accepted + 상태 조회(폴링), jobId로 중복 막기, 실패를 어디에 남기나 (decisions/0038)
+- [ ] ORM의 연관 읽기 전략 — JOIN 한 번(joined) 대 따로 읽기(select-in, IN 목록), ORDER BY + LIMIT이 조인 때문에 인덱스를 못 쓰는 경우 (experiments/0013)
+- [ ] offset 페이지의 비용(앞 행 건너뛰기)과 COUNT(*)의 비용, 키셋으로 바꿀 때 잃는 것(총 쪽수) (decisions/0039)
+- [ ] 서버가 "할 수 있는 동작"을 응답에 싣기 — HATEOAS 링크·allowed actions, 클라이언트 규칙 복제의 문제 (decisions/0040)
