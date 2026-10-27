@@ -15,13 +15,14 @@ import { TICKET_STATUS_LABEL, type TicketView } from './ServiceTicketsPage';
  */
 export function ServiceTicketDetailPage() {
   const id = Number(useParams().id);
+  const validId = Number.isInteger(id) && id > 0;
   const client = useQueryClient();
   const [note, setNote] = useState('');
   const [resolved, setResolved] = useState(false);
   const [replacement, setReplacement] = useState('');
   const [carrier, setCarrier] = useState('BUNGAE');
 
-  const ticket = useQuery({ queryKey: ['service-ticket', id], queryFn: () => api<TicketView>(`/service-tickets/${id}`) });
+  const ticket = useQuery({ queryKey: ['service-ticket', id], queryFn: () => api<TicketView>(`/service-tickets/${id}`), enabled: validId });
   const t = ticket.data;
   const faulty = useQuery({
     queryKey: ['terminal', t?.serialNo, 'detail'],
@@ -34,16 +35,36 @@ export function ServiceTicketDetailPage() {
     enabled: faulty.data !== undefined,
   });
 
+  // 다시 읽은 재고에서 고른 단말기가 사라졌으면 선택을 푼다(파생값)
+  const chosen = stock.data?.items.some((s) => s.serialNo === replacement) ? replacement : '';
+
+  const reread = async () => {
+    await client.invalidateQueries({ queryKey: ['service-ticket', id] });
+    await client.invalidateQueries({ queryKey: ['service-tickets'] });
+    await client.invalidateQueries({ queryKey: ['terminals'] });
+  };
   const act = useMutation({
     mutationFn: ({ path, body }: { path: string; body?: unknown }) => api<TicketView>(`/service-tickets/${id}/${path}`, { method: 'POST', body: body ?? {} }),
     onSuccess: async () => {
       setNote('');
+      setResolved(false);
       setReplacement('');
-      await client.invalidateQueries({ queryKey: ['service-ticket', id] });
-      await client.invalidateQueries({ queryKey: ['service-tickets'] });
-      await client.invalidateQueries({ queryKey: ['terminals'] });
+      await reread();
     },
+    // 실패(422 TICKET_NOT_OPEN 등)는 화면이 낡았다는 뜻일 수 있다: 오류 안내는 두고 서버 상태를 다시 읽는다
+    onError: () => void reread(),
   });
+
+  if (!validId) {
+    return (
+      <section>
+        <p>
+          <Link to="/service-tickets">← A/S 목록</Link>
+        </p>
+        <p role="alert">잘못된 주소입니다. A/S 번호는 숫자여야 합니다.</p>
+      </section>
+    );
+  }
 
   return (
     <section>
@@ -96,7 +117,7 @@ export function ServiceTicketDetailPage() {
               <div className="panel">
                 <h3>교체 출고</h3>
                 <div className="row">
-                  <select aria-label="교체 단말기" value={replacement} onChange={(e) => setReplacement(e.target.value)}>
+                  <select aria-label="교체 단말기" value={chosen} onChange={(e) => setReplacement(e.target.value)}>
                     <option value="">같은 모델 재고에서 선택</option>
                     {stock.data?.items.map((s) => (
                       <option key={s.serialNo} value={s.serialNo}>
@@ -113,13 +134,16 @@ export function ServiceTicketDetailPage() {
                   </select>
                   <WriteButton
                     className="primary"
-                    disabled={!replacement || act.isPending}
-                    onClick={() => act.mutate({ path: 'replacements', body: { replacementSerialNo: replacement, carrier } })}
+                    disabled={!chosen || act.isPending}
+                    onClick={() => act.mutate({ path: 'replacements', body: { replacementSerialNo: chosen, carrier } })}
                   >
                     교체 출고
                   </WriteButton>
                 </div>
                 {stock.data && stock.data.items.length === 0 ? <p className="muted">같은 모델의 재고가 없습니다.</p> : null}
+                {stock.data && stock.data.total > stock.data.items.length ? (
+                  <p className="muted">같은 모델 재고 {stock.data.total}대 중 최근 {stock.data.items.length}대만 표시합니다.</p>
+                ) : null}
               </div>
             </>
           ) : null}

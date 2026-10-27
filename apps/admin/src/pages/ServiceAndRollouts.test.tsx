@@ -102,6 +102,101 @@ describe('A/S (F7)', () => {
   });
 });
 
+describe('A/S 리뷰 반영 (Task 7 리뷰)', () => {
+  const unprocessable = (code: string, message: string) => ({ status: 422, body: { statusCode: 422, code, message } });
+
+  it('act가 422로 실패하면 상세를 다시 읽어 화면을 서버 상태에 맞춘다(TICKET_NOT_OPEN)', async () => {
+    let current = ticket();
+    const { calls } = mockApi({
+      'GET /service-tickets/7': () => ({ body: current }),
+      'GET /terminals/AS-1': () => ({ body: { serialNo: 'AS-1', modelCode: 'SN-200' } }),
+      'GET /terminals': () => ({ body: { items: [], total: 0, page: 1, size: 50 } }),
+      'POST /service-tickets/7/remote-checks': () => {
+        current = ticket({ status: 'CLOSED', closedAt: '2026-10-27T01:00:00.000Z' }); // 다른 운영자가 먼저 종결
+        return unprocessable('TICKET_NOT_OPEN', '접수됨(OPEN) 상태의 A/S만 처리할 수 있습니다(현재: CLOSED).');
+      },
+    });
+    loginAs();
+    renderPage(<ServiceTicketDetailPage />, { route: '/service-tickets/7', path: '/service-tickets/:id' });
+    await userEvent.type(await screen.findByLabelText('점검 메모'), '재부팅');
+    await userEvent.click(screen.getByRole('button', { name: '점검 기록' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('TICKET_NOT_OPEN');
+    await waitFor(() => expect(screen.queryByLabelText('점검 메모')).not.toBeInTheDocument()); // 다시 읽어서 종결 상태로
+    expect(calls.filter((c) => c.path === '/service-tickets/7' && c.method === 'GET').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole('alert')).toHaveTextContent('TICKET_NOT_OPEN'); // 오류 안내는 남는다
+  });
+
+  it('고른 교체 단말기가 재고 목록에서 사라지면 선택이 비워지고 교체 출고 버튼이 꺼진다', async () => {
+    let stock = [{ serialNo: 'ST-9', modelCode: 'SN-200' }];
+    mockApi({
+      'GET /service-tickets/7': () => ({ body: ticket() }),
+      'GET /terminals/AS-1': () => ({ body: { serialNo: 'AS-1', modelCode: 'SN-200' } }),
+      'GET /terminals': () => ({ body: { items: stock, total: stock.length, page: 1, size: 50 } }),
+      'POST /service-tickets/7/replacements': () => {
+        stock = []; // 그사이 다른 곳에서 출고돼 재고에서 빠짐
+        return unprocessable('TERMINAL_NOT_IN_STOCK', '재고(IN_STOCK) 단말기만 교체할 수 있습니다.');
+      },
+    });
+    loginAs();
+    renderPage(<ServiceTicketDetailPage />, { route: '/service-tickets/7', path: '/service-tickets/:id' });
+    await screen.findByRole('option', { name: 'ST-9' });
+    await userEvent.selectOptions(screen.getByLabelText('교체 단말기'), 'ST-9');
+    await userEvent.click(screen.getByRole('button', { name: '교체 출고' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('TERMINAL_NOT_IN_STOCK');
+    await waitFor(() => expect(screen.queryByRole('option', { name: 'ST-9' })).not.toBeInTheDocument());
+    expect(screen.getByLabelText('교체 단말기')).toHaveValue('');
+    expect(screen.getByRole('button', { name: '교체 출고' })).toBeDisabled();
+  });
+
+  it('재고가 한 쪽(50대)보다 많으면 일부만 보인다고 안내한다', async () => {
+    mockApi({
+      'GET /service-tickets/7': () => ({ body: ticket() }),
+      'GET /terminals/AS-1': () => ({ body: { serialNo: 'AS-1', modelCode: 'SN-200' } }),
+      'GET /terminals': () => ({ body: { items: Array.from({ length: 50 }, (_, i) => ({ serialNo: `ST-${i}`, modelCode: 'SN-200' })), total: 120, page: 1, size: 50 } }),
+    });
+    renderPage(<ServiceTicketDetailPage />, { route: '/service-tickets/7', path: '/service-tickets/:id' });
+    expect(await screen.findByText(/최근 50대만 표시/)).toBeInTheDocument();
+  });
+
+  it('원격 점검을 기록하면 "해결됨" 체크가 초기화된다', async () => {
+    mockApi({
+      'GET /service-tickets/7': () => ({ body: ticket() }),
+      'GET /terminals/AS-1': () => ({ body: { serialNo: 'AS-1', modelCode: 'SN-200' } }),
+      'GET /terminals': () => ({ body: { items: [], total: 0, page: 1, size: 50 } }),
+      'POST /service-tickets/7/remote-checks': () => ({ body: ticket({ remoteNote: '메모' }) }), // 해결이 아니라 OPEN 그대로
+    });
+    loginAs();
+    renderPage(<ServiceTicketDetailPage />, { route: '/service-tickets/7', path: '/service-tickets/:id' });
+    await userEvent.type(await screen.findByLabelText('점검 메모'), '메모');
+    await userEvent.click(screen.getByLabelText(/원격으로 해결됨/));
+    expect(screen.getByLabelText(/원격으로 해결됨/)).toBeChecked();
+    await userEvent.click(screen.getByRole('button', { name: '점검 기록' }));
+    await waitFor(() => expect(screen.getByLabelText('점검 메모')).toHaveValue(''));
+    expect(screen.getByLabelText(/원격으로 해결됨/)).not.toBeChecked();
+  });
+
+  it('주소의 번호가 숫자가 아니면 요청하지 않고 잘못된 주소라고 알린다', async () => {
+    const { calls } = mockApi({});
+    renderPage(<ServiceTicketDetailPage />, { route: '/service-tickets/abc', path: '/service-tickets/:id' });
+    expect(await screen.findByText(/잘못된 주소/)).toBeInTheDocument();
+    expect(calls).toEqual([]);
+  });
+
+  it('상태 필터를 바꾸면 이전 조건의 항목은 사라지고 새 조건의 결과만 보인다(회귀 방지)', async () => {
+    mockApi({
+      'GET /service-tickets': (c) =>
+        c.query.get('status') === 'REPLACING'
+          ? { body: { items: [ticket({ id: 5, serialNo: 'AS-5', status: 'REPLACING' })], nextBeforeId: null } }
+          : { body: { items: [ticket()], nextBeforeId: null } },
+    });
+    renderPage(<ServiceTicketsPage />);
+    expect(await screen.findByRole('link', { name: '#7' })).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText('접수 상태'), 'REPLACING');
+    expect(await screen.findByRole('link', { name: '#5' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '#7' })).not.toBeInTheDocument();
+  });
+});
+
 describe('펌웨어 배포 현황 (F8)', () => {
   const rollout = (over: Partial<RolloutView> = {}): RolloutView => ({
     id: 4,
@@ -156,5 +251,36 @@ describe('펌웨어 배포 현황 (F8)', () => {
     await userEvent.click(within(screen.getByRole('article', { name: '배포 4' })).getByRole('button', { name: '중단' }));
     await waitFor(() => expect(calls.some((c) => c.path === '/firmware-rollouts/4/abort')).toBe(true));
     expect(confirm).toHaveBeenCalledTimes(2);
+  });
+
+  it('배포 제어가 422로 실패하면 목록을 다시 읽어 서버 상태에 맞춘다(ROLLOUT_NOT_RUNNING)', async () => {
+    let current = rollout();
+    const { calls } = mockApi({
+      'GET /firmware-rollouts': () => ({ body: { items: [current], nextBeforeId: null } }),
+      'POST /firmware-rollouts/4/pause': () => {
+        current = rollout({ status: 'COMPLETED', endReason: '마지막 단계 완료' }); // 그사이 끝남
+        return { status: 422, body: { statusCode: 422, code: 'ROLLOUT_NOT_RUNNING', message: '진행 중(RUNNING)인 배포만 멈출 수 있습니다.' } };
+      },
+    });
+    loginAs();
+    renderPage(<RolloutsPage />);
+    await userEvent.click(within(await screen.findByRole('article', { name: '배포 4' })).getByRole('button', { name: '멈춤' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('ROLLOUT_NOT_RUNNING');
+    await waitFor(() => expect(within(screen.getByRole('article', { name: '배포 4' })).queryAllByRole('button')).toHaveLength(0));
+    expect(calls.filter((c) => c.method === 'GET' && c.path === '/firmware-rollouts').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('상태 필터를 바꾸면 이전 조건의 배포는 사라지고 새 조건의 결과만 보인다(회귀 방지)', async () => {
+    mockApi({
+      'GET /firmware-rollouts': (c) =>
+        c.query.get('status') === 'COMPLETED'
+          ? { body: { items: [rollout({ id: 2, status: 'COMPLETED' })], nextBeforeId: null } }
+          : { body: { items: [rollout()], nextBeforeId: null } },
+    });
+    renderPage(<RolloutsPage />);
+    expect(await screen.findByRole('article', { name: '배포 4' })).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText('배포 상태'), 'COMPLETED');
+    expect(await screen.findByRole('article', { name: '배포 2' })).toBeInTheDocument();
+    expect(screen.queryByRole('article', { name: '배포 4' })).not.toBeInTheDocument();
   });
 });

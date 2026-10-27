@@ -51,7 +51,8 @@ export function RolloutsPage() {
   const control = useMutation({
     mutationFn: ({ id, action }: { id: number; action: 'pause' | 'resume' | 'abort' }) =>
       api<RolloutView>(`/firmware-rollouts/${id}/${action}`, { method: 'POST' }),
-    onSuccess: () => client.invalidateQueries({ queryKey: ['firmware-rollouts'] }),
+    // 실패(422 ROLLOUT_NOT_RUNNING 등)는 화면이 낡았다는 뜻일 수 있다: 오류 안내는 두고 목록을 다시 읽는다
+    onSettled: () => client.invalidateQueries({ queryKey: ['firmware-rollouts'] }),
   });
   const abort = (r: RolloutView) => {
     if (window.confirm(`배포 #${r.id} ${r.version}을(를) 중단할까요? 되돌릴 수 없습니다.`)) control.mutate({ id: r.id, action: 'abort' });
