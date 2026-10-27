@@ -17,7 +17,7 @@
   EXPERIMENTS=1 npx vitest run test/experiments/status-index.spec.ts --silent=false > exp16.log 2>&1
   grep -E "\[실험 0016|^  인덱스|목록:|count:|Tests " exp16.log
   ```
-  1번 돌렸다(17:54:06 시작, 17:54:59 끝, `Tests 2 passed (2)`, Duration 51.88s).
+  1번 돌렸다(로그 `Start at 17:54:07`, 17:54:59 끝, `Tests 2 passed (2)`, Duration 51.88s).
 
 ## 결과
 
@@ -78,3 +78,7 @@
 - 단일 연결에서 한 건씩 순차 쓰기였다 — 동시 쓰기에서 인덱스가 락 경합을 늘리는지는 재지 않았다
 - count는 두 경우 모두 커버링 인덱스(`terminal_status_status_c…` 또는 새 인덱스)라 시간 차이가 없다(IN_SERVICE 2.23ms 대 2.22ms)
 - 다른 목록(발주·A/S·택배 수집)은 행이 적어 재지 않았다
+- (리뷰 반영) ①은 변형 순서를 바꾸지 않았다 — 항상 '인덱스 없음'을 먼저 돌렸다. 버퍼 풀이 데워지는 순서 효과가 있었다면 '있음' 쪽이 유리했을 것이다. 편향이 채택 쪽이므로 "채택하지 않음" 결론은 이 효과로 뒤집히지 않는다
+- (리뷰 반영) 서비스 p50에는 목록·count 두 쿼리와 ORM 처리의 고정 비용(약 2ms)이 들어 있어, 채택 기준의 "1ms 이상 감소"를 가려내는 분해능이 낮다. 쿼리만 본 `EXPLAIN ANALYZE` actual time은 오히려 새 인덱스 쪽이 느렸다(IN_SERVICE 목록 0.0994..0.142ms → 0.543..0.548ms, 한 번씩 잰 값)
+- (리뷰 반영) 보조 인덱스 크기의 '있음'(16.02MB)은 그 회차 INSERT 1,000행이 들어간 뒤, '없음'(14.56MB)은 실험 ② 시작 전에 잰 값이다. +1.46MB에 1,000행분이 섞여 있어 인덱스만의 크기 차이는 이보다 조금 작다
+- (리뷰 반영) 옵티마이저가 고르지 않은 계획(예: `force index (exp16_status_id)`로 DEFECTIVE·DISPOSED를 새 인덱스로 읽기)은 재지 않았다

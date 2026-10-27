@@ -65,33 +65,40 @@ describe(`실험 0016 — 상태 조건 목록의 (status, id) 인덱스 (단말
   it('① 상태별 목록 1쪽: 인덱스 없음/있음 시간과 실행계획', async () => {
     const statuses = [TerminalStatus.IN_SERVICE, TerminalStatus.RECEIVED, TerminalStatus.DEFECTIVE, TerminalStatus.DISPOSED];
     const lines: string[] = [];
-    for (const withIndex of [false, true]) {
-      if (withIndex) await addIndex();
-      for (const status of statuses) {
-        await list(status); // 데우기
-        const times: number[] = [];
-        for (let i = 0; i < RUNS; i++) {
-          const start = performance.now();
-          await list(status);
-          times.push(performance.now() - start);
+    let added = false; // 중간에 실패해도 실험 인덱스를 남기지 않는다(②의 '없음' 변형이 인덱스를 안고 돌지 않게)
+    try {
+      for (const withIndex of [false, true]) {
+        if (withIndex) {
+          await addIndex();
+          added = true;
         }
-        const log = captureQueries(t.orm);
-        try {
-          await list(status);
-        } finally {
-          log.stop();
+        for (const status of statuses) {
+          await list(status); // 데우기
+          const times: number[] = [];
+          for (let i = 0; i < RUNS; i++) {
+            const start = performance.now();
+            await list(status);
+            times.push(performance.now() - start);
+          }
+          const log = captureQueries(t.orm);
+          try {
+            await list(status);
+          } finally {
+            log.stop();
+          }
+          const listSql = log.formatted.find((q) => /^select .* from `terminal` as `t0`.* order by/i.test(q))!;
+          const countSql = log.formatted.find((q) => /^select count/i.test(q))!;
+          const [plan] = await exec<{ EXPLAIN: string }[]>(`explain analyze ${listSql}`);
+          const [countPlan] = await exec<{ EXPLAIN: string }[]>(`explain analyze ${countSql}`);
+          lines.push(
+            `${withIndex ? '인덱스 있음' : '인덱스 없음'} ${status}: p50 ${round(pct(times, 50))}ms p95 ${round(pct(times, 95))}ms\n` +
+              `    목록: ${plan.EXPLAIN.replace(/\s+/g, ' ').slice(0, 400)}\n    count: ${countPlan.EXPLAIN.replace(/\s+/g, ' ').slice(0, 250)}`,
+          );
         }
-        const listSql = log.formatted.find((q) => /^select .* from `terminal` as `t0`.* order by/i.test(q))!;
-        const countSql = log.formatted.find((q) => /^select count/i.test(q))!;
-        const [plan] = await exec<{ EXPLAIN: string }[]>(`explain analyze ${listSql}`);
-        const [countPlan] = await exec<{ EXPLAIN: string }[]>(`explain analyze ${countSql}`);
-        lines.push(
-          `${withIndex ? '인덱스 있음' : '인덱스 없음'} ${status}: p50 ${round(pct(times, 50))}ms p95 ${round(pct(times, 95))}ms\n` +
-            `    목록: ${plan.EXPLAIN.replace(/\s+/g, ' ').slice(0, 400)}\n    count: ${countPlan.EXPLAIN.replace(/\s+/g, ' ').slice(0, 250)}`,
-        );
       }
+    } finally {
+      if (added) await dropIndex();
     }
-    await dropIndex();
     console.log(`[실험 0016 ①]\n  ${lines.join('\n  ')}`);
   }, 600_000);
 
