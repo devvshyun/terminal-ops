@@ -16,7 +16,7 @@ export function OperatorBar() {
     <form className="operator" onSubmit={save}>
       <label>
         작업자{' '}
-        <input aria-label="작업자 이름" value={draft} maxLength={60} placeholder="이름" onChange={(e) => setDraft(e.target.value)} />
+        <input aria-label="작업자 이름" value={draft} maxLength={50} placeholder="이름" onChange={(e) => setDraft(e.target.value)} />
       </label>
       <button type="submit">저장</button>
       <span className={operator ? 'operator-now' : 'operator-missing'}>{operator ? `지금: ${operator}` : '작업자 이름이 없으면 바꾸는 버튼이 꺼집니다'}</span>

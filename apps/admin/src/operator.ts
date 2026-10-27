@@ -47,6 +47,15 @@ export function setOperator(name: string): string | null {
   return null;
 }
 
+// 다른 탭이 이름을 바꾸면 따라간다(storage 이벤트는 바꾼 탭 자신에게는 오지 않는다). key가 null이면 저장소 전체를 비운 것
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== null && event.key !== OPERATOR_KEY) return;
+    current = load();
+    listeners.forEach((listener) => listener());
+  });
+}
+
 function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);
