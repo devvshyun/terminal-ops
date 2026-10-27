@@ -6,7 +6,7 @@ import { CarrierAdapters } from '../carrier/carrier.adapters.js';
 import { Carrier, CarrierEventCode, type NormalizedEvent } from '../carrier/carrier.types.js';
 import { env } from '../config/env.js';
 import { QUEUE } from '../queue/queue-names.js';
-import { CarrierEvent, Shipment, ShipmentStatus, SyncRun } from '../shipment/shipment.entities.js';
+import { CarrierEvent, Shipment, ShipmentStatus, SYNC_RUN_OUTCOMES, SyncRun } from '../shipment/shipment.entities.js';
 import { TerminalStatus, TransitionSource } from '../terminal/terminal-status.js';
 import { TransitionService } from '../terminal/transition.service.js';
 import { TRACK_JOB_OPTIONS } from './retry-policy.js';
@@ -15,7 +15,7 @@ export interface TrackJobData {
   shipmentId: number;
 }
 
-export type TrackOutcome = 'OK' | 'DELIVERED' | 'NOOP' | 'SKIPPED' | 'ERROR';
+export type TrackOutcome = (typeof SYNC_RUN_OUTCOMES)[number];
 
 interface RunCounts {
   fetched: number;

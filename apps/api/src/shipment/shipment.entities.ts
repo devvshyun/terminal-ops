@@ -77,6 +77,9 @@ export class CarrierEvent {
 }
 
 /** 수집 job 실행 1회의 기록. 실험에서 호출·중복·재시도 수를 셀 때 쓴다. */
+/** 택배 수집 실행 한 번의 결과(SyncRun.outcome). 컬럼은 varchar라 값 목록은 여기 한 곳에 둔다 */
+export const SYNC_RUN_OUTCOMES = ['OK', 'DELIVERED', 'NOOP', 'SKIPPED', 'ERROR'] as const;
+
 @Entity({ tableName: 'sync_run' })
 export class SyncRun {
   [OptionalProps]?: 'startedAt' | 'fetched' | 'inserted' | 'duplicated';
@@ -99,7 +102,7 @@ export class SyncRun {
   @Property({ length: 50 })
   worker!: string;
 
-  /** OK | DELIVERED | NOOP | SKIPPED | ERROR */
+  /** SYNC_RUN_OUTCOMES 중 하나 */
   @Property({ length: 20 })
   outcome!: string;
 

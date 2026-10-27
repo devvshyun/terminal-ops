@@ -1,10 +1,11 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Matches, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsCalendarDate } from '../../common/calendar-date.js';
 
 /** GET /reports/weekly 조건: 최근 주부터, before(그 주 월요일)보다 앞 주만 — 주 키셋(decisions/0039) */
 export class ListWeeklyReportsQuery {
   @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'before는 YYYY-MM-DD입니다.' })
+  @IsCalendarDate({ message: 'before는 달력에 있는 날짜(YYYY-MM-DD)입니다.' })
   before?: string;
 
   @IsOptional()

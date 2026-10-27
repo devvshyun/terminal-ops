@@ -136,6 +136,15 @@ describe('어드민 목록 API (decisions/0039)', () => {
     expect((await get('/reports/weekly', { before: '10/05' })).status).toBe(400);
   });
 
+  it('주간 리포트 목록 before는 달력에 있는 날짜만(모양만 맞는 2026-13-45·2026-02-30은 400)', async () => {
+    for (const before of ['2026-13-45', '2026-02-30', '2026-00-10']) {
+      const res = await get('/reports/weekly', { before });
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(res.body.message)).toContain('before');
+    }
+    expect((await get('/reports/weekly', { before: '2024-02-29' })).status).toBe(200); // 윤년
+  });
+
   it('택배 수집 실행 이력: 최근 것부터, 큐·결과로 거르고 운송장 번호를 붙인다', async () => {
     const e = em();
     const [terminalId] = (await insertTerminals(t, [{ serialNo: 'LS-SH', status: S.SHIPPED }])).values();
@@ -154,11 +163,21 @@ describe('어드민 목록 API (decisions/0039)', () => {
     expect(ids((await get('/sync-runs', { job: 'track-bungae', outcome: 'OK' })).body)).toEqual([rows[0].id]);
   });
 
-  it('페이지 조건 검증: limit 1~100, beforeId는 1 이상 정수', async () => {
-    const bad: Record<string, string | number>[] = [{ limit: 0 }, { limit: 101 }, { beforeId: 'abc' }, { beforeId: 0 }];
+  it('택배 수집 실행 이력의 큐·결과 조건은 정해진 값만(오타는 빈 목록이 아니라 400)', async () => {
+    for (const query of [{ job: 'track-bungea' }, { job: 'outbox' }, { outcome: 'ok' }, { outcome: 'FAILED' }] as Record<string, string>[]) {
+      expect((await get('/sync-runs', query)).status).toBe(400);
+    }
+    for (const outcome of ['OK', 'DELIVERED', 'NOOP', 'SKIPPED', 'ERROR']) expect((await get('/sync-runs', { outcome })).status).toBe(200);
+    for (const job of ['track-bungae', 'track-neurimbo']) expect((await get('/sync-runs', { job })).status).toBe(200);
+  });
+
+  it('페이지 조건 검증: limit 1~100, beforeId는 1 이상 안전한 정수', async () => {
+    // beforeId 상한: 안전한 정수(2^53-1)를 넘으면 Number로 바꿀 때 값이 뭉개진다
+    const bad: Record<string, string | number>[] = [{ limit: 0 }, { limit: 101 }, { beforeId: 'abc' }, { beforeId: 0 }, { beforeId: '9007199254740992' }, { beforeId: '1e20' }];
     for (const query of bad) {
       expect((await get('/sync-runs', query)).status).toBe(400);
       expect((await get('/purchase-orders', query)).status).toBe(400);
     }
+    expect((await get('/sync-runs', { beforeId: String(Number.MAX_SAFE_INTEGER) })).status).toBe(200);
   });
 });

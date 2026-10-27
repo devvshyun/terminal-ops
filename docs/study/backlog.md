@@ -146,3 +146,5 @@
 - [ ] Testing Library의 접근성 쿼리(getByRole·getByLabelText)와 사용자 관점 테스트 (apps/admin/src/components/Layout.test.tsx)
 - [ ] TanStack Query의 리렌더 조건 — tracked props(notifyOnChangeProps)·구조 공유와 dataUpdatedAt (apps/admin/src/pages/reports/WeeklyReportsPage.tsx, devlog 2026-10-27 Task 8) — 확인: 렌더에서 `dataUpdatedAt`을 읽어야 같은 응답에도 다시 그려진다(devlog 2026-10-27 Task 8 리뷰 반영)
 - [ ] Vitest 가짜 타이머(`useFakeTimers({ shouldAdvanceTime })`, `advanceTimersByTimeAsync`)와 폴링 테스트 (apps/admin/src/pages/reports/ReportsPages.test.tsx)
+- [ ] 하위·보조 목록에도 페이지 조건이 필요한가 — `GET /terminals/:serialNo/inspections`는 limit·beforeId 없이 다 준다(단말기 하나의 검수는 적다고 봄), 단말기 목록 `?merchantCode=`는 빈 문자열을 조건 없음으로 무시하고 `page` 상한이 없다(깊은 offset 비용) (decisions/0039, Day 6 Task 2 리뷰)
+- [ ] class-validator 커스텀 검사(`ValidateBy`) — 모양(정규식)과 값(달력에 있는 날짜)을 따로 검사해야 하는 이유 (apps/api/src/common/calendar-date.ts, Day 6 Task 3 리뷰)

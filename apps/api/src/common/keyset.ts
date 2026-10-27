@@ -12,6 +12,7 @@ export class BeforeIdQuery {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(Number.MAX_SAFE_INTEGER) // 넘으면 Number로 바꿀 때 값이 뭉개진다(2^53 이상)
   beforeId?: number;
 
   @IsOptional()

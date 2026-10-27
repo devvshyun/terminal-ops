@@ -33,17 +33,13 @@ export class WeeklyReportController {
 
   /**
    * 주 목록(최근 주부터, ?before=YYYY-MM-DD&limit=). 파일은 읽지 않는다(lazy).
-   * queued·queuedAt은 주마다 큐를 본다(limit 상한 100) — 이미 보낸 주는 Redis를 보지 않는다(queueState)
+   * queued·queuedAt은 주마다 큐를 본다(limit 상한 100, 한꺼번에 — 왕복을 차례로 기다리지 않는다) — 이미 보낸 주는 Redis를 보지 않는다(queueState)
    */
   @Get()
   async list(@Query() query: ListWeeklyReportsQuery) {
     const { items, nextBefore } = await this.reports.list(query);
-    const views = [];
-    for (const r of items) {
-      const { queued, queuedAt } = await this.reports.queueState(r);
-      views.push(toWeeklyReportView(r, false, queued, queuedAt));
-    }
-    return { items: views, nextBefore };
+    const states = await Promise.all(items.map((r) => this.reports.queueState(r)));
+    return { items: items.map((r, i) => toWeeklyReportView(r, false, states[i].queued, states[i].queuedAt)), nextBefore };
   }
 
   /** 상태. queued: 수동 보내기 job이 아직 대기·처리 중, queuedAt: 그 job을 넣은 시각(POST 응답에는 없다 — 화면은 GET으로 다시 읽는다) */
