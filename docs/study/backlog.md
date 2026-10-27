@@ -178,3 +178,4 @@
 - [ ] 서버가 "할 수 있는 동작"을 응답에 싣기 — HATEOAS 링크·allowed actions, 클라이언트 규칙 복제의 문제 (decisions/0040)
 - [ ] 하위·보조 목록에도 페이지 조건이 필요한가 — `GET /terminals/:serialNo/inspections`는 limit·beforeId 없이 다 준다(단말기 하나의 검수는 적다고 봄), 단말기 목록 `?merchantCode=`는 빈 문자열을 조건 없음으로 무시하고 `page` 상한이 없다(깊은 offset 비용) (decisions/0039, Day 6 Task 2 리뷰)
 - [ ] 데코레이터 메타데이터(design:type) — tsc와 swc가 타입 별칭을 다르게 내보낸다, 어디까지 reflect-metadata에 기대나 (troubleshooting/0029)
+- [ ] MikroORM `schema.refresh()`는 메타데이터에 있는 테이블만 지운다 — 다른 브랜치가 만든 테이블의 FK가 drop을 막는다 (troubleshooting/0030)

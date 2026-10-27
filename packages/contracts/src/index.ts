@@ -10,3 +10,4 @@ export type * from './terminal.js';
 export type * from './operations.js';
 export type * from './reports.js';
 export type * from './requests.js';
+export type * from './auth.js';
