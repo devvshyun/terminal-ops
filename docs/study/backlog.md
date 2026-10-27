@@ -151,3 +151,5 @@
 - [ ] 캐시 무효화 전략 — TTL만 / 쓰기마다 지우기 / 쓰기 때 갱신(write-through)의 정확성·비용 (decisions/0044)
 - [ ] Windows의 프로세스 종료와 신호 — TerminateProcess, node `process.kill`과 `ChildProcess.kill`이 exit를 다르게 보고하는 이유 (troubleshooting/0028)
 - [ ] at-least-once 알림의 중복 상한 — 처리 중이던 job 수(concurrency)와 받은 쪽 멱등키 (experiments/0014, decisions/0016)
+- [ ] 연결 풀보다 많은 무거운 쿼리가 동시에 오면 — 풀 대기와 MySQL 안 경합을 나눠 재는 법 (experiments/0015 ③ 요청별 최소 300ms)
+- [ ] Node 이벤트 루프 지연(GC 등)이 짧은 요청 꼬리(p95)에 주는 영향 — `perf_hooks.monitorEventLoopDelay` (experiments/0015 적중 16ms 꼬리)
