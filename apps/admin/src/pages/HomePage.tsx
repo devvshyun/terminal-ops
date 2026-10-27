@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import { keys } from '../api/query-keys';
 import type { DashboardView } from '../api/types';
 import { ErrorBox } from '../components/ErrorBox';
+import { useNow } from '../hooks/useNow';
 import { ageText, formatKst } from '../lib/format';
 import { label, TERMINAL_STATUS_LABEL } from '../lib/labels';
 
@@ -13,7 +14,7 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
   const id = useId(); // 제목에 공백이 있어 aria-labelledby용 id로 쓰지 않는다(공백이 id 목록 구분자)
   return (
     <section className="card" aria-labelledby={id}>
-      <h3 id={id}>{title}</h3>
+      <h4 id={id}>{title}</h4>
       {children}
     </section>
   );
@@ -66,7 +67,7 @@ function Dashboard({ data }: { data: DashboardView }) {
           <>
             <p className="big">어긋남 {van.confirmed}건</p>
             <p>
-              <Link to={`/reports/van/${van.runId}`}>#{van.runId}</Link> {formatKst(van.finishedAt)} 끝
+              <Link to={`/reports/van/${van.runId}`} aria-label={`VAN 대조 #${van.runId} 상세`}>#{van.runId}</Link> {formatKst(van.finishedAt)} 끝
             </p>
           </>
         ) : (
@@ -91,10 +92,12 @@ export function HomePage() {
   const health = useQuery({ queryKey: keys.health, queryFn: () => api<{ status: string }>('/health') });
   const dashboard = useQuery({ queryKey: keys.dashboard, queryFn: () => api<DashboardView>('/dashboard/summary') });
   const refresh = useMutation({
+    onMutate: () => client.cancelQueries({ queryKey: keys.dashboard }), // 진행 중인 옛 조회가 새 집계를 덮어쓰지 않게
     mutationFn: () => api<DashboardView>('/dashboard/summary', { query: { refresh: 'true' } }),
     onSuccess: (data) => client.setQueryData(keys.dashboard, data),
   });
   const data = dashboard.data;
+  const now = useNow(5000);
   return (
     <section>
       <h2>처음</h2>
@@ -102,15 +105,16 @@ export function HomePage() {
         <h3>운영 현황</h3>
         {data ? (
           <span className="muted">
-            {formatKst(data.cachedAt)} 기준 ({ageText(data.cachedAt, new Date())})
+            <time dateTime={data.cachedAt}>{formatKst(data.cachedAt)}</time> 기준 ({ageText(data.cachedAt, now)})
           </span>
         ) : null}
         <button type="button" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
-          새로고침
+          {refresh.isPending ? '새로고침 중' : '새로고침'}
         </button>
       </div>
-      <ErrorBox error={dashboard.error ?? refresh.error} />
-      {dashboard.isPending ? <p>불러오는 중</p> : data ? <Dashboard data={data} /> : null}
+      <ErrorBox error={dashboard.error} />
+      <ErrorBox error={refresh.error} />
+      {dashboard.isPending ? <p role="status">불러오는 중</p> : data ? <Dashboard data={data} /> : null}
       <p>
         api 연결:{' '}
         {health.isPending ? '확인 중' : health.isError ? '실패' : <strong className="ok">{health.data.status}</strong>}
