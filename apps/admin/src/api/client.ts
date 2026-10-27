@@ -49,7 +49,7 @@ function messageOf(status: number, body: unknown): string {
 }
 
 /**
- * api 호출 한 곳. 작업자 이름이 있으면 모든 요청에 X-Operator(URL 인코딩, decisions/0001·0037)를 붙인다.
+ * api 호출 한 곳. 작업자 이름이 있으면 모든 요청에 X-Operator(URL 인코딩, decisions/0001·0041)를 붙인다.
  * 2xx가 아니면 ApiError를 던진다 — 화면은 ErrorBox로 code·message를 보여 준다.
  */
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
