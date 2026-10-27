@@ -238,3 +238,36 @@ textarea {
   background: var(--accent);
   color: #fff;
 }
+
+/* 처음 화면 운영 현황 카드(Day 7) */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 8px 0 16px;
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--panel);
+}
+
+.card h3 {
+  font-size: 13px;
+  margin: 0 0 6px;
+  color: var(--muted);
+}
+
+.card .big {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+ul.plain {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 6px;
+}
