@@ -328,7 +328,10 @@ export class RolloutService {
     if (reported.length > 0) await this.offers.withdraw(rolloutId, reported);
   }
 
-  /** 배포 목록(최근 것부터, id 키셋 — decisions/0039). 단계별 통계는 배포마다 한 쿼리(limit 상한 100) */
+  /**
+   * 배포 목록(최근 것부터, id 키셋 — decisions/0039). 단계별 통계는 쪽의 배포를 모아 `rollout_id in (…) group by` 한 쿼리
+   * (전에는 배포마다 한 쿼리라 limit 100이면 101번이었다, Day 6 최종 리뷰 Minor 10)
+   */
   async list(q: { status?: RolloutStatus; beforeId?: number; limit: number }) {
     const em = this.em.fork();
     const rows = await em.find(
@@ -337,8 +340,8 @@ export class RolloutService {
       { populate: ['firmware.model'], strategy: LoadStrategy.SELECT_IN, orderBy: { id: 'desc' }, limit: q.limit + 1 },
     );
     const page = keysetPage(rows, q.limit);
-    const items = [];
-    for (const rollout of page.items) items.push({ rollout, stats: await this.stageStats(rollout, em) });
+    const counts = await this.targetCounts(page.items.map((r) => r.id), em);
+    const items = page.items.map((rollout) => ({ rollout, stats: toStageStats(rollout, counts.get(rollout.id) ?? []) }));
     return { items, nextBeforeId: page.nextBeforeId };
   }
 
@@ -350,15 +353,24 @@ export class RolloutService {
 
   /** 단계별 대상 수와 결과 수 */
   async stageStats(rollout: FirmwareRollout, em: EntityManager = this.em.fork()): Promise<StageStats[]> {
-    const rows: { stage: number; status: TargetStatus; c: number | string }[] = await em.execute(
-      'select stage, status, count(*) as c from firmware_rollout_target where rollout_id = ? group by stage, status',
-      [rollout.id],
+    return toStageStats(rollout, (await this.targetCounts([rollout.id], em)).get(rollout.id) ?? []);
+  }
+
+  /** 배포 여러 개의 (단계, 결과)별 대상 수를 한 쿼리로. unique(rollout_id, terminal_id) 인덱스의 앞부분으로 찾는다(decisions/0032) */
+  private async targetCounts(rolloutIds: number[], em: EntityManager): Promise<Map<number, TargetCount[]>> {
+    const byRollout = new Map<number, TargetCount[]>();
+    if (rolloutIds.length === 0) return byRollout;
+    const rows = await em.execute<(TargetCount & { rollout_id: number })[]>(
+      `select rollout_id, stage, status, count(*) as c from firmware_rollout_target
+        where rollout_id in (${rolloutIds.map(() => '?').join(', ')}) group by rollout_id, stage, status`,
+      rolloutIds,
     );
-    return rollout.stages.map((percent, stage) => {
-      const of = (status: TargetStatus) => Number(rows.find((r) => r.stage === stage && r.status === status)?.c ?? 0);
-      const s = { offered: of(TargetStatus.OFFERED), succeeded: of(TargetStatus.SUCCEEDED), failed: of(TargetStatus.FAILED), timedOut: of(TargetStatus.TIMED_OUT) };
-      return { stage, percent, targets: s.offered + s.succeeded + s.failed + s.timedOut, ...s };
-    });
+    for (const r of rows) {
+      const list = byRollout.get(r.rollout_id) ?? [];
+      list.push(r);
+      byRollout.set(r.rollout_id, list);
+    }
+    return byRollout;
   }
 
   /**
@@ -435,6 +447,22 @@ export class RolloutService {
   private wrongStatus(rollout: FirmwareRollout, code: string): BusinessError {
     return new BusinessError(422, code, `펌웨어 배포 ${rollout.id}은(는) ${rollout.status} 상태라 이 작업을 할 수 없습니다.`);
   }
+}
+
+/** (단계, 결과)별 대상 수 한 줄(targetCounts) */
+interface TargetCount {
+  stage: number;
+  status: TargetStatus;
+  c: number | string;
+}
+
+/** 대상 수 줄들을 배포의 단계마다 묶는다(대상이 없는 단계는 0) */
+function toStageStats(rollout: FirmwareRollout, rows: TargetCount[]): StageStats[] {
+  return rollout.stages.map((percent, stage) => {
+    const of = (status: TargetStatus) => Number(rows.find((r) => r.stage === stage && r.status === status)?.c ?? 0);
+    const s = { offered: of(TargetStatus.OFFERED), succeeded: of(TargetStatus.SUCCEEDED), failed: of(TargetStatus.FAILED), timedOut: of(TargetStatus.TIMED_OUT) };
+    return { stage, percent, targets: s.offered + s.succeeded + s.failed + s.timedOut, ...s };
+  });
 }
 
 export function toRolloutView(rollout: FirmwareRollout, stats: StageStats[]) {

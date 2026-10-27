@@ -3,6 +3,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { UnrecoverableError, type JobsOptions, type Queue } from 'bullmq';
 import { EntityManager, IsolationLevel, LockMode } from '@mikro-orm/mysql';
 import { formatKst } from '../common/kst.js';
+import { env } from '../config/env.js';
 import { PartnerPermanentError } from '../common/partner-errors.js';
 import { QUEUE } from '../queue/queue-names.js';
 import { ANOMALY_RULE_LABEL } from '../anomaly/anomaly-labels.js';
@@ -116,6 +117,7 @@ export function textOf(event: Pick<OutboxEvent, 'type' | 'payload'>): string {
  *   READ COMMITTED로 돈다. 기본(REPEATABLE READ)이면 잠금 읽기가 (status, id) 인덱스의 gap까지 잠가
  *   새 PENDING 행 INSERT(= 전이·등록 트랜잭션)를 relay가 커밋할 때까지 막는다(troubleshooting/0007).
  * - notify: 톡톡메신저로 보내고 SENT로 바꾼다. 최종 실패면 FAILED.
+ * - requeue: QUEUED인데 notify job이 큐에 없는 행에 job을 다시 넣는다(주기 작업, decisions/0042).
  * 보장 수준은 "최소 한 번 + 멱등키"다(decisions/0016).
  */
 @Injectable()
@@ -167,6 +169,33 @@ export class OutboxService {
       return rows.map((r) => r.id);
     }, { isolationLevel: IsolationLevel.READ_COMMITTED });
     return { queued };
+  }
+
+  /**
+   * QUEUED인데 notify job이 큐에 없는 행에 같은 jobId로 job을 다시 넣는다(Day 4 이월, decisions/0042).
+   * job이 사라지는 길: 처리 중인 워커가 죽은 job은 BullMQ stalled 검사가 한 번은 되살리지만, 한 job이 stalled 한도(maxStalledCount 1)를
+   * 넘으면 실패로 옮겨지고 removeOnFail로 지워진다 — notify가 FAILED를 쓰지 못해 행은 QUEUED로 남는다. Redis에서 job 키가 사라져도 같다.
+   * 대상: 만든 지 staleMs가 지난 QUEUED 행(id 순 limit개, (status, id) 인덱스). 행마다 job 상태를 보고 'unknown'(없음)일 때만 넣는다 —
+   * 같은 jobId라 있어도 BullMQ가 받지 않지만, 실제로 몇 개가 없었는지 세려고 먼저 본다. 행은 바꾸지 않는다(QUEUED 그대로):
+   * PENDING으로 되돌리면 relay가 행 락을 다시 잡고 project job까지 다시 넣는다(active 갱신은 주기 재구성이 맞춘다, decisions/0028).
+   * @param opts.now 기준 시각(테스트용), opts.staleMs 기본 OUTBOX_REQUEUE_AFTER_MS
+   */
+  async requeueStale(opts: { staleMs?: number; limit?: number; now?: Date } = {}): Promise<{ checked: number; requeued: number[] }> {
+    const now = opts.now ?? new Date();
+    const staleMs = opts.staleMs ?? env.outboxRequeueAfterMs;
+    const rows = await this.em.fork().find(
+      OutboxEvent,
+      { status: OutboxStatus.QUEUED, createdAt: { $lt: new Date(now.getTime() - staleMs) } },
+      { fields: ['id'], orderBy: { id: 'asc' }, limit: opts.limit ?? 100 },
+    );
+    const requeued: number[] = [];
+    for (const row of rows) {
+      if ((await this.queue.getJobState(idempotencyKeyOf(row.id))) === 'unknown') requeued.push(row.id);
+    }
+    if (requeued.length > 0) {
+      await this.queue.addBulk(requeued.map((id) => ({ name: 'notify', data: { outboxId: id } satisfies NotifyJobData, opts: { ...NOTIFY_JOB_OPTIONS, jobId: idempotencyKeyOf(id) } })));
+    }
+    return { checked: rows.length, requeued };
   }
 
   async notify(outboxId: number, { lastAttempt }: { lastAttempt: boolean }): Promise<'SENT' | 'SKIPPED'> {

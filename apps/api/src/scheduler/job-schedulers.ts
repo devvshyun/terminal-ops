@@ -20,6 +20,8 @@ export const WEEKLY_REPORT_JOB_OPTS = { attempts: 5, backoff: { type: 'exponenti
 export const JOB_SCHEDULERS = [
   { queue: QUEUE.CARRIER_SWEEP, id: 'carrier-sweep', jobName: 'sweep', schedule: () => ({ every: env.sweepIntervalMs }) },
   { queue: QUEUE.OUTBOX, id: 'outbox-relay', jobName: 'relay', schedule: () => ({ every: env.relayIntervalMs }) },
+  // QUEUED인데 notify job이 사라진 행 복구(decisions/0042)
+  { queue: QUEUE.OUTBOX, id: 'outbox-requeue', jobName: 'requeue', schedule: () => ({ every: env.outboxRequeueIntervalMs }) },
   { queue: QUEUE.DEVICE, id: 'active-rebuild', jobName: 'rebuild-active', schedule: () => ({ every: env.activeRebuildIntervalMs }) },
   { queue: QUEUE.DEVICE, id: 'offline-detect', jobName: 'detect-offline', schedule: () => ({ every: env.offlineDetectIntervalMs }) },
   { queue: QUEUE.DEVICE, id: 'connectivity-snapshot', jobName: 'snapshot', schedule: () => ({ every: env.connectivitySnapshotIntervalMs }) },

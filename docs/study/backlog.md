@@ -145,3 +145,5 @@
 - [ ] TanStack Query의 리렌더 조건 — tracked props(notifyOnChangeProps)·구조 공유와 dataUpdatedAt (apps/admin/src/pages/reports/WeeklyReportsPage.tsx, devlog 2026-10-27 Task 8) — 확인: 렌더에서 `dataUpdatedAt`을 읽어야 같은 응답에도 다시 그려진다(devlog 2026-10-27 Task 8 리뷰 반영)
 - [ ] 하위·보조 목록에도 페이지 조건이 필요한가 — `GET /terminals/:serialNo/inspections`는 limit·beforeId 없이 다 준다(단말기 하나의 검수는 적다고 봄), 단말기 목록 `?merchantCode=`는 빈 문자열을 조건 없음으로 무시하고 `page` 상한이 없다(깊은 offset 비용) (decisions/0039, Day 6 Task 2 리뷰)
 - [ ] class-validator 커스텀 검사(`ValidateBy`) — 모양(정규식)과 값(달력에 있는 날짜)을 따로 검사해야 하는 이유 (apps/api/src/common/calendar-date.ts, Day 6 Task 3 리뷰)
+- [ ] BullMQ stalled job — lockDuration·stalledInterval·maxStalledCount, 죽은 워커의 active job이 대기열로 돌아오는 시간과 한도를 넘으면 실패로 가는 길 (decisions/0042, outbox.service.ts requeueStale)
+- [ ] MySQL 1205(락 대기 타임아웃)를 409로 돌려줄지 — 50초를 기다린 뒤의 재시도 (decisions/0043)
