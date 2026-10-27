@@ -2,7 +2,7 @@
 
 > 이 파일은 `node scripts/docs-index.mjs`가 만든다. 손으로 고치지 않는다(decisions/0046). 기록을 더한 뒤 다시 만들고, `--check`로 확인한다.
 
-## 결정 기록 (50)
+## 결정 기록 (53)
 
 - [0001](decisions/0001-인증은-작업자-헤더로.md) 인증은 하지 않고, 작업자는 요청 헤더로 기록한다
 - [0002](decisions/0002-esm-vitest-tsc-빌드.md) ESM + Vitest + tsc 빌드로 API를 만든다
@@ -53,7 +53,10 @@
 - [0047](decisions/0047-공유-타입은-file-의존-타입-전용-TS-소스-패키지로.md) 공유 타입은 각 앱의 file: 의존으로 연결하는 타입 전용 TS 소스 패키지로 둔다
 - [0048](decisions/0048-계약은-반환-타입-implements-enum-단언으로-강제한다.md) 계약은 반환 타입·implements·enum 단언·오류 코드 오버로드로 컴파일 때 강제한다
 - [0049](decisions/0049-계약-범위는-응답-요청-본문-오류-코드까지.md) 계약 범위는 응답·쓰기 요청 본문·오류 코드까지, 쿼리 문자열과 런타임 검증은 넣지 않는다
+- [0050](decisions/0050-로그인은-Redis-서버-세션과-httpOnly-쿠키로.md) 로그인은 Redis 서버 세션과 httpOnly 쿠키로 한다
 - [0051](decisions/0051-비밀번호-해시는-node-scrypt-계정-테이블은-user-account.md) 비밀번호 해시는 node:crypto scrypt, 계정 테이블은 user_account
+- [0052](decisions/0052-역할별-엔드포인트-표와-기본-거부.md) 역할별 엔드포인트 표와 기본 거부
+- [0056](decisions/0056-작업자는-로그인-아이디-X-Operator는-테스트-전용.md) 작업자는 로그인 아이디, X-Operator는 테스트 전용 인증 길로만 남긴다
 
 ## 트러블슈팅 (30)
 

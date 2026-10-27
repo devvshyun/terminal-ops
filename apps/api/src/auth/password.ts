@@ -8,11 +8,16 @@ import { randomBytes, scrypt, timingSafeEqual, type ScryptOptions } from 'node:c
 export const SCRYPT_PARAMS = { N: 2 ** 15, r: 8, p: 3 } as const;
 const KEY_LENGTH = 64;
 const SALT_BYTES = 16;
-/** scrypt 메모리 128·N·r = 32MiB. node 기본 maxmem(32MiB)에 딱 걸리므로 넉넉히 연다 */
-const MAX_MEM = 64 * 1024 * 1024;
+/**
+ * scrypt 메모리는 약 128·N·r(지금 값 32MiB — node 기본 maxmem 32MiB에 딱 걸린다). maxmem은 저장된 비용에서 계산한다:
+ * 비용을 올린 해시도 확인할 수 있게(고정 64MiB였을 때 N=2^16은 던졌다 — Task 1 리뷰). 다만 상한을 둔다 —
+ * 저장된 값이 터무니없으면(N=2^30 등) 메모리를 잡지 않고 거절된다(verifyPassword는 false).
+ */
+const MAX_MEM_CAP = 256 * 1024 * 1024;
+const maxmemFor = ({ N, r }: { N: number; r: number }) => Math.min(128 * N * r + 1024 * 1024, MAX_MEM_CAP);
 
 function derive(password: string, salt: Buffer, params: { N: number; r: number; p: number }): Promise<Buffer> {
-  const options: ScryptOptions = { ...params, maxmem: MAX_MEM };
+  const options: ScryptOptions = { ...params, maxmem: maxmemFor(params) };
   return new Promise((resolve, reject) => scrypt(password, salt, KEY_LENGTH, options, (err, key) => (err ? reject(err) : resolve(key))));
 }
 
@@ -23,7 +28,7 @@ export async function hashPassword(password: string): Promise<string> {
   return `scrypt$${N}$${r}$${p}$${salt.toString('base64')}$${key.toString('base64')}`;
 }
 
-/** 저장된 해시와 같은 비밀번호인지. 형식이 틀린 해시는 false(던지지 않는다). 비교는 timingSafeEqual */
+/** 저장된 해시와 같은 비밀번호인지. 형식이 틀리거나 scrypt가 거절하는 비용이면 false(던지지 않는다). 비교는 timingSafeEqual */
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const parts = stored.split('$');
   if (parts.length !== 6 || parts[0] !== 'scrypt') return false;
@@ -32,13 +37,20 @@ export async function verifyPassword(password: string, stored: string): Promise<
   const salt = Buffer.from(parts[4], 'base64');
   const expected = Buffer.from(parts[5], 'base64');
   if (salt.length === 0 || expected.length !== KEY_LENGTH) return false;
-  const actual = await derive(password, salt, { N, r, p });
+  let actual: Buffer;
+  try {
+    actual = await derive(password, salt, { N, r, p });
+  } catch {
+    // 정수지만 scrypt가 거절하는 비용(N이 2의 거듭제곱이 아님, 메모리 상한 넘음) — 형식이 틀린 해시와 같게 false(Task 1 리뷰)
+    return false;
+  }
   return timingSafeEqual(actual, expected);
 }
 
 /**
  * 없는 아이디로 로그인할 때도 비슷한 시간을 쓰게 하는 가짜 해시(응답 시간으로 계정 유무를 알아내지 못하게).
- * 처음 한 번 만들어 두고 이것과 비교한다(결과는 늘 false).
+ * 처음 한 번 만들어 두고 이것과 비교한다(결과는 늘 false). AuthService가 앱이 뜰 때(onModuleInit) 미리 만든다 —
+ * 첫 "없는 아이디" 로그인만 해시 두 번만큼 느려지면 그 차이로 아이디 유무가 보인다(Task 1 리뷰).
  */
 let dummyHash: Promise<string> | undefined;
 export function dummyPasswordHash(): Promise<string> {

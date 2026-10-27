@@ -179,3 +179,5 @@
 - [ ] 하위·보조 목록에도 페이지 조건이 필요한가 — `GET /terminals/:serialNo/inspections`는 limit·beforeId 없이 다 준다(단말기 하나의 검수는 적다고 봄), 단말기 목록 `?merchantCode=`는 빈 문자열을 조건 없음으로 무시하고 `page` 상한이 없다(깊은 offset 비용) (decisions/0039, Day 6 Task 2 리뷰)
 - [ ] 데코레이터 메타데이터(design:type) — tsc와 swc가 타입 별칭을 다르게 내보낸다, 어디까지 reflect-metadata에 기대나 (troubleshooting/0029)
 - [ ] MikroORM `schema.refresh()`는 메타데이터에 있는 테이블만 지운다 — 다른 브랜치가 만든 테이블의 FK가 drop을 막는다 (troubleshooting/0030)
+- [ ] 세션 대 JWT — 로그아웃·강제 만료·권한 변경 반영, 거부 목록이 결국 상태를 만드는 이유, 쿠키 SameSite(Lax·Strict·None)와 "같은 사이트"의 범위(localhost 포트) (decisions/0050)
+- [ ] Nest 가드·Reflector·SetMetadata와 APP_GUARD, 모듈 메타데이터를 훑어 라우트 표 만들기 (decisions/0052)

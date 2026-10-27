@@ -186,7 +186,7 @@ describe('VAN 등록 대조 — 실행·커서 수집·스테이징 (F9)', () =>
     });
     expect(done).toMatchObject({ pages: 3, fetched: 1200, error: null });
     expect((await t.http().get('/van-reconciliations/999999')).status).toBe(404);
-    expect((await t.http().post('/van-reconciliations')).status).toBe(400); // 작업자 헤더 없음
+    expect((await t.http(null).post('/van-reconciliations')).status).toBe(401); // 로그인 없음(보강 2 — 전에는 작업자 헤더 없음 400)
 
     // 급감 확인 플래그(fix): 본문으로 받아 실행 행에 남긴다
     await partners.configure({ bridgevan: { delayMs: 0 } });

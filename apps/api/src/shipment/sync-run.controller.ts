@@ -1,6 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import type { BeforeIdPage, SyncRunView } from '@terminal-ops/contracts';
 import { EntityManager, LoadStrategy } from '@mikro-orm/mysql';
+import { OFFICE, Roles } from '../auth/access.js';
 import { beforeIdWhere, keysetPage } from '../common/keyset.js';
 import { ListSyncRunsQuery } from './dto/list-sync-runs.query.js';
 import { SyncRun } from './shipment.entities.js';
@@ -12,6 +13,7 @@ export class SyncRunController {
 
   /** 최근 실행부터(?job=&outcome=&beforeId=&limit=, id 키셋 — decisions/0039) */
   @Get()
+  @Roles(...OFFICE)
   async list(@Query() q: ListSyncRunsQuery): Promise<BeforeIdPage<SyncRunView>> {
     const rows = await this.em.fork().find(
       SyncRun,

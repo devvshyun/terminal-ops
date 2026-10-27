@@ -1,21 +1,13 @@
-import { BadRequestException, createParamDecorator, type ExecutionContext } from '@nestjs/common';
-import type { Request } from 'express';
+import { createParamDecorator, type ExecutionContext, InternalServerErrorException } from '@nestjs/common';
+import type { RequestWithPrincipal } from '../auth/principal.js';
 
-export const OPERATOR_HEADER = 'x-operator';
-const MESSAGE = 'X-Operator 헤더(작업자 이름, 50자 이하)가 필요합니다. 한글은 URL 인코딩해서 보내세요.';
-
-function decode(raw: string): string {
-  try {
-    return decodeURIComponent(raw).trim();
-  } catch {
-    return '';
-  }
-}
-
-/** 요청한 작업자 이름. 인증 대신 헤더로 받는다(decisions/0001). `system:`은 시스템 작업 전용이라 거절한다. */
+/**
+ * 요청한 작업자 — 로그인한 계정의 로그인 아이디(decisions/0056). 이력·검수·스캔·배포의 actor로 남는다.
+ * 전에는 `X-Operator` 헤더를 그대로 믿었다(decisions/0001, 대체됨). 이제 헤더는 테스트 전용 인증 길에서만 읽는다(auth.guard.ts).
+ * AuthGuard가 `@Roles()` 핸들러에서 사람을 확인한 뒤라 여기서는 꺼내기만 한다. 시스템 작업의 `system:<작업명>`은 그대로다.
+ */
 export const Operator = createParamDecorator((_data: unknown, ctx: ExecutionContext): string => {
-  const raw = ctx.switchToHttp().getRequest<Request>().header(OPERATOR_HEADER);
-  const name = raw ? decode(raw) : '';
-  if (!name || name.length > 50 || name.startsWith('system:')) throw new BadRequestException(MESSAGE);
-  return name;
+  const principal = ctx.switchToHttp().getRequest<RequestWithPrincipal>().principal;
+  if (!principal) throw new InternalServerErrorException('로그인한 사람이 없습니다 — 이 핸들러에 @Roles()가 있어야 합니다.');
+  return principal.loginId;
 });

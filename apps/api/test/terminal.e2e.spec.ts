@@ -50,14 +50,15 @@ describe('단말기 등록·조회 (F1)', () => {
     expect(history.body[0].actor).toBe('김운영');
   });
 
-  it('X-Operator가 없으면 400', async () => {
-    const res = await t.http().post('/terminals').send({ serialNo: 'T-0003', modelCode: 'SN-100' });
-    expect(res.status).toBe(400);
+  it('로그인(세션·테스트 헤더)이 없으면 401 UNAUTHENTICATED (보강 2 — 전에는 X-Operator가 없으면 400)', async () => {
+    const res = await t.http(null).post('/terminals').send({ serialNo: 'T-0003', modelCode: 'SN-100' });
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe('UNAUTHENTICATED');
   });
 
-  it('system: 으로 시작하는 작업자는 사람이 쓸 수 없다', async () => {
-    const res = await t.http().post('/terminals').set({ 'X-Operator': 'system:batch' }).send({ serialNo: 'T-0003', modelCode: 'SN-100' });
-    expect(res.status).toBe(400);
+  it('system: 으로 시작하는 작업자는 사람이 쓸 수 없다(테스트 헤더로도 401)', async () => {
+    const res = await t.http(null).post('/terminals').set({ 'X-Operator': 'system:batch' }).send({ serialNo: 'T-0003', modelCode: 'SN-100' });
+    expect(res.status).toBe(401);
   });
 
   it('같은 시리얼을 다시 등록하면 409 DUPLICATE', async () => {
