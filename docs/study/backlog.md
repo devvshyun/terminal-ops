@@ -140,3 +140,7 @@
 - [ ] 서버가 "할 수 있는 동작"을 응답에 싣기 — HATEOAS 링크·allowed actions, 클라이언트 규칙 복제의 문제 (decisions/0040)
 - [ ] 테스트 데이터 격리 — 한 파일 안 테스트가 행을 공유하지 않게(테스트마다 단말기를 따로 만든다). anomaly.e2e fix 3의 근본 대안 (troubleshooting/0026)
 - [ ] 큐 job의 대기 시간 드러내기 — job.timestamp(넣은 시각)·processedOn, 워커 없는 큐의 waiting (decisions/0038)
+- [ ] 같은 출처 정책과 CORS(preflight), 개발 서버 프록시가 그것을 피하는 이유 (decisions/0041)
+- [ ] React 외부 저장소 구독 — useSyncExternalStore와 localStorage (apps/admin/src/operator.ts)
+- [ ] 서버 상태와 클라이언트 상태 — TanStack Query의 queryKey·무효화·staleTime·재시도 (apps/admin/src/query-client.ts)
+- [ ] Testing Library의 접근성 쿼리(getByRole·getByLabelText)와 사용자 관점 테스트 (apps/admin/src/components/Layout.test.tsx)
