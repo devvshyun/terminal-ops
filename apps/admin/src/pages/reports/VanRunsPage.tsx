@@ -8,6 +8,7 @@ import { MoreButton } from '../../components/MoreButton';
 import { RunningPoller } from '../../components/RunningPoller';
 import { WriteButton } from '../../components/WriteButton';
 import { formatKst } from '../../lib/format';
+import { keys } from '../../api/query-keys';
 
 export interface VanRunView {
   id: number;
@@ -38,14 +39,14 @@ export interface VanRunView {
 export function VanRunsPage() {
   const client = useQueryClient();
   const [acknowledgeDrop, setAcknowledgeDrop] = useState(false);
-  const list = useBeforeIdList<VanRunView>('van-runs', '/van-reconciliations');
+  const list = useBeforeIdList<VanRunView>(keys.vanRuns.all, '/van-reconciliations');
   const runs = itemsOf(list.data);
   const running = runs.some((r) => r.status === 'RUNNING');
   const start = useMutation({
     mutationFn: () => api<VanRunView>('/van-reconciliations', { method: 'POST', body: { acknowledgeDrop } }),
     onSuccess: () => {
       setAcknowledgeDrop(false);
-      return client.invalidateQueries({ queryKey: ['van-runs'] });
+      return client.invalidateQueries({ queryKey: keys.vanRuns.all });
     },
   });
 

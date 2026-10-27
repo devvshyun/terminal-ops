@@ -9,6 +9,7 @@ import { MoreButton } from '../../components/MoreButton';
 import { RunningPoller } from '../../components/RunningPoller';
 import { WriteButton } from '../../components/WriteButton';
 import { formatKst, kstToday } from '../../lib/format';
+import { keys } from '../../api/query-keys';
 
 export type { WeeklyReportView };
 
@@ -57,7 +58,7 @@ export function WeeklyReportsPage() {
   const list = useWeeklyReports();
   const send = useMutation({
     mutationFn: (week: string) => api<WeeklyReportView>('/reports/weekly', { method: 'POST', body: { weekStart: week } }),
-    onSuccess: () => client.invalidateQueries({ queryKey: ['weekly-reports'] }),
+    onSuccess: () => client.invalidateQueries({ queryKey: keys.weeklyReports.all }),
   });
   const items = list.data?.pages.flatMap((p) => p.items) ?? [];
   const queued = items.some((r) => r.queued);

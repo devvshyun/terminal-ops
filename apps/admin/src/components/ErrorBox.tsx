@@ -3,6 +3,7 @@ import { ApiError } from '../api/client';
 /** 코드별로 운영자가 할 일을 덧붙인다. 서버 메시지는 그대로 보여 준다 */
 const HINT: Record<string, string> = {
   VERSION_CONFLICT: '다른 작업이 먼저 이 단말기를 바꿨습니다. 다시 불러온 뒤 확인하고 시도하세요.',
+  DEADLOCK: '동시에 처리하던 다른 작업과 겹쳤습니다. 잠시 뒤 다시 시도하세요.',
   INVALID_TRANSITION: '지금 상태에서 할 수 없는 변경입니다.',
   DUPLICATE: '이미 있는 값입니다.',
   PARTNER_ERROR: '외부 업체(가상) 응답이 실패했습니다. 잠시 뒤 다시 시도하세요.',

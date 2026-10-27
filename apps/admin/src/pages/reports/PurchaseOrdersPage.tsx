@@ -7,6 +7,7 @@ import { ErrorBox } from '../../components/ErrorBox';
 import { MoreButton } from '../../components/MoreButton';
 import { WriteButton } from '../../components/WriteButton';
 import { formatKst } from '../../lib/format';
+import { keys } from '../../api/query-keys';
 
 interface PurchaseOrderView {
   id: number;
@@ -38,25 +39,25 @@ export function PurchaseOrdersPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [modelCode, setModelCode] = useState('');
   const [quantity, setQuantity] = useState('10');
-  const list = useBeforeIdList<PurchaseOrderView>('purchase-orders', '/purchase-orders');
-  const models = useQuery({ queryKey: ['terminal-models'], queryFn: () => api<TerminalModelView[]>('/terminal-models'), staleTime: Infinity });
+  const list = useBeforeIdList<PurchaseOrderView>(keys.purchaseOrders.all, '/purchase-orders');
+  const models = useQuery({ queryKey: keys.terminalModels, queryFn: () => api<TerminalModelView[]>('/terminal-models'), staleTime: Infinity });
   const recon = useQuery({
-    queryKey: ['purchase-order', selected, 'reconciliation'],
+    queryKey: keys.purchaseOrder.reconciliation(selected),
     queryFn: () => api<Reconciliation>(`/purchase-orders/${encodeURIComponent(selected!)}/reconciliation`),
     enabled: selected !== null,
   });
   const order = useMutation({
     mutationFn: () => api<PurchaseOrderView>('/purchase-orders', { method: 'POST', body: { modelCode, quantity: Number(quantity) } }),
     onSuccess: async (po) => {
-      await client.invalidateQueries({ queryKey: ['purchase-orders'] });
+      await client.invalidateQueries({ queryKey: keys.purchaseOrders.all });
       setSelected(po.poNo);
     },
   });
   const close = useMutation({
     mutationFn: (poNo: string) => api(`/purchase-orders/${encodeURIComponent(poNo)}/close`, { method: 'POST' }),
     onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: ['purchase-orders'] });
-      await client.invalidateQueries({ queryKey: ['purchase-order'] });
+      await client.invalidateQueries({ queryKey: keys.purchaseOrders.all });
+      await client.invalidateQueries({ queryKey: keys.purchaseOrder.all });
     },
   });
   const qty = Number(quantity);

@@ -5,6 +5,7 @@ import { MoreButton } from '../components/MoreButton';
 import { RunningPoller, type Refetch } from '../components/RunningPoller';
 import { formatKst } from '../lib/format';
 import type { VanRunView } from './reports/VanRunsPage';
+import { keys } from '../api/query-keys';
 
 interface SyncRunView {
   id: number;
@@ -59,7 +60,7 @@ function SyncRuns() {
   const [params, setParams] = useSearchParams();
   const job = params.get('job') ?? '';
   const outcome = params.get('outcome') ?? '';
-  const list = useBeforeIdList<SyncRunView>('sync-runs', '/sync-runs', { job, outcome });
+  const list = useBeforeIdList<SyncRunView>(keys.syncRuns.all, '/sync-runs', { job, outcome });
   /** 조건 하나를 주소에 쓴다(빈 값이면 뺀다). 다른 조건과 탭은 그대로 */
   const setFilter = (key: 'job' | 'outcome', value: string) => {
     const next = new URLSearchParams(params);
@@ -135,7 +136,7 @@ function Refresh({ refetch, running, text }: { refetch: Refetch; running: boolea
 }
 
 function VanRuns() {
-  const list = useBeforeIdList<VanRunView>('van-runs', '/van-reconciliations');
+  const list = useBeforeIdList<VanRunView>(keys.vanRuns.all, '/van-reconciliations');
   const runs = itemsOf(list.data);
   return (
     <>

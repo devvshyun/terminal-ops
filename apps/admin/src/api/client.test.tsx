@@ -61,3 +61,11 @@ describe('api 클라이언트 (decisions/0041)', () => {
     expect(await api('/anything', { method: 'POST', body: {} })).toBeNull();
   });
 });
+
+describe('오류 안내 — 데드락(409 DEADLOCK, api decisions/0043)', () => {
+  it('DEADLOCK이면 잠시 뒤 다시 시도하라고 안내한다', () => {
+    render(<ErrorBox error={new ApiError(409, 'DEADLOCK', '동시에 처리하던 다른 작업과 겹쳐 이번 요청을 되돌렸습니다. 잠시 뒤 다시 시도하세요.', null)} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('동시에 처리하던 다른 작업과 겹쳤습니다. 잠시 뒤 다시 시도하세요.');
+    expect(screen.getByRole('alert')).toHaveTextContent('DEADLOCK');
+  });
+});

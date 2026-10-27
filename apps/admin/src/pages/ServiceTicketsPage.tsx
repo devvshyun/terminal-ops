@@ -8,6 +8,7 @@ import { MoreButton } from '../components/MoreButton';
 import { WriteButton } from '../components/WriteButton';
 import { formatKst } from '../lib/format';
 import { label } from '../lib/labels';
+import { keys } from '../api/query-keys';
 
 export interface TicketView {
   id: number;
@@ -38,11 +39,11 @@ export function ServiceTicketsPage() {
   const [status, setStatus] = useState('');
   const [serialNo, setSerialNo] = useState('');
   const [symptom, setSymptom] = useState('');
-  const list = useBeforeIdList<TicketView>('service-tickets', '/service-tickets', { status });
+  const list = useBeforeIdList<TicketView>(keys.serviceTickets.all, '/service-tickets', { status });
   const open = useMutation({
     mutationFn: () => api<TicketView>('/service-tickets', { method: 'POST', body: { serialNo: serialNo.trim(), symptom: symptom.trim() } }),
     onSuccess: async (ticket) => {
-      await client.invalidateQueries({ queryKey: ['service-tickets'] });
+      await client.invalidateQueries({ queryKey: keys.serviceTickets.all });
       await navigate(`/service-tickets/${ticket.id}`);
     },
   });

@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { ErrorBox } from '../components/ErrorBox';
+import { keys } from '../api/query-keys';
 
 /** 처음 화면: api 연결 확인(GET /health)과 사용 안내 */
 export function HomePage() {
-  const health = useQuery({ queryKey: ['health'], queryFn: () => api<{ status: string }>('/health') });
+  const health = useQuery({ queryKey: keys.health, queryFn: () => api<{ status: string }>('/health') });
   return (
     <section>
       <h2>처음</h2>
