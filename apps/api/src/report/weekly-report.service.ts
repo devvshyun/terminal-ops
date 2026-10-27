@@ -124,11 +124,16 @@ export class WeeklyReportService {
     return { report: row, alreadySent: false, queued: true };
   }
 
-  /** 그 주의 수동 보내기 job이 아직 끝나지 않았는지(대기·처리 중). 화면이 "보내는 중"을 보여 줄 때 쓴다 */
-  async isQueued(weekStart: string): Promise<boolean> {
-    const job = await this.queue.getJob(weeklyReportSendJobId(weekStart));
-    if (!job) return false;
-    return PENDING_JOB_STATES.has(await job.getState());
+  /**
+   * 그 주의 수동 보내기 job이 아직 끝나지 않았는지(대기·처리 중)와 넣은 시각. 화면이 "보내는 중"·"N분째 대기"를 보여 줄 때 쓴다.
+   * 워커(RUN_WORKERS 또는 워커 프로세스)가 없으면 job이 waiting에 남는다 — queuedAt으로 오래 기다리는 것을 드러낸다(decisions/0038).
+   * 이미 보낸 주는 Redis를 보지 않는다(SENT 뒤에는 job을 넣지 않는다).
+   */
+  async queueState(report: Pick<WeeklyReport, 'weekStart' | 'status'>): Promise<{ queued: boolean; queuedAt: string | null }> {
+    if (report.status === WeeklyReportStatus.SENT) return { queued: false, queuedAt: null };
+    const job = await this.queue.getJob(weeklyReportSendJobId(report.weekStart));
+    if (!job || !PENDING_JOB_STATES.has(await job.getState())) return { queued: false, queuedAt: null };
+    return { queued: true, queuedAt: new Date(job.timestamp).toISOString() };
   }
 
   /**
@@ -313,7 +318,7 @@ export class WeeklyReportService {
   }
 }
 
-export function toWeeklyReportView(r: WeeklyReport, alreadySent = false, queued = false) {
+export function toWeeklyReportView(r: WeeklyReport, alreadySent = false, queued = false, queuedAt: string | null = null) {
   return {
     weekStart: r.weekStart,
     status: r.status,
@@ -325,5 +330,7 @@ export function toWeeklyReportView(r: WeeklyReport, alreadySent = false, queued 
     lastError: r.lastError,
     alreadySent,
     queued,
+    /** 수동 보내기 job을 넣은 시각(대기·처리 중일 때만) */
+    queuedAt,
   };
 }

@@ -138,3 +138,5 @@
 - [ ] ORM의 연관 읽기 전략 — JOIN 한 번(joined) 대 따로 읽기(select-in, IN 목록), ORDER BY + LIMIT이 조인 때문에 인덱스를 못 쓰는 경우 (experiments/0013)
 - [ ] offset 페이지의 비용(앞 행 건너뛰기)과 COUNT(*)의 비용, 키셋으로 바꿀 때 잃는 것(총 쪽수) (decisions/0039)
 - [ ] 서버가 "할 수 있는 동작"을 응답에 싣기 — HATEOAS 링크·allowed actions, 클라이언트 규칙 복제의 문제 (decisions/0040)
+- [ ] 테스트 데이터 격리 — 한 파일 안 테스트가 행을 공유하지 않게(테스트마다 단말기를 따로 만든다). anomaly.e2e fix 3의 근본 대안 (troubleshooting/0026)
+- [ ] 큐 job의 대기 시간 드러내기 — job.timestamp(넣은 시각)·processedOn, 워커 없는 큐의 waiting (decisions/0038)

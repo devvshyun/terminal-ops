@@ -30,11 +30,12 @@ export class WeeklyReportController {
     return toWeeklyReportView(report, alreadySent, queued);
   }
 
-  /** 상태. queued: 수동 보내기 job이 아직 대기·처리 중 */
+  /** 상태. queued: 수동 보내기 job이 아직 대기·처리 중, queuedAt: 그 job을 넣은 시각(POST 응답에는 없다 — 화면은 GET으로 다시 읽는다) */
   @Get(':weekStart')
   async get(@Param('weekStart') weekStart: string) {
     const report = await this.reports.get(weekOf(weekStart).weekStart);
-    return toWeeklyReportView(report, false, await this.reports.isQueued(report.weekStart));
+    const { queued, queuedAt } = await this.reports.queueState(report);
+    return toWeeklyReportView(report, false, queued, queuedAt);
   }
 
   /** 저장된 xlsx 내려받기. 파일 이름이 한글이라 filename*(RFC 5987)로 보낸다. 운영 수치라 중간 캐시에 남지 않게 no-store */

@@ -5,8 +5,8 @@ import { AnomalyRule } from '../../src/anomaly/anomaly.entity.js';
 import { KIND_LABEL } from '../../src/van/van-labels.js';
 import { VanMismatchKind } from '../../src/van/van.entities.js';
 
-/** import 문에서 가져오는 경로들 */
-const importsOf = (file: string) => [...readFileSync(file, 'utf8').matchAll(/from '([^']+)'/g)].map((m) => m[1]);
+/** import 문에서 가져오는 경로들. file은 apps/api 기준 경로 — 이 파일 위치로 풀어 cwd와 상관없이 읽는다 */
+const importsOf = (file: string) => [...readFileSync(new URL(`../../${file}`, import.meta.url), 'utf8').matchAll(/from '([^']+)'/g)].map((m) => m[1]);
 
 describe('의존 방향 — 알림·리포트는 도메인 로직을 불러오지 않는다 (Day 5 최종 리뷰 Minor 5, decisions/0037)', () => {
   it.each(['src/outbox/outbox.service.ts', 'src/report/weekly-report.xlsx.ts'])('%s는 anomaly-rules·van-compare 대신 레이블 파일을 쓴다', (file) => {

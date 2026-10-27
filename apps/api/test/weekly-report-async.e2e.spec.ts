@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getQueueToken } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
@@ -21,11 +21,15 @@ describe('주간 리포트 보내기 요청은 report 큐 job으로 (Day 5 최�
   let reportQueue: Queue;
   const post = (weekStart: string) => t.http().post('/reports/weekly').set(OP).send({ weekStart });
   const get = (weekStart: string) => t.http().get(`/reports/weekly/${weekStart}`);
-  /** job이 끝나(queued false) 행이 원하는 상태가 될 때까지 */
+  /**
+   * job이 끝나(queued false) 행이 원하는 상태가 되고 job이 지워질 때까지.
+   * SENT인 주는 GET이 큐를 보지 않으므로(queued false 확정) 처리기가 SENT를 쓴 직후 job이 아직 active일 수 있다 — job이 사라질 때까지 기다린다(troubleshooting/0027)
+   */
   const settled = (weekStart: string, done: (body: Record<string, unknown>) => boolean) =>
     waitFor(async () => {
       const res = await get(weekStart);
-      return res.body.queued === false && done(res.body) ? res.body : null;
+      if (res.body.queued !== false || !done(res.body)) return null;
+      return (await reportQueue.getJob(weeklyReportSendJobId(weekStart))) ? null : res.body;
     }, { message: `${weekStart} 보내기 job 끝` });
 
   beforeAll(async () => {
@@ -49,7 +53,7 @@ describe('주간 리포트 보내기 요청은 report 큐 job으로 (Day 5 최�
     expect(res.status).toBe(202);
     expect(res.body).toMatchObject({ weekStart: '2026-10-19', status: 'PENDING', alreadySent: false, queued: true, attempts: 0 });
     const body = await settled('2026-10-19', (b) => b.status === 'SENT');
-    expect(body).toMatchObject({ status: 'SENT', attempts: 1, lastError: null, fileName: '단말온-주간리포트-2026-10-19.xlsx' });
+    expect(body).toMatchObject({ status: 'SENT', attempts: 1, lastError: null, queuedAt: null, fileName: '단말온-주간리포트-2026-10-19.xlsx' });
     expect((await partners.toktok()).total).toBe(1);
     expect(await reportQueue.getJob(weeklyReportSendJobId('2026-10-19'))).toBeUndefined(); // 끝난 job은 지운다(다시 넣을 수 있게)
   });
@@ -62,17 +66,32 @@ describe('주간 리포트 보내기 요청은 report 큐 job으로 (Day 5 최�
     expect((await partners.toktok()).total).toBe(0);
   });
 
+  it('GET: 이미 보낸 주는 큐(Redis)를 보지 않고 queued false·queuedAt null', async () => {
+    const getJob = vi.spyOn(reportQueue, 'getJob');
+    try {
+      const res = await get('2026-10-19');
+      expect(res.body).toMatchObject({ status: 'SENT', queued: false, queuedAt: null });
+      expect(getJob).not.toHaveBeenCalled();
+    } finally {
+      getJob.mockRestore();
+    }
+  });
+
   it('대기 중에 같은 주를 다시 눌러도 job은 하나(같은 jobId) — 메시지 한 번', async () => {
     await reportQueue.pause(); // 처리기가 가져가지 못하게 잠깐 멈춘다
     try {
       expect((await post('2026-10-12')).status).toBe(202);
       expect((await post('2026-10-12')).status).toBe(202);
       expect(await reportQueue.getJobCounts('waiting')).toEqual({ waiting: 1 });
-      expect((await get('2026-10-12')).body).toMatchObject({ status: 'PENDING', queued: true });
+      const waiting = (await get('2026-10-12')).body;
+      expect(waiting).toMatchObject({ status: 'PENDING', queued: true, queuedAt: expect.any(String) });
+      // queuedAt = job을 넣은 시각(job.timestamp). 화면이 "N분째 대기"를 보여 준다(워커가 없으면 waiting에 남는다)
+      const job = await reportQueue.getJob(weeklyReportSendJobId('2026-10-12'));
+      expect(waiting.queuedAt).toBe(new Date(job!.timestamp).toISOString());
     } finally {
       await reportQueue.resume();
     }
-    await settled('2026-10-12', (b) => b.status === 'SENT');
+    expect(await settled('2026-10-12', (b) => b.status === 'SENT')).toMatchObject({ queuedAt: null });
     expect((await partners.toktok()).total).toBe(1);
   });
 
