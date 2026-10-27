@@ -102,6 +102,22 @@ describe('A/S (F7)', () => {
   });
 });
 
+describe('A/S 캐시 무효화 (Day 6 최종 리뷰 Minor 4)', () => {
+  it('설치 확인 뒤 단말기 상세 캐시(고장·교체 단말기)도 무효화한다', async () => {
+    mockApi({
+      'GET /service-tickets/7': () => ({ body: ticket({ status: 'REPLACING', replacementSerialNo: 'ST-9', outboundTrackingNo: 'BG-1' }) }),
+      'POST /service-tickets/7/installations': () => ({ body: ticket({ status: 'CLOSED' }) }),
+    });
+    loginAs();
+    const { client } = renderPage(<ServiceTicketDetailPage />, { route: '/service-tickets/7', path: '/service-tickets/:id' });
+    client.setQueryData(['terminal', 'ST-9', 'detail'], { serialNo: 'ST-9' });
+    client.setQueryData(['terminal', 'AS-1', 'history'], []);
+    await userEvent.click(await screen.findByRole('button', { name: '설치 확인' }));
+    await waitFor(() => expect(client.getQueryState(['terminal', 'ST-9', 'detail'])?.isInvalidated).toBe(true));
+    expect(client.getQueryState(['terminal', 'AS-1', 'history'])?.isInvalidated).toBe(true);
+  });
+});
+
 describe('A/S 리뷰 반영 (Task 7 리뷰)', () => {
   const unprocessable = (code: string, message: string) => ({ status: 422, body: { statusCode: 422, code, message } });
 

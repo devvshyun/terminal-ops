@@ -5,6 +5,7 @@ import type { InspectionItemView, MerchantView, TerminalDetail } from '../api/ty
 import { CARRIER_LABEL, label, TERMINAL_STATUS_LABEL } from '../lib/labels';
 import { ErrorBox } from './ErrorBox';
 import { WriteButton } from './WriteButton';
+import { keys } from '../api/query-keys';
 
 /**
  * 단말기 상세의 "할 수 있는 일". 무엇을 보여 줄지는 서버가 준 allowedTransitions·actions만 본다(전이 규칙을 화면에 두지 않는다, decisions/0040).
@@ -22,7 +23,7 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
   const [carrier, setCarrier] = useState('BUNGAE');
 
   const merchants = useQuery({
-    queryKey: ['merchants'],
+    queryKey: keys.merchants,
     queryFn: () => api<MerchantView[]>('/merchants'),
     enabled: terminal.actions.allocate,
     staleTime: Infinity,
@@ -34,8 +35,8 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
       setSelected(null);
       setReason('');
       setCancelReason('');
-      await client.invalidateQueries({ queryKey: ['terminal', terminal.serialNo] });
-      await client.invalidateQueries({ queryKey: ['terminals'] });
+      await client.invalidateQueries({ queryKey: keys.terminal.one(terminal.serialNo) });
+      await client.invalidateQueries({ queryKey: keys.terminals.all });
     },
   });
   const run = (url: string, body: Record<string, unknown>) => action.mutate({ url, body: { ...body, expectedVersion: terminal.version } });
@@ -145,7 +146,7 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
 function InspectForm({ terminal, onReload }: { terminal: TerminalDetail; onReload: () => void }) {
   const client = useQueryClient();
   const items = useQuery({
-    queryKey: ['inspection-items', terminal.modelCode],
+    queryKey: keys.inspectionItems(terminal.modelCode),
     queryFn: () => api<InspectionItemView[]>('/inspection-items', { query: { modelCode: terminal.modelCode } }),
     staleTime: Infinity,
   });
@@ -155,8 +156,8 @@ function InspectForm({ terminal, onReload }: { terminal: TerminalDetail; onReloa
       api(`/terminals/${encodeURIComponent(terminal.serialNo)}/inspections`, { method: 'POST', body: { results } }),
     onSuccess: async () => {
       setFailed({});
-      await client.invalidateQueries({ queryKey: ['terminal', terminal.serialNo] });
-      await client.invalidateQueries({ queryKey: ['terminals'] }); // 상태가 DEFECTIVE 등으로 바뀔 수 있어 목록도
+      await client.invalidateQueries({ queryKey: keys.terminal.one(terminal.serialNo) });
+      await client.invalidateQueries({ queryKey: keys.terminals.all }); // 상태가 DEFECTIVE 등으로 바뀔 수 있어 목록도
     },
   });
   if (items.error) return <ErrorBox error={items.error} />;

@@ -8,6 +8,7 @@ import { WriteButton } from '../components/WriteButton';
 import { formatKst } from '../lib/format';
 import { CARRIER_LABEL, label } from '../lib/labels';
 import { TICKET_STATUS_LABEL, type TicketView } from './ServiceTicketsPage';
+import { keys } from '../api/query-keys';
 
 /**
  * A/S 한 건(F7): 원격 점검(해결이면 종결) → 안 되면 교체 출고("새 단말기 출고 + 고장 단말기 회수 요청"을 서버가 한 트랜잭션으로) → 설치 확인.
@@ -22,15 +23,15 @@ export function ServiceTicketDetailPage() {
   const [replacement, setReplacement] = useState('');
   const [carrier, setCarrier] = useState('BUNGAE');
 
-  const ticket = useQuery({ queryKey: ['service-ticket', id], queryFn: () => api<TicketView>(`/service-tickets/${id}`), enabled: validId });
+  const ticket = useQuery({ queryKey: keys.serviceTicket.one(id), queryFn: () => api<TicketView>(`/service-tickets/${id}`), enabled: validId });
   const t = ticket.data;
   const faulty = useQuery({
-    queryKey: ['terminal', t?.serialNo, 'detail'],
+    queryKey: keys.terminal.detail(t?.serialNo),
     queryFn: () => api<TerminalDetail>(`/terminals/${encodeURIComponent(t!.serialNo)}`),
     enabled: t?.status === 'OPEN',
   });
   const stock = useQuery({
-    queryKey: ['terminals', { status: 'IN_STOCK', modelCode: faulty.data?.modelCode }],
+    queryKey: keys.terminals.stock(faulty.data?.modelCode),
     queryFn: () => api<TerminalPage>('/terminals', { query: { status: 'IN_STOCK', modelCode: faulty.data!.modelCode, size: 50 } }),
     enabled: faulty.data !== undefined,
   });
@@ -39,9 +40,11 @@ export function ServiceTicketDetailPage() {
   const chosen = stock.data?.items.some((s) => s.serialNo === replacement) ? replacement : '';
 
   const reread = async () => {
-    await client.invalidateQueries({ queryKey: ['service-ticket', id] });
-    await client.invalidateQueries({ queryKey: ['service-tickets'] });
-    await client.invalidateQueries({ queryKey: ['terminals'] });
+    await client.invalidateQueries({ queryKey: keys.serviceTicket.one(id) });
+    await client.invalidateQueries({ queryKey: keys.serviceTickets.all });
+    await client.invalidateQueries({ queryKey: keys.terminals.all });
+    // 교체 출고·설치 확인은 고장·교체 단말기 두 대의 상태를 바꾼다(Day 6 최종 리뷰 Minor 4)
+    await client.invalidateQueries({ queryKey: keys.terminal.all });
   };
   const act = useMutation({
     mutationFn: ({ path, body }: { path: string; body?: unknown }) => api<TicketView>(`/service-tickets/${id}/${path}`, { method: 'POST', body: body ?? {} }),

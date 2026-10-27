@@ -6,19 +6,20 @@ import { ErrorBox } from '../components/ErrorBox';
 import { TerminalActions } from '../components/TerminalActions';
 import { formatKst } from '../lib/format';
 import { label, SOURCE_LABEL, TERMINAL_STATUS_LABEL } from '../lib/labels';
+import { keys } from '../api/query-keys';
 
 /** 단말기 상세(F1·F2·F8·F13): 기본 정보, 할 수 있는 일, 상태 타임라인, 접속 상태, 검수 기록 */
 export function TerminalDetailPage() {
   const serialNo = useParams().serialNo!;
   const client = useQueryClient();
   const base = `/terminals/${encodeURIComponent(serialNo)}`;
-  const detail = useQuery({ queryKey: ['terminal', serialNo, 'detail'], queryFn: () => api<TerminalDetail>(base) });
-  const history = useQuery({ queryKey: ['terminal', serialNo, 'history'], queryFn: () => api<HistoryView[]>(`${base}/history`) });
-  const connectivity = useQuery({ queryKey: ['terminal', serialNo, 'connectivity'], queryFn: () => api<ConnectivityView>(`${base}/connectivity`) });
-  const inspections = useQuery({ queryKey: ['terminal', serialNo, 'inspections'], queryFn: () => api<InspectionRecord[]>(`${base}/inspections`) });
+  const detail = useQuery({ queryKey: keys.terminal.detail(serialNo), queryFn: () => api<TerminalDetail>(base) });
+  const history = useQuery({ queryKey: keys.terminal.history(serialNo), queryFn: () => api<HistoryView[]>(`${base}/history`) });
+  const connectivity = useQuery({ queryKey: keys.terminal.connectivity(serialNo), queryFn: () => api<ConnectivityView>(`${base}/connectivity`) });
+  const inspections = useQuery({ queryKey: keys.terminal.inspections(serialNo), queryFn: () => api<InspectionRecord[]>(`${base}/inspections`) });
 
   /** 상세·타임라인·접속 상태·검수 기록 모두 다시 읽는다 */
-  const reloadAll = () => client.invalidateQueries({ queryKey: ['terminal', serialNo] });
+  const reloadAll = () => client.invalidateQueries({ queryKey: keys.terminal.one(serialNo) });
 
   const t = detail.data;
   return (

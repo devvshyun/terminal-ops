@@ -11,6 +11,8 @@
 
 번호(NNNN)는 폴더마다 0001부터.
 
+기록 색인은 [`docs/index.md`](index.md) — `node scripts/docs-index.mjs`로 만들고 `--check`로 확인한다(손으로 고치지 않는다, decisions/0046).
+
 ---
 
 ## devlog

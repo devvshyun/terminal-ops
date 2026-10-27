@@ -61,6 +61,9 @@ export const env = {
   runSchedulers: flag('RUN_SCHEDULERS', !isTest),
   sweepIntervalMs: intFromEnv('SWEEP_INTERVAL_MS', 30_000, MS),
   relayIntervalMs: intFromEnv('RELAY_INTERVAL_MS', 2_000, MS),
+  /** QUEUED outbox 복구(job이 사라진 행에 다시 넣기) 주기와, 만든 지 얼마나 지난 QUEUED 행을 볼지(decisions/0042) */
+  outboxRequeueIntervalMs: intFromEnv('OUTBOX_REQUEUE_INTERVAL_MS', 60_000, MS),
+  outboxRequeueAfterMs: intFromEnv('OUTBOX_REQUEUE_AFTER_MS', 60_000, MS),
   /** 운영 중 단말기 목록(Redis active)을 MySQL에서 통째로 다시 만드는 주기(decisions/0028) */
   activeRebuildIntervalMs: intFromEnv('ACTIVE_REBUILD_INTERVAL_MS', 60_000, MS),
   /** 하트비트 쓰기 경로. 'mysql'은 실험 0008 비교용(decisions/0027), 운영은 'redis'. NODE_ENV=production에서 'mysql'이면 시작할 때 던진다 */
@@ -114,6 +117,8 @@ export const env = {
    * 0이면 둘 다 검사하지 않는다. 운영자가 확인한 실행(POST 본문 acknowledgeDrop)은 이 검사만 건너뛴다(decisions/0033)
    */
   vanFetchMinPct: intFromEnv('VAN_FETCH_MIN_PCT', 50, { min: 0, max: 100 }),
+  /** 대시보드 집계 캐시(Redis) 유지 시간. 화면은 이만큼 전 집계를 볼 수 있다(cachedAt으로 알린다, decisions/0044) */
+  dashboardCacheTtlMs: intFromEnv('DASHBOARD_CACHE_TTL_MS', 30_000, MS),
   /** 이상 단말기 찾기(F4) 규칙의 기준일(decisions/0034) */
   anomalyDays: {
     deliveredNotInstalled: intFromEnv('ANOMALY_DELIVERED_DAYS', 7, DAYS),

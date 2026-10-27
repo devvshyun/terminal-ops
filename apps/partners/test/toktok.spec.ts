@@ -29,6 +29,16 @@ describe('톡톡메신저 웹훅', () => {
     expect((await send({ text: 'x' })).status).toBe(400);
   });
 
+  it('delayMs면 메시지를 먼저 저장하고 그만큼 늦게 200을 준다(받았지만 응답이 늦은 장면, 실험 0014)', async () => {
+    await p.configure({ toktok: { delayMs: 300 } });
+    const started = Date.now();
+    const pending = send({ idempotencyKey: 'k1', text: '늦은 응답' });
+    await new Promise((r) => setTimeout(r, 100));
+    expect((await messages()).total).toBe(1); // 응답 전에 이미 저장됨
+    expect((await pending).status).toBe(200);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(250);
+  });
+
   it('failRate=1이면 500이고 저장하지 않는다', async () => {
     await p.configure({ toktok: { failRate: 1 } });
     expect((await send({ idempotencyKey: 'k1', text: 'x' })).status).toBe(500);

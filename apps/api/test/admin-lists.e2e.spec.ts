@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Anomaly, AnomalyRule } from '../src/anomaly/anomaly.entity.js';
-import { Firmware, FirmwareRollout, RolloutStatus } from '../src/firmware/firmware.entities.js';
+import { Firmware, FirmwareRollout, FirmwareRolloutTarget, RolloutStatus, TargetStatus } from '../src/firmware/firmware.entities.js';
 import { Shipment, SyncRun } from '../src/shipment/shipment.entities.js';
 import { WeeklyReport, WeeklyReportStatus } from '../src/report/weekly-report.entity.js';
 import { TerminalModel } from '../src/terminal/terminal-model.entity.js';
 import { TerminalStatus as S } from '../src/terminal/terminal-status.js';
 import { VanMismatchKind, VanReconciliationItem, VanReconciliationRun, VanRunStatus, VanRunTrigger } from '../src/van/van.entities.js';
+import { captureQueries } from './helpers/query-log.js';
 import { insertTerminals } from './helpers/terminals.js';
 import { createTestApp, resetDatabase, type TestApp } from './helpers/test-app.js';
 
@@ -78,6 +79,45 @@ describe('어드민 목록 API (decisions/0039)', () => {
       { stage: 1, percent: 100, targets: 0, offered: 0, succeeded: 0, failed: 0, timedOut: 0 },
     ]);
     expect(ids((await get('/firmware-rollouts', { status: 'ABORTED' })).body)).toEqual([r1.id]);
+  });
+
+  it('펌웨어 배포 목록의 단계 통계는 배포 수와 상관없이 쿼리 한 번(Day 6 최종 리뷰 Minor 10)', async () => {
+    const model = await em().findOneOrFail(TerminalModel, { code: 'SN-100' });
+    const serials = ['RO-01', 'RO-02', 'RO-03'];
+    const terminalIds = await insertTerminals(t, serials.map((serialNo) => ({ serialNo, status: S.IN_SERVICE })));
+    const e = em();
+    const rollouts = ['9.1.1', '9.1.2', '9.1.3'].map((version) =>
+      e.create(FirmwareRollout, { firmware: e.create(Firmware, { model, version, createdBy: 'han' }), stages: [50, 100], failureThreshold: 0.2, minSamples: 3, stageTimeoutMs: 60_000, createdBy: 'han', status: RolloutStatus.COMPLETED }),
+    );
+    await e.flush();
+    // 첫 배포: 0단계 성공 1·실패 1, 1단계 제안 1 / 셋째 배포: 0단계 시간 초과 1 / 둘째는 대상 없음
+    const target = (rollout: FirmwareRollout, serialNo: string, stage: number, status: TargetStatus) =>
+      e.create(FirmwareRolloutTarget, { rollout, terminal: terminalIds.get(serialNo)!, stage, status } as never);
+    target(rollouts[0], 'RO-01', 0, TargetStatus.SUCCEEDED);
+    target(rollouts[0], 'RO-02', 0, TargetStatus.FAILED);
+    target(rollouts[0], 'RO-03', 1, TargetStatus.OFFERED);
+    target(rollouts[2], 'RO-01', 0, TargetStatus.TIMED_OUT);
+    await e.flush();
+
+    const log = captureQueries(t.orm);
+    let res;
+    try {
+      res = await get('/firmware-rollouts', { status: 'COMPLETED' });
+    } finally {
+      log.stop();
+    }
+    expect(log.queries.filter((q) => /from `?firmware_rollout_target`?/i.test(q))).toHaveLength(1);
+    const statsOf = (id: number) => res.body.items.find((i: { id: number }) => i.id === id).stageStats;
+    expect(ids(res.body)).toEqual([rollouts[2].id, rollouts[1].id, rollouts[0].id]);
+    expect(statsOf(rollouts[0].id)).toEqual([
+      { stage: 0, percent: 50, targets: 2, offered: 0, succeeded: 1, failed: 1, timedOut: 0 },
+      { stage: 1, percent: 100, targets: 1, offered: 1, succeeded: 0, failed: 0, timedOut: 0 },
+    ]);
+    expect(statsOf(rollouts[1].id)).toEqual([
+      { stage: 0, percent: 50, targets: 0, offered: 0, succeeded: 0, failed: 0, timedOut: 0 },
+      { stage: 1, percent: 100, targets: 0, offered: 0, succeeded: 0, failed: 0, timedOut: 0 },
+    ]);
+    expect(statsOf(rollouts[2].id)[0]).toEqual({ stage: 0, percent: 50, targets: 1, offered: 0, succeeded: 0, failed: 0, timedOut: 1 });
   });
 
   it('VAN 대조 실행 목록(최근 것부터)과 결과 항목의 종류 이름(kindLabel)', async () => {
@@ -179,5 +219,16 @@ describe('어드민 목록 API (decisions/0039)', () => {
       expect((await get('/purchase-orders', query)).status).toBe(400);
     }
     expect((await get('/sync-runs', { beforeId: String(Number.MAX_SAFE_INTEGER) })).status).toBe(200);
+  });
+
+  it('단말기 목록 page는 offset 계산이 안전한 정수 안에서, q는 시리얼 길이(32자)까지 (Day 6 최종 리뷰 Minor 11)', async () => {
+    const maxPage = Math.floor(Number.MAX_SAFE_INTEGER / 100);
+    for (const query of [{ page: '1e20' }, { page: String(maxPage + 1) }, { q: 'A'.repeat(33) }] as Record<string, string>[]) {
+      const res = await get('/terminals', query);
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(res.body.message)).toContain(Object.keys(query)[0]);
+    }
+    expect((await get('/terminals', { page: String(maxPage), size: 100 })).body).toMatchObject({ items: [], page: maxPage });
+    expect((await get('/terminals', { q: 'A'.repeat(32) })).status).toBe(200);
   });
 });

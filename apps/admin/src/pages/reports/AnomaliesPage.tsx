@@ -7,6 +7,7 @@ import { MoreButton } from '../../components/MoreButton';
 import { WriteButton } from '../../components/WriteButton';
 import { formatKst } from '../../lib/format';
 import { label, TERMINAL_STATUS_LABEL } from '../../lib/labels';
+import { keys } from '../../api/query-keys';
 
 interface AnomalyRuleView {
   rule: string;
@@ -38,9 +39,9 @@ export function AnomaliesPage() {
   const client = useQueryClient();
   const [rule, setRule] = useState('');
   const [open, setOpen] = useState('true');
-  const rules = useQuery({ queryKey: ['anomaly-rules'], queryFn: () => api<AnomalyRuleView[]>('/anomaly-rules'), staleTime: Infinity });
+  const rules = useQuery({ queryKey: keys.anomalyRules, queryFn: () => api<AnomalyRuleView[]>('/anomaly-rules'), staleTime: Infinity });
   const list = useInfiniteQuery({
-    queryKey: ['anomalies', rule, open],
+    queryKey: keys.anomalies.list(rule, open),
     queryFn: ({ pageParam }) =>
       api<{ items: AnomalyView[]; nextAfterId: number | null }>('/anomalies', { query: { rule, open, afterId: pageParam ?? undefined, limit: 100 } }),
     initialPageParam: null as number | null,
@@ -48,7 +49,7 @@ export function AnomaliesPage() {
   });
   const scan = useMutation({
     mutationFn: () => api<ScanSummary>('/anomaly-scans', { method: 'POST' }),
-    onSuccess: () => client.invalidateQueries({ queryKey: ['anomalies'] }),
+    onSuccess: () => client.invalidateQueries({ queryKey: keys.anomalies.all }),
   });
   const items = list.data?.pages.flatMap((p) => p.items) ?? [];
 

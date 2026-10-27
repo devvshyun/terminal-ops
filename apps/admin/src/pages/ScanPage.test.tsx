@@ -153,6 +153,21 @@ describe('박스 스캔 리뷰 반영 (Task 6 리뷰)', () => {
     await waitFor(() => expect(calls.filter((c) => c.path === '/purchase-orders').length).toBeGreaterThan(before));
   });
 
+  it('스캔이 성공하면 발주 입고 대조와 단말기 상세 캐시도 무효화한다(Day 6 최종 리뷰 Minor 4)', async () => {
+    mockApi({ ...orders, 'POST /scans': (c) => ({ status: 201, body: result(bodyOf(c), false) }) });
+    loginAs();
+    const { client } = renderPage(<ScanPage />);
+    client.setQueryData(['purchase-order', 'SE0003', 'reconciliation'], { poNo: 'SE0003' });
+    client.setQueryData(['terminal', 'AA-0001', 'detail'], { serialNo: 'AA-0001' });
+    await screen.findByRole('option', { name: /SE0003/ });
+    await userEvent.selectOptions(screen.getByLabelText('발주'), 'SE0003');
+    await userEvent.type(screen.getByLabelText('시리얼'), 'AA-0001 AA-0002');
+    await userEvent.click(screen.getByRole('button', { name: '보내기' }));
+    await screen.findByText('NOT_IN_DELIVERY_NOTE');
+    await waitFor(() => expect(client.getQueryState(['purchase-order', 'SE0003', 'reconciliation'])?.isInvalidated).toBe(true));
+    expect(client.getQueryState(['terminal', 'AA-0001', 'detail'])?.isInvalidated).toBe(true);
+  });
+
   it('보내는 중에는 새 박스가 꺼지고, 결과를 못 받은 박스를 버릴 때는 확인을 받는다', async () => {
     const { calls, fetchMock } = mockApi({ 'POST /scans': () => ({ status: 503, body: { statusCode: 503, message: '잠시 뒤' } }) });
     const { release } = holdPosts(fetchMock);

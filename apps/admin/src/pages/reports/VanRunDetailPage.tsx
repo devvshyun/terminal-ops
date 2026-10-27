@@ -7,6 +7,7 @@ import { MoreButton } from '../../components/MoreButton';
 import { RunningPoller } from '../../components/RunningPoller';
 import { formatKst } from '../../lib/format';
 import type { VanRunView } from './VanRunsPage';
+import { keys } from '../../api/query-keys';
 
 interface VanItemView {
   id: number;
@@ -32,7 +33,7 @@ function VanRunDetail({ id }: { id: number }) {
   const [kind, setKind] = useState('');
   const [verified, setVerified] = useState('true');
   const detail = useInfiniteQuery({
-    queryKey: ['van-run', id, kind, verified],
+    queryKey: keys.vanRun.items(id, kind, verified),
     queryFn: ({ pageParam }) =>
       api<RunWithItems>(`/van-reconciliations/${id}`, { query: { kind, verified, afterId: pageParam ?? undefined, limit: 100 } }),
     initialPageParam: null as number | null,

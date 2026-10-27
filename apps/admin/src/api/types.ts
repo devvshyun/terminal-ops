@@ -95,3 +95,20 @@ export interface WeeklyReportView {
   /** 수동 보내기 job을 넣은 시각(대기·처리 중일 때만 ISO, POST 202 응답에는 null) */
   queuedAt: string | null;
 }
+
+/** 처음 화면의 운영 현황(서버 GET /dashboard/summary, api decisions/0044). cachedAt = 서버가 이 집계를 만든 시각 */
+export interface DashboardView {
+  terminals: {
+    total: number;
+    byStatus: { status: string; count: number }[];
+    byModel: { modelCode: string; count: number }[];
+  };
+  connectivity: { inService: number; online: number; offline: number; noRecord: number };
+  anomalies: { open: number; byRule: { rule: string; label: string; open: number }[] };
+  rollouts: { active: number };
+  serviceTickets: { open: number };
+  van: { runId: number; finishedAt: string; confirmed: number; counts: Record<string, number> } | null;
+  week: { weekStart: string; transitions: number };
+  cachedAt: string;
+  fromCache: boolean;
+}

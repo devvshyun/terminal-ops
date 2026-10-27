@@ -6,6 +6,7 @@ import type { MerchantView, TerminalModelView, TerminalPage } from '../api/types
 import { ErrorBox } from '../components/ErrorBox';
 import { formatKst } from '../lib/format';
 import { label, TERMINAL_STATUS_LABEL, TERMINAL_STATUSES } from '../lib/labels';
+import { keys } from '../api/query-keys';
 
 const SIZE = 20;
 const FILTERS = ['status', 'modelCode', 'merchantCode', 'q'] as const;
@@ -24,10 +25,10 @@ export function TerminalListPage() {
   const filterKey = JSON.stringify(FILTERS.map((k) => filter[k]));
   useEffect(() => setDraft(filter), [filterKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const models = useQuery({ queryKey: ['terminal-models'], queryFn: () => api<TerminalModelView[]>('/terminal-models'), staleTime: Infinity });
-  const merchants = useQuery({ queryKey: ['merchants'], queryFn: () => api<MerchantView[]>('/merchants'), staleTime: Infinity });
+  const models = useQuery({ queryKey: keys.terminalModels, queryFn: () => api<TerminalModelView[]>('/terminal-models'), staleTime: Infinity });
+  const merchants = useQuery({ queryKey: keys.merchants, queryFn: () => api<MerchantView[]>('/merchants'), staleTime: Infinity });
   const list = useQuery({
-    queryKey: ['terminals', filter, page],
+    queryKey: keys.terminals.page(filter, page),
     queryFn: () => api<TerminalPage>('/terminals', { query: { ...filter, page, size: SIZE } }),
     placeholderData: keepPreviousData,
   });

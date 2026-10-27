@@ -5,6 +5,7 @@ import type { BeforeIdPage } from '../api/types';
 import { ErrorBox } from '../components/ErrorBox';
 import { WriteButton } from '../components/WriteButton';
 import { formatKst } from '../lib/format';
+import { keys } from '../api/query-keys';
 
 interface PurchaseOrderView {
   id: number;
@@ -74,7 +75,7 @@ export function ScanPage() {
   };
 
   const orders = useQuery({
-    queryKey: ['purchase-orders', 'open'],
+    queryKey: keys.purchaseOrders.open,
     queryFn: async () => {
       const pages = await Promise.all(
         OPEN_PO_STATUSES.map((status) => api<BeforeIdPage<PurchaseOrderView>>('/purchase-orders', { query: { status, limit: 100 } })),
@@ -87,8 +88,11 @@ export function ScanPage() {
   const scan = useMutation({
     mutationFn: (body: { scanId: string; kind: string; poNo?: string; serials: string[] }) => api<ScanResultView>('/scans', { method: 'POST', body }),
     onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ['terminals'] });
-      void client.invalidateQueries({ queryKey: ['purchase-orders'] }); // 입고로 ORDERED → RECEIVING
+      // 스캔은 여러 단말기의 상태와 발주 입고 수를 바꾼다: 단말기 목록·상세, 발주 목록·입고 대조를 모두 다시 읽는다(Day 6 최종 리뷰 Minor 4)
+      void client.invalidateQueries({ queryKey: keys.terminals.all });
+      void client.invalidateQueries({ queryKey: keys.terminal.all });
+      void client.invalidateQueries({ queryKey: keys.purchaseOrders.all }); // 입고로 ORDERED → RECEIVING
+      void client.invalidateQueries({ queryKey: keys.purchaseOrder.all });
     },
     onError: (error, body) => {
       // 내용을 고쳐야 하는 오류: 다음 보내기는 새 scanId. 그새 다른 박스로 넘어갔으면 그 박스의 scanId는 건드리지 않는다
