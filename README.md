@@ -110,7 +110,7 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 
 - 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 46·트러블슈팅 28·실험 16 (`node scripts/docs-index.mjs`로 만든다)
 - 개발일지: [`docs/devlog/`](docs/devlog/)(날짜별, 날마다 "N일차 요약"), 설계 스펙 [`docs/specs/`](docs/specs/), 구현 계획 [`docs/plans/`](docs/plans/), 날마다의 최종 리뷰 [`docs/reviews/`](docs/reviews/)
-- 7일 회고: `docs/retrospective.md`(Day 7 마감에서 쓴다)
+- 7일 회고: [`docs/retrospective.md`](docs/retrospective.md) — 날별로 만든 것, 잘 된 것·안 된 것, 반복된 실수, 면접에서 말할 거리, 남은 이월
 - 공부거리: [`docs/study/backlog.md`](docs/study/backlog.md)
 
 ## 테스트
