@@ -2,4 +2,5 @@
 export const NAV: { to: string; label: string }[] = [
   { to: '/', label: '처음' },
   { to: '/terminals', label: '단말기' },
+  { to: '/scans', label: '박스 스캔' },
 ];
