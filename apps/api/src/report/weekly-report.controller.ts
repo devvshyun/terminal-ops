@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Header, NotFoundException, Param, Post, Query, Res, StreamableFile } from '@nestjs/common';
 import type { Response } from 'express';
+import type { ApiErrorBody } from '@terminal-ops/contracts';
 import { attachmentDisposition } from '../common/content-disposition.js';
 import { Operator } from '../common/operator.decorator.js';
 import { ListWeeklyReportsQuery } from './dto/list-weekly-reports.query.js';
@@ -10,7 +11,7 @@ import { XLSX_CONTENT_TYPE } from './weekly-report.xlsx.js';
 
 function weekOf(weekStart: string): KstWeek {
   const week = parseKstWeekStart(weekStart);
-  if (!week) throw new BadRequestException({ statusCode: 400, code: 'INVALID_WEEK_START', message: 'weekStart는 KST 월요일 날짜(YYYY-MM-DD)입니다.' });
+  if (!week) throw new BadRequestException({ statusCode: 400, code: 'INVALID_WEEK_START', message: 'weekStart는 KST 월요일 날짜(YYYY-MM-DD)입니다.' } satisfies ApiErrorBody);
   return week;
 }
 

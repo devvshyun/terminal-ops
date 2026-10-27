@@ -1,27 +1,14 @@
+import type { RowResult, RowResultCode } from '@terminal-ops/contracts';
+
 /** 시리얼 형식: 대문자·숫자·하이픈 4~32자. 단건 등록 DTO와 일괄 처리가 같은 규칙을 쓴다. */
 export const SERIAL_NO_PATTERN = /^[A-Z0-9-]{4,32}$/;
 export const SERIAL_NO_MESSAGE = 'serialNo는 대문자·숫자·하이픈 4~32자입니다.';
 
 /**
- * 일괄 처리(박스 스캔·엑셀 등록)의 행별 결과 코드.
+ * 일괄 처리(박스 스캔·엑셀 등록)의 행별 결과 코드와 행 결과. 정의는 contracts 한 곳(응답에 그대로 나간다, decisions/0048) —
  * 성공: CREATED(신규 등록), RETURNED(회수 입고). 나머지는 그 행만 반영하지 않은 이유다(decisions/0019).
  */
-export type RowResultCode =
-  | 'CREATED'
-  | 'RETURNED'
-  | 'INVALID_FORMAT'
-  | 'DUPLICATE_IN_REQUEST'
-  | 'UNKNOWN_MODEL'
-  | 'ALREADY_EXISTS'
-  | 'NOT_IN_DELIVERY_NOTE'
-  | 'NOT_FOUND'
-  | 'INVALID_STATE';
-
-export interface RowResult {
-  serialNo: string;
-  result: RowResultCode;
-  message?: string;
-}
+export type { RowResult, RowResultCode };
 
 /**
  * 엔진 입구에서 값을 문자열로 맞춘다: 문자열이 아니면 String()으로, 앞뒤 공백은 지우고, 없으면 빈 문자열.

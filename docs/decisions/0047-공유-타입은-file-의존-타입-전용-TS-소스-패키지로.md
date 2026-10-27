@@ -1,0 +1,13 @@
+# 0047. 공유 타입은 각 앱의 file: 의존으로 연결하는 타입 전용 TS 소스 패키지로 둔다
+
+- 날짜 / 관련 기능: 2026-10-27 / 보강 1(전 기능의 HTTP 계약), 어드민
+- 상황: api 응답 타입(`*.views.ts`와 서비스·컨트롤러가 만드는 객체)과 어드민 타입(`src/api/types.ts` + 화면 안 로컬 타입 14개)이 따로 있어 같은지를 리뷰가 대조했다. 한 곳에 두고 api·어드민이 같이 쓰려면 두 앱이 그 코드를 찾을 길이 필요하다. 조건: 앱마다 package-lock이 따로 있고 `npm ci`로 설치한다(README), api는 NodeNext ESM(`.js` 접미사)·tsc 빌드(`rootDir: src`)·vitest는 swc, admin은 Vite(bundler 해석)·`isolatedModules`. 두 앱 모두 `skipLibCheck: true`. TypeScript 6.0.3.
+- 선택지(모두 임시 폴더에서 실제로 해 봄, (d)만 이유로 판단 — 출력은 `docs/plans/2026-10-27-shared-contracts.md` "사전 검증"):
+  1. 루트 npm workspaces(`apps/*`, `packages/*`) — 장점: 표준 방식, 설치 한 번. 단점: 앱별 lock 네 개를 루트 하나로 합치면서 잠긴 버전 707개 중 43개가 바뀌었다(`@nestjs/*` 12.2.0 → 12.3.2, `@swc/core` 1.16.18 → 1.16.20 …). 타입을 나누려다 의존성 판 올림이 같이 들어오고, README 설치 명령·각 앱 `npm ci` 습관이 바뀐다. 앱마다 고정한 판이 달라(vitest admin 5.0.4, api ^5.0.5) 일부는 앱 안에 따로 깔린다.
+  2. 각 앱 `"@terminal-ops/contracts": "file:../../packages/contracts"` + 패키지 `exports`가 **TS 소스**(`"types": "./src/index.ts"`)를 가리킴 — 장점: 앱별 lock·`npm ci` 그대로(lock 9줄 추가), npm이 `node_modules`에 링크를 만들어 두 앱의 해석 방식(NodeNext·bundler) 모두 `exports.types`로 찾는다. `node_modules`를 거쳐 찾은 파일이라 api `rootDir` 검사(TS6059)에 걸리지 않고 `dist`에 나오지 않는다. 소스 `.ts`라 쓰는 쪽 tsc가 계약 파일 자체도 검사한다(오타 → TS2304). 단점: 패키지에 런타임 값을 넣으면 node가 `.ts`를 읽을 수 없어 이 방식으로는 안 된다. 앱 폴더만 떼어 설치할 수 없다.
+  3. 2와 같지만 손으로 쓴 `index.d.ts` — 단점: `skipLibCheck: true`라 계약 파일 안의 오류를 아무도 보지 않는다. 사전 검증에서 `version: Foo`(없는 타입)가 api tsc를 통과했고 그 필드는 `any`가 되어 검사가 조용히 사라졌다.
+  4. tsconfig `paths`나 상대 경로 import(패키지 아님) — 단점: api `rootDir` 밖 소스라 typecheck·build 모두 TS6059. 피하려면 rootDir을 바꿔 `dist` 구조(`dist/main.js`)가 바뀐다. 런타임 해석도 없다.
+  5. OpenAPI(@nestjs/swagger로 스펙 생성 → openapi-typescript로 어드민 타입 생성) — 장점: 언어 밖에서도 쓰는 문서가 나온다. 단점: 응답이 함수가 만드는 평범한 객체라 엔드포인트마다 응답 클래스와 `@ApiProperty`·`@ApiOkResponse`를 새로 써야 하고, 그 클래스와 실제 반환값이 같은지는 여전히 검사하지 않는다(어긋남의 자리가 옮겨질 뿐). 의존성 2개, 생성 단계와 생성물 관리가 는다. 외부 소비자가 없다.
+- 결정: 2. 이유: 지금 저장소 구조(앱별 lock, `npm ci`)를 그대로 두고, 계약 파일까지 tsc가 검사하며, 런타임에는 아무것도 더하지 않는다. 계약은 **타입만** 둔다 — 모든 import는 `import type`이고 빌드된 JS에 이 패키지 import가 남지 않는다(사전 검증: `grep -rl "terminal-ops/contracts" dist` 0곳, `node dist/main.js` 기동·응답 확인).
+- 결과·대가: `packages/contracts`는 의존성이 없어 따로 설치하지 않는다. 두 앱의 `npm ci`가 링크를 만든다(`node_modules/@terminal-ops/contracts` → `packages/contracts`). 계약 편집기 설정용 `tsconfig.json`만 두고 검사는 쓰는 쪽 tsc에 맡긴다. 어드민의 선택지 목록 같은 값은 계약에 두지 않고 이름표 `Record<유니온, string>`의 키로 만든다.
+- 다시 볼 조건: 계약에 런타임 값(상수 배열, 검증 스키마)을 넣어야 할 때 — 빌드 산출물(JS + d.ts)을 내는 패키지나 workspaces로. 앱이 늘어 설치·버전 관리를 한 곳에서 하고 싶어질 때 — workspaces(그때는 의존성 판 올림을 따로 한 커밋으로). api를 외부에 공개할 때 — OpenAPI.

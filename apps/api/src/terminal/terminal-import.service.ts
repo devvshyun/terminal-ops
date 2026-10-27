@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import ExcelJS from 'exceljs';
+import type { ApiErrorBody, InputErrorCode } from '@terminal-ops/contracts';
 import { BulkRegistrationService, type BulkRegisterRow } from './bulk-registration.service.js';
 import { summarize, type RowResult } from './bulk-rows.js';
 import { readCellValue } from './import-cells.js';
@@ -28,8 +29,8 @@ function readCell(cell: ExcelJS.Cell) {
   return readCellValue(value, cell.numFmt);
 }
 
-function invalid(code: string, message: string): BadRequestException {
-  return new BadRequestException({ statusCode: 400, code, message });
+function invalid(code: InputErrorCode, message: string): BadRequestException {
+  return new BadRequestException({ statusCode: 400, code, message } satisfies ApiErrorBody);
 }
 
 /**

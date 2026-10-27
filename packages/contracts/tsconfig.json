@@ -1,0 +1,12 @@
+{
+  "//": "편집기용. 검사는 이 패키지를 import하는 api·admin의 tsc가 한다(소스 .ts라 skipLibCheck에 걸리지 않는다, decisions/0047)",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2023",
+    "strict": true,
+    "noEmit": true,
+    "isolatedModules": true
+  },
+  "include": ["src"]
+}

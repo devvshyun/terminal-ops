@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EntityManager, LoadStrategy, LockMode } from '@mikro-orm/mysql';
 import type { Redis } from 'ioredis';
+import type { ApiErrorBody, RuleViolationCode } from '@terminal-ops/contracts';
 import { fromDbDatetime } from '../common/db-datetime.js';
 import { BusinessError } from '../common/domain-errors.js';
 import { beforeIdWhere, keysetPage } from '../common/keyset.js';
@@ -82,7 +83,7 @@ export class RolloutService {
 
   async create(dto: CreateRolloutDto, actor: string): Promise<FirmwareRollout> {
     const invalid = checkStages(dto.stages);
-    if (invalid) throw new BadRequestException({ statusCode: 400, code: 'INVALID_STAGES', message: invalid });
+    if (invalid) throw new BadRequestException({ statusCode: 400, code: 'INVALID_STAGES', message: invalid } satisfies ApiErrorBody);
     const firmware = await this.em.fork().findOne(Firmware, { model: { code: dto.modelCode }, version: dto.version }, { populate: ['model'] });
     if (!firmware) throw new NotFoundException(`펌웨어 ${dto.modelCode} ${dto.version}이(가) 등록되지 않았습니다.`);
 
@@ -444,7 +445,7 @@ export class RolloutService {
     }));
   }
 
-  private wrongStatus(rollout: FirmwareRollout, code: string): BusinessError {
+  private wrongStatus(rollout: FirmwareRollout, code: RuleViolationCode): BusinessError {
     return new BusinessError(422, code, `펌웨어 배포 ${rollout.id}은(는) ${rollout.status} 상태라 이 작업을 할 수 없습니다.`);
   }
 }
