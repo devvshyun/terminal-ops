@@ -1,4 +1,5 @@
 import { Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import type { AnomalyRuleView, AnomalyScanSummary } from '@terminal-ops/contracts';
 import { Operator } from '../common/operator.decorator.js';
 import { ANOMALY_RULE_LABEL } from './anomaly-labels.js';
 import { ruleThresholdDays } from './anomaly-rules.js';
@@ -13,7 +14,7 @@ export class AnomalyController {
 
   /** 규칙 목록(이름·기준일). 화면의 규칙 필터가 쓴다 — 규칙 이름을 화면에 따로 두지 않게(decisions/0040) */
   @Get('anomaly-rules')
-  rules() {
+  rules(): AnomalyRuleView[] {
     return Object.values(AnomalyRule).map((rule) => ({ rule, label: ANOMALY_RULE_LABEL[rule], days: ruleThresholdDays(rule) }));
   }
 
@@ -25,7 +26,7 @@ export class AnomalyController {
   /** 수동 찾기(동기). 다른 찾기가 돌고 있으면 409 ANOMALY_SCAN_RUNNING */
   @Post('anomaly-scans')
   @HttpCode(200)
-  async scan(@Operator() _actor: string) {
+  async scan(@Operator() _actor: string): Promise<AnomalyScanSummary> {
     const { newMatches, ...summary } = await this.anomalies.scan();
     return { ...summary, newSerials: newMatches.slice(0, 100).map((m) => m.serialNo) };
   }

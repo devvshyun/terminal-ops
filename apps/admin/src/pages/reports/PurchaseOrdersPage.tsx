@@ -2,36 +2,18 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { itemsOf, useBeforeIdList } from '../../api/lists';
-import type { TerminalModelView } from '../../api/types';
+import type {
+  ClosedPurchaseOrder,
+  CreatePurchaseOrderRequest,
+  PurchaseOrderReconciliation,
+  PurchaseOrderView,
+  TerminalModelView,
+} from '@terminal-ops/contracts';
 import { ErrorBox } from '../../components/ErrorBox';
 import { MoreButton } from '../../components/MoreButton';
 import { WriteButton } from '../../components/WriteButton';
 import { formatKst } from '../../lib/format';
 import { keys } from '../../api/query-keys';
-
-interface PurchaseOrderView {
-  id: number;
-  poNo: string;
-  modelCode: string;
-  quantity: number;
-  status: string;
-  orderedBy: string;
-  createdAt: string;
-  closedAt: string | null;
-  closedBy: string | null;
-}
-
-interface Reconciliation {
-  poNo: string;
-  modelCode: string;
-  status: string;
-  ordered: number;
-  noted: number;
-  received: number;
-  shortfall: number;
-  missing: string[];
-  unexpected: string[];
-}
 
 /** 발주 대비 입고 대조(F10): 발주 목록, 발주하기, 고른 발주의 대조(명세·입고·빠진 것·명세 밖), 마감 */
 export function PurchaseOrdersPage() {
@@ -43,18 +25,18 @@ export function PurchaseOrdersPage() {
   const models = useQuery({ queryKey: keys.terminalModels, queryFn: () => api<TerminalModelView[]>('/terminal-models'), staleTime: Infinity });
   const recon = useQuery({
     queryKey: keys.purchaseOrder.reconciliation(selected),
-    queryFn: () => api<Reconciliation>(`/purchase-orders/${encodeURIComponent(selected!)}/reconciliation`),
+    queryFn: () => api<PurchaseOrderReconciliation>(`/purchase-orders/${encodeURIComponent(selected!)}/reconciliation`),
     enabled: selected !== null,
   });
   const order = useMutation({
-    mutationFn: () => api<PurchaseOrderView>('/purchase-orders', { method: 'POST', body: { modelCode, quantity: Number(quantity) } }),
+    mutationFn: () => api<PurchaseOrderView>('/purchase-orders', { method: 'POST', body: { modelCode, quantity: Number(quantity) } satisfies CreatePurchaseOrderRequest }),
     onSuccess: async (po) => {
       await client.invalidateQueries({ queryKey: keys.purchaseOrders.all });
       setSelected(po.poNo);
     },
   });
   const close = useMutation({
-    mutationFn: (poNo: string) => api(`/purchase-orders/${encodeURIComponent(poNo)}/close`, { method: 'POST' }),
+    mutationFn: (poNo: string) => api<ClosedPurchaseOrder>(`/purchase-orders/${encodeURIComponent(poNo)}/close`, { method: 'POST' }),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: keys.purchaseOrders.all });
       await client.invalidateQueries({ queryKey: keys.purchaseOrder.all });

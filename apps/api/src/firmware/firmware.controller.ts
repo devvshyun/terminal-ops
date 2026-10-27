@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import type { BeforeIdPage, RolloutView } from '@terminal-ops/contracts';
 import { Operator } from '../common/operator.decorator.js';
 import { CreateRolloutDto, ListRolloutsQuery, RegisterFirmwareDto } from './dto/firmware.dto.js';
 import { FirmwareService, toFirmwareView } from './firmware.service.js';
@@ -25,7 +26,7 @@ export class FirmwareController {
 
   /** 배포 목록과 단계별 통계(최근 것부터, ?status=&beforeId=&limit=) */
   @Get('firmware-rollouts')
-  async list(@Query() query: ListRolloutsQuery) {
+  async list(@Query() query: ListRolloutsQuery): Promise<BeforeIdPage<RolloutView>> {
     const { items, nextBeforeId } = await this.rollouts.list(query);
     return { items: items.map(({ rollout, stats }) => toRolloutView(rollout, stats)), nextBeforeId };
   }

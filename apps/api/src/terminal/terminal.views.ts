@@ -1,10 +1,11 @@
+import type { HistoryView, TerminalDetail, TerminalView } from '@terminal-ops/contracts';
 import type { Terminal } from './terminal.entity.js';
 import type { TerminalStatusHistory } from './terminal-status-history.entity.js';
 import { TerminalStatus, TransitionSource } from './terminal-status.js';
 import { targetsFrom } from './transition-rules.js';
 
 /** 엔티티를 그대로 내보내지 않고 응답 형태를 여기서 고정한다. model과 merchant가 populate돼 있어야 한다. */
-export function toTerminalView(t: Terminal) {
+export function toTerminalView(t: Terminal): TerminalView {
   return {
     serialNo: t.serialNo,
     modelCode: t.model.code,
@@ -23,7 +24,7 @@ export function toTerminalView(t: Terminal) {
  * - allowedTransitions: 일반 전이 API(POST /terminals/:serialNo/transitions, MANUAL)로 갈 수 있는 상태. 모델 정책에 막힌 것은 blockedReason
  * - actions: 전용 API로만 하는 일 — 배정·배정 취소(ALLOCATION), 출고(SHIPMENT), 검수(INSPECTION)
  */
-export function toTerminalDetailView(t: Terminal) {
+export function toTerminalDetailView(t: Terminal): TerminalDetail {
   const policy = { requiresReinspection: t.model.requiresReinspection };
   const can = (source: TransitionSource, to: TerminalStatus) =>
     targetsFrom(t.status, source, policy).some((x) => x.to === to && x.blockedReason === null);
@@ -41,7 +42,7 @@ export function toTerminalDetailView(t: Terminal) {
   };
 }
 
-export function toHistoryView(h: TerminalStatusHistory) {
+export function toHistoryView(h: TerminalStatusHistory): HistoryView {
   return {
     fromStatus: h.fromStatus ?? null,
     toStatus: h.toStatus,

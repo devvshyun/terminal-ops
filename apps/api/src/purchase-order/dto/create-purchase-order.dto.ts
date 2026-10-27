@@ -1,6 +1,7 @@
 import { IsInt, IsString, Max, Min, MinLength } from 'class-validator';
+import type { CreatePurchaseOrderRequest } from '@terminal-ops/contracts';
 
-export class CreatePurchaseOrderDto {
+export class CreatePurchaseOrderDto implements CreatePurchaseOrderRequest {
   @IsString()
   @MinLength(1)
   modelCode!: string;

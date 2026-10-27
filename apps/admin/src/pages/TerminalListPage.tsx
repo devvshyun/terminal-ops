@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
 import { api } from '../api/client';
-import type { MerchantView, TerminalModelView, TerminalPage } from '../api/types';
+import type { MerchantView, TerminalModelView, TerminalPage } from '@terminal-ops/contracts';
 import { ErrorBox } from '../components/ErrorBox';
 import { formatKst } from '../lib/format';
 import { label, TERMINAL_STATUS_LABEL, TERMINAL_STATUSES } from '../lib/labels';

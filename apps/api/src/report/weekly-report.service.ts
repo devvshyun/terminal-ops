@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import { EntityManager, UniqueConstraintViolationException } from '@mikro-orm/mysql';
+import type { WeeklyReportView } from '@terminal-ops/contracts';
 import { BusinessError } from '../common/domain-errors.js';
 import { PartnerPermanentError } from '../common/partner-errors.js';
 import { MAX_RETRY_AFTER_MS } from '../common/partner-http.js';
@@ -327,7 +328,7 @@ export class WeeklyReportService {
   }
 }
 
-export function toWeeklyReportView(r: WeeklyReport, alreadySent = false, queued = false, queuedAt: string | null = null) {
+export function toWeeklyReportView(r: WeeklyReport, alreadySent = false, queued = false, queuedAt: string | null = null): WeeklyReportView {
   return {
     weekStart: r.weekStart,
     status: r.status,

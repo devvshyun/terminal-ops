@@ -1,5 +1,6 @@
 import { BadRequestException, type CallHandler, type ExecutionContext, mixin, type NestInterceptor, PayloadTooLargeException, type Type } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { ApiErrorBody } from '@terminal-ops/contracts';
 
 type FileInterceptorOptions = NonNullable<Parameters<typeof FileInterceptor>[1]>;
 
@@ -21,14 +22,14 @@ export function SingleFileInterceptor(fieldName: string, options: FileIntercepto
         return await super.intercept(context, next);
       } catch (error) {
         if (error instanceof PayloadTooLargeException) {
-          throw new PayloadTooLargeException({ statusCode: 413, code: 'FILE_TOO_LARGE', message: `파일은 ${sizeText}까지 받습니다.` });
+          throw new PayloadTooLargeException({ statusCode: 413, code: 'FILE_TOO_LARGE', message: `파일은 ${sizeText}까지 받습니다.` } satisfies ApiErrorBody);
         }
         if (error instanceof BadRequestException) {
           throw new BadRequestException({
             statusCode: 400,
             code: 'INVALID_FILE',
             message: `${fieldName} 필드에 파일 하나만 보내세요(다른 필드 없이). 원인: ${error.message}`,
-          });
+          } satisfies ApiErrorBody);
         }
         throw error;
       }

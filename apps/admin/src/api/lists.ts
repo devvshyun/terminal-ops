@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { api, type Query } from './client';
-import type { BeforeIdPage, WeeklyReportView } from './types';
+import type { BeforeIdPage, WeeklyReportPage } from '@terminal-ops/contracts';
 import { keys, keysetKey } from './query-keys';
 
 /**
@@ -28,7 +28,7 @@ export function itemsOf<T>(data: { pages: BeforeIdPage<T>[] } | undefined): T[] 
 export function useWeeklyReports() {
   return useInfiniteQuery({
     queryKey: keys.weeklyReports.all,
-    queryFn: ({ pageParam }) => api<{ items: WeeklyReportView[]; nextBefore: string | null }>('/reports/weekly', { query: { before: pageParam ?? undefined } }),
+    queryFn: ({ pageParam }) => api<WeeklyReportPage>('/reports/weekly', { query: { before: pageParam ?? undefined } }),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextBefore,
   });

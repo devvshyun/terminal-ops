@@ -78,6 +78,7 @@ export class CarrierEvent {
 
 /** 택배 수집 실행 한 번의 결과(SyncRun.outcome). 컬럼은 varchar라 값 목록은 여기 한 곳에 둔다 */
 export const SYNC_RUN_OUTCOMES = ['OK', 'DELIVERED', 'NOOP', 'SKIPPED', 'ERROR'] as const;
+export type SyncRunOutcome = (typeof SYNC_RUN_OUTCOMES)[number];
 
 /** 수집 job 실행 1회의 기록. 실험에서 호출·중복·재시도 수를 셀 때 쓴다. */
 @Entity({ tableName: 'sync_run' })
@@ -102,9 +103,9 @@ export class SyncRun {
   @Property({ length: 50 })
   worker!: string;
 
-  /** SYNC_RUN_OUTCOMES 중 하나 */
-  @Property({ length: 20 })
-  outcome!: string;
+  /** SYNC_RUN_OUTCOMES 중 하나. type을 적는 이유: swc(vitest)는 타입 별칭(유니온, 여기서는 api 지역 별칭)을 design:type에 Object로 내보내 MikroORM이 UnknownType으로 읽는다(troubleshooting/0029) */
+  @Property({ type: 'string', length: 20 })
+  outcome!: SyncRunOutcome;
 
   @Property()
   startedAt: Date = new Date();

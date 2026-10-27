@@ -1,0 +1,13 @@
+{
+  "name": "@terminal-ops/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "api 응답·요청 모양과 상태 값·오류 코드(타입만, 런타임 값 없음 — decisions/0047)",
+  "type": "module",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts"
+    }
+  }
+}

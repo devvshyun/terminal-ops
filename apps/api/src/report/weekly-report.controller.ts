@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Header, NotFoundException, Param, Post, Query, Res, StreamableFile } from '@nestjs/common';
 import type { Response } from 'express';
+import type { ApiErrorBody, WeeklyReportPage } from '@terminal-ops/contracts';
 import { attachmentDisposition } from '../common/content-disposition.js';
 import { Operator } from '../common/operator.decorator.js';
 import { ListWeeklyReportsQuery } from './dto/list-weekly-reports.query.js';
@@ -10,7 +11,7 @@ import { XLSX_CONTENT_TYPE } from './weekly-report.xlsx.js';
 
 function weekOf(weekStart: string): KstWeek {
   const week = parseKstWeekStart(weekStart);
-  if (!week) throw new BadRequestException({ statusCode: 400, code: 'INVALID_WEEK_START', message: 'weekStart는 KST 월요일 날짜(YYYY-MM-DD)입니다.' });
+  if (!week) throw new BadRequestException({ statusCode: 400, code: 'INVALID_WEEK_START', message: 'weekStart는 KST 월요일 날짜(YYYY-MM-DD)입니다.' } satisfies ApiErrorBody);
   return week;
 }
 
@@ -36,7 +37,7 @@ export class WeeklyReportController {
    * queued·queuedAt은 주마다 큐를 본다(limit 상한 100, 한꺼번에 — 왕복을 차례로 기다리지 않는다) — 이미 보낸 주는 Redis를 보지 않는다(queueState)
    */
   @Get()
-  async list(@Query() query: ListWeeklyReportsQuery) {
+  async list(@Query() query: ListWeeklyReportsQuery): Promise<WeeklyReportPage> {
     const { items, nextBefore } = await this.reports.list(query);
     const states = await Promise.all(items.map((r) => this.reports.queueState(r)));
     return { items: items.map((r, i) => toWeeklyReportView(r, false, states[i].queued, states[i].queuedAt)), nextBefore };

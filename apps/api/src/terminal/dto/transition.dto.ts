@@ -1,7 +1,8 @@
 import { IsEnum, IsInt, IsString, Length, Matches, Min } from 'class-validator';
+import type { TransitionRequest } from '@terminal-ops/contracts';
 import { TerminalStatus } from '../terminal-status.js';
 
-export class TransitionDto {
+export class TransitionDto implements TransitionRequest {
   @IsEnum(TerminalStatus)
   to!: TerminalStatus;
 

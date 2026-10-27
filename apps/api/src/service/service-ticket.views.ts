@@ -1,7 +1,8 @@
+import type { TicketView } from '@terminal-ops/contracts';
 import type { ServiceTicket } from './service-ticket.entity.js';
 
 /** terminal, merchant, replacementTerminal, outboundShipment가 populate돼 있어야 한다. */
-export function toTicketView(t: ServiceTicket) {
+export function toTicketView(t: ServiceTicket): TicketView {
   return {
     id: t.id,
     serialNo: t.terminal.serialNo,

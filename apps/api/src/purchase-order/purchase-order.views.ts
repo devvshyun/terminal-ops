@@ -1,7 +1,8 @@
+import type { PurchaseOrderView } from '@terminal-ops/contracts';
 import type { PurchaseOrder } from './purchase-order.entity.js';
 
 /** model이 populate돼 있어야 한다. */
-export function toPurchaseOrderView(po: PurchaseOrder) {
+export function toPurchaseOrderView(po: PurchaseOrder): PurchaseOrderView {
   return {
     id: po.id,
     poNo: po.poNo,

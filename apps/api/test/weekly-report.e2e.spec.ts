@@ -40,7 +40,7 @@ describe('주간 운영 리포트 — xlsx, 톡톡 첨부, 멱등, 내려받기 
   const send = async (weekStart: string): Promise<{ status: number; body: Record<string, unknown> }> => {
     try {
       const { report, alreadySent } = await t.app.get(WeeklyReportService).send(parseKstWeekStart(weekStart)!);
-      return { status: 200, body: toWeeklyReportView(report, alreadySent) };
+      return { status: 200, body: { ...toWeeklyReportView(report, alreadySent) } }; // 계약 인터페이스는 인덱스 시그니처가 없어 펼쳐 담는다
     } catch (error) {
       if (error instanceof BusinessError) return { status: error.status, body: { code: error.code, message: error.message } };
       if (error instanceof PartnerError) return { status: 502, body: { code: 'PARTNER_ERROR', reason: error.name, message: error.message } };

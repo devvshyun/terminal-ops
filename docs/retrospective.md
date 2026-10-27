@@ -82,3 +82,14 @@ devlog 2026-10-27 "최종 리뷰 반영 정리"의 "Day 7로 넘긴 것"과 [Day
   - 주기 작업 경로(scheduler → processor → `requeueStale()`)를 지나는 테스트가 없다. e2e·실험 0014는 `requeueStale({ staleMs: 0, … })`을 직접 부르고 `scheduler.e2e`는 등록 개수만 센다. job 이름 `requeue`가 processor 분기에 닿는지, 기본값(60초·limit 100)으로 도는지는 검증되지 않았다
   - `scripts/docs-index.mjs`가 번호 중복(같은 0042 두 파일)과 빈 번호를 잡지 않는다. `--check`가 "최신"이어도 번호 충돌은 지나간다
   - (반영함) 첫 조회 중 새로고침 실패, `.env.example` 세 개, README 빌드 전제, 표 기준 표시는 리뷰 반영 커밋에서 고쳤다
+
+### 7일 뒤 보강
+
+- [x] **보강 1: api·어드민 공유 타입 패키지** — Day 6·7 리뷰에서 응답 필드를 사람이 대조하던 것을 컴파일러가 하게 했다. `packages/contracts`(타입만, 각 앱 `file:` 의존 — [decisions/0047](decisions/0047-공유-타입은-file-의존-타입-전용-TS-소스-패키지로.md)), view 반환 타입·DTO implements·enum ↔ 유니온 단언·`BusinessError` 오버로드([0048](decisions/0048-계약은-반환-타입-implements-enum-단언으로-강제한다.md)), 범위는 응답·쓰기 요청 본문·오류 코드([0049](decisions/0049-계약-범위는-응답-요청-본문-오류-코드까지.md)). 어드민 `types.ts`와 화면 로컬 타입 14개를 지웠고, 바꾸는 순간 테스트 가짜 응답의 없는 상태 값(`'FAILED'`)이 드러났다. 기록: devlog 2026-10-27 `# 보강 1`, [계획](plans/2026-10-27-shared-contracts.md)
+  - 보강 1이 남긴 것: GET 쿼리 문자열은 계약 밖(어드민 `Query` 자유 형식), `npm test`만으로는 계약 어긋남이 보이지 않음(`typecheck`·`build`를 따로 — CI가 생기면 묶기), 런타임 응답 검증 없음
+  - 리뷰에서 이월한 것
+    - 어드민 `test/render.tsx`의 `HandlerResult<T>` 제네릭: `body: unknown`이라 인라인 가짜 응답은 계약 검사를 받지 않는다(fixtures helper를 거친 것만 검사됨)
+    - 어드민 공통 mutation 경로(`TerminalActions.tsx`·`ServiceTicketDetailPage.tsx`)의 `body: unknown`을 URL별 본문을 묶는 판별 유니온으로 — 지금은 부르는 쪽 `satisfies` 규칙(decisions/0048)
+    - `JSON.parse`/`as` 캐스트 자리: `dashboard.service.ts`의 `JSON.parse(raw) as DashboardView`(Redis 캐시가 옛 모양이면 TTL 동안 그대로 나간다), `dashboard.queries.ts`의 `JSON.parse(van.counts)`(any), `AnomalyDetail`에 `Record<string, unknown>` 대입
+    - `TerminalListPage.tsx`의 `Object.fromEntries(…) as Record`(선택 정리)
+    - drift 테스트가 TS 진단 문구에 기대므로 TS 7(네이티브)로 올릴 때 다시 보기, contracts 의존성이 생기면 각 앱 lock 재생성(decisions/0047)

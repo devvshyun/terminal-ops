@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { EntityManager, LoadStrategy, LockMode } from '@mikro-orm/mysql';
+import type { RuleViolationCode } from '@terminal-ops/contracts';
 import { BusinessError } from '../common/domain-errors.js';
 import { beforeIdWhere, keysetPage } from '../common/keyset.js';
 import { Terminal } from '../terminal/terminal.entity.js';
@@ -72,7 +73,7 @@ export class ServiceTicketService {
    * 접수 행을 FOR UPDATE로 잠그고, 상태가 expected 중 하나인지 확인한다.
    * @param code 상태가 다를 때의 오류 코드. 설치 확인은 TICKET_NOT_REPLACING(Day 3 리뷰 Minor 4)
    */
-  async lockOpen(tx: EntityManager, id: number, expected: ServiceTicketStatus[], code = 'TICKET_NOT_OPEN'): Promise<ServiceTicket> {
+  async lockOpen(tx: EntityManager, id: number, expected: ServiceTicketStatus[], code: RuleViolationCode = 'TICKET_NOT_OPEN'): Promise<ServiceTicket> {
     const ticket = await tx.findOne(ServiceTicket, id, { lockMode: LockMode.PESSIMISTIC_WRITE });
     if (!ticket) throw new NotFoundException(`A/S 접수 ${id}이(가) 없습니다.`);
     if (!expected.includes(ticket.status)) {

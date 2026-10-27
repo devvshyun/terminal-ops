@@ -9,23 +9,10 @@ import { WriteButton } from '../components/WriteButton';
 import { formatKst } from '../lib/format';
 import { label } from '../lib/labels';
 import { keys } from '../api/query-keys';
+import type { OpenTicketRequest, ServiceTicketStatus, TicketView } from '@terminal-ops/contracts';
 
-export interface TicketView {
-  id: number;
-  serialNo: string;
-  merchantCode: string;
-  symptom: string;
-  status: string;
-  remoteNote: string | null;
-  replacementSerialNo: string | null;
-  outboundShipmentId: number | null;
-  outboundTrackingNo: string | null;
-  openedBy: string;
-  createdAt: string;
-  closedAt: string | null;
-}
-
-export const TICKET_STATUS_LABEL: Record<string, string> = {
+/** A/S 접수 상태 이름. 키가 contracts ServiceTicketStatus와 하나라도 다르면 tsc가 막는다 */
+export const TICKET_STATUS_LABEL: Record<ServiceTicketStatus, string> = {
   OPEN: '접수됨',
   RESOLVED_REMOTELY: '원격 해결',
   REPLACING: '교체 출고됨',
@@ -41,7 +28,7 @@ export function ServiceTicketsPage() {
   const [symptom, setSymptom] = useState('');
   const list = useBeforeIdList<TicketView>(keys.serviceTickets.all, '/service-tickets', { status });
   const open = useMutation({
-    mutationFn: () => api<TicketView>('/service-tickets', { method: 'POST', body: { serialNo: serialNo.trim(), symptom: symptom.trim() } }),
+    mutationFn: () => api<TicketView>('/service-tickets', { method: 'POST', body: { serialNo: serialNo.trim(), symptom: symptom.trim() } satisfies OpenTicketRequest }),
     onSuccess: async (ticket) => {
       await client.invalidateQueries({ queryKey: keys.serviceTickets.all });
       await navigate(`/service-tickets/${ticket.id}`);

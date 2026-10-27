@@ -3,15 +3,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
 import { api, downloadUrl } from '../../api/client';
 import { useWeeklyReports } from '../../api/lists';
-import type { WeeklyReportView } from '../../api/types';
+import type { SendWeeklyReportRequest, WeeklyReportView } from '@terminal-ops/contracts';
 import { ErrorBox } from '../../components/ErrorBox';
 import { MoreButton } from '../../components/MoreButton';
 import { RunningPoller } from '../../components/RunningPoller';
 import { WriteButton } from '../../components/WriteButton';
 import { formatKst, kstToday } from '../../lib/format';
 import { keys } from '../../api/query-keys';
-
-export type { WeeklyReportView };
 
 /** 이만큼 넘게 대기열에 있으면 워커가 안 도는 것을 의심한다(decisions/0038 — 워커가 없으면 job이 waiting에 남는다) */
 export const WORKER_HINT_AFTER_MIN = 10;
@@ -57,7 +55,7 @@ export function WeeklyReportsPage() {
   const weekProblem = weekStartProblem(weekStart, maxWeek);
   const list = useWeeklyReports();
   const send = useMutation({
-    mutationFn: (week: string) => api<WeeklyReportView>('/reports/weekly', { method: 'POST', body: { weekStart: week } }),
+    mutationFn: (week: string) => api<WeeklyReportView>('/reports/weekly', { method: 'POST', body: { weekStart: week } satisfies SendWeeklyReportRequest }),
     onSuccess: () => client.invalidateQueries({ queryKey: keys.weeklyReports.all }),
   });
   const items = list.data?.pages.flatMap((p) => p.items) ?? [];

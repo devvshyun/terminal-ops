@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { raw } from '@mikro-orm/core';
 import { EntityManager } from '@mikro-orm/mysql';
+import type { AfterIdPage, AnomalyView } from '@terminal-ops/contracts';
 import { BusinessError } from '../common/domain-errors.js';
 import { env } from '../config/env.js';
 import { OUTBOX_TYPE, OutboxEvent } from '../outbox/outbox-event.entity.js';
@@ -158,7 +159,7 @@ export class AnomalyService {
   }
 
   /** 이상 목록 한 페이지(id 순, afterId 뒤부터). 단말기 시리얼·지금 상태를 붙인다 */
-  async list(q: { rule?: AnomalyRule; open?: boolean; afterId?: number; limit: number }) {
+  async list(q: { rule?: AnomalyRule; open?: boolean; afterId?: number; limit: number }): Promise<AfterIdPage<AnomalyView>> {
     const em = this.em.fork();
     const rows = await em.find(
       Anomaly,

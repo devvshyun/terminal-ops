@@ -9,27 +9,7 @@ import { RunningPoller } from '../../components/RunningPoller';
 import { WriteButton } from '../../components/WriteButton';
 import { formatKst } from '../../lib/format';
 import { keys } from '../../api/query-keys';
-
-export interface VanRunView {
-  id: number;
-  status: string;
-  trigger: string;
-  requestedBy: string;
-  acknowledgeDrop: boolean;
-  startedAt: string;
-  heartbeatAt: string;
-  finishedAt: string | null;
-  pages: number;
-  fetched: number;
-  retries: number;
-  candidates: number;
-  confirmed: number;
-  resolved: number;
-  unverifiable: number;
-  counts: Record<string, number>;
-  phaseMs: { collect?: number; compare?: number; reverify?: number };
-  error: string | null;
-}
+import type { StartVanReconciliationRequest, VanRunView } from '@terminal-ops/contracts';
 
 /**
  * VAN 등록 대조(F9) 실행 목록과 수동 실행. 실행은 비동기(202) — 목록이 RUNNING이면 저절로 다시 읽는다.
@@ -43,7 +23,7 @@ export function VanRunsPage() {
   const runs = itemsOf(list.data);
   const running = runs.some((r) => r.status === 'RUNNING');
   const start = useMutation({
-    mutationFn: () => api<VanRunView>('/van-reconciliations', { method: 'POST', body: { acknowledgeDrop } }),
+    mutationFn: () => api<VanRunView>('/van-reconciliations', { method: 'POST', body: { acknowledgeDrop } satisfies StartVanReconciliationRequest }),
     onSuccess: () => {
       setAcknowledgeDrop(false);
       return client.invalidateQueries({ queryKey: keys.vanRuns.all });

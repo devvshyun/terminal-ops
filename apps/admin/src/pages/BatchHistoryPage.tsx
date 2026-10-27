@@ -4,24 +4,8 @@ import { ErrorBox } from '../components/ErrorBox';
 import { MoreButton } from '../components/MoreButton';
 import { RunningPoller, type Refetch } from '../components/RunningPoller';
 import { formatKst } from '../lib/format';
-import type { VanRunView } from './reports/VanRunsPage';
+import type { SyncRunOutcome, SyncRunView, VanRunView } from '@terminal-ops/contracts';
 import { keys } from '../api/query-keys';
-
-interface SyncRunView {
-  id: number;
-  job: string;
-  shipmentId: number | null;
-  trackingNo: string | null;
-  attempt: number;
-  worker: string;
-  outcome: string;
-  startedAt: string;
-  finishedAt: string | null;
-  fetched: number;
-  inserted: number;
-  duplicated: number;
-  detail: string | null;
-}
 
 const TABS = [
   { key: 'sync', label: '택배 수집' },
@@ -30,7 +14,8 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number]['key'];
 
-const OUTCOMES = ['OK', 'DELIVERED', 'NOOP', 'SKIPPED', 'ERROR'];
+/** 결과 필터 선택지. contracts에 없는 값이면 tsc가 막는다(빠진 값은 막지 못한다 — 순서를 화면이 정하므로 배열로 둔다) */
+const OUTCOMES = ['OK', 'DELIVERED', 'NOOP', 'SKIPPED', 'ERROR'] as const satisfies readonly SyncRunOutcome[];
 
 /**
  * 배치 실행 이력: 실행마다 행을 남기는 배치 세 가지(택배 수집 SyncRun, VAN 대조 실행, 주간 리포트 주별 행).

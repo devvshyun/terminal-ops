@@ -113,6 +113,8 @@
 - [ ] 셸 따옴표·heredoc 구분자 따옴표 규칙 — `<<'EOF'`와 `<<EOF`, 작은따옴표 안의 작은따옴표 (troubleshooting/0024)
 - [ ] class-validator 커스텀 검사(`ValidateBy`) — 모양(정규식)과 값(달력에 있는 날짜)을 따로 검사해야 하는 이유 (apps/api/src/common/calendar-date.ts, Day 6 Task 3 리뷰)
 - [ ] Windows의 프로세스 종료와 신호 — TerminateProcess, node `process.kill`과 `ChildProcess.kill`이 exit를 다르게 보고하는 이유 (troubleshooting/0028)
+- [ ] TypeScript 모듈 해석에서 `node_modules`를 거친 링크 파일이 rootDir 검사(TS6059)·emit에서 빠지는 이유(isExternalLibraryImport) (decisions/0047)
+- [ ] `skipLibCheck`가 정확히 무엇을 건너뛰나 — 손으로 쓴 `.d.ts`의 오류가 조용히 `any`가 되는 경우 (decisions/0047)
 
 ## 외부 연동·재시도·멱등
 
@@ -175,3 +177,4 @@
 - [ ] 비동기 요청 패턴 — 202 Accepted + 상태 조회(폴링), jobId로 중복 막기, 실패를 어디에 남기나, 큐 job의 대기 시간 드러내기(job.timestamp·processedOn, 워커 없는 큐의 waiting) (decisions/0038)
 - [ ] 서버가 "할 수 있는 동작"을 응답에 싣기 — HATEOAS 링크·allowed actions, 클라이언트 규칙 복제의 문제 (decisions/0040)
 - [ ] 하위·보조 목록에도 페이지 조건이 필요한가 — `GET /terminals/:serialNo/inspections`는 limit·beforeId 없이 다 준다(단말기 하나의 검수는 적다고 봄), 단말기 목록 `?merchantCode=`는 빈 문자열을 조건 없음으로 무시하고 `page` 상한이 없다(깊은 offset 비용) (decisions/0039, Day 6 Task 2 리뷰)
+- [ ] 데코레이터 메타데이터(design:type) — tsc와 swc가 타입 별칭을 다르게 내보낸다, 어디까지 reflect-metadata에 기대나 (troubleshooting/0029)
