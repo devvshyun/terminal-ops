@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { OperatorBar } from './components/OperatorBar';
 import { OPERATOR_KEY, getOperator, reloadOperatorForTest, setOperator, useOperator } from './operator';
@@ -54,6 +54,37 @@ describe('작업자 이름 저장소 (decisions/0041)', () => {
       window.dispatchEvent(new StorageEvent('storage', { key: null }));
     });
     expect(getOperator()).toBe('');
+  });
+
+  it('입력칸은 고치는 중이 아니면 다른 탭의 이름 변경을 따라간다 — 옛 이름으로 다시 저장되지 않게(최종 리뷰 Minor 8)', () => {
+    setOperator('김운영');
+    render(<OperatorBar />);
+    const input = screen.getByLabelText('작업자 이름');
+    expect(input).toHaveValue('김운영');
+    act(() => {
+      window.localStorage.setItem(OPERATOR_KEY, '최운영');
+      window.dispatchEvent(new StorageEvent('storage', { key: OPERATOR_KEY, newValue: '최운영' }));
+    });
+    expect(screen.getByText('지금: 최운영')).toBeInTheDocument();
+    expect(input).toHaveValue('최운영');
+    act(() => {
+      window.localStorage.removeItem(OPERATOR_KEY);
+      window.dispatchEvent(new StorageEvent('storage', { key: OPERATOR_KEY, newValue: null }));
+    });
+    expect(input).toHaveValue('');
+  });
+
+  it('(회귀 방지) 고치는 중(저장하지 않은 입력)이면 다른 탭의 변경이 입력을 덮어쓰지 않는다. 표시(지금:)는 따라간다', () => {
+    setOperator('김운영');
+    render(<OperatorBar />);
+    const input = screen.getByLabelText('작업자 이름');
+    fireEvent.change(input, { target: { value: '이운영' } });
+    act(() => {
+      window.localStorage.setItem(OPERATOR_KEY, '최운영');
+      window.dispatchEvent(new StorageEvent('storage', { key: OPERATOR_KEY, newValue: '최운영' }));
+    });
+    expect(screen.getByText('지금: 최운영')).toBeInTheDocument();
+    expect(input).toHaveValue('이운영');
   });
 
   it('상관없는 키의 storage 이벤트는 무시한다', () => {
