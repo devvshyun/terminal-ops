@@ -1,4 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
 import { EntityManager, UniqueConstraintViolationException } from '@mikro-orm/mysql';
 import { BusinessError } from '../common/domain-errors.js';
 import { PartnerPermanentError } from '../common/partner-errors.js';
@@ -7,6 +9,7 @@ import { withPartnerRetry } from '../common/partner-retry.js';
 import { DAY_MS } from '../config/env-number.js';
 import { env } from '../config/env.js';
 import { ToktokClient, ToktokUnknownFileError } from '../outbox/toktok.client.js';
+import { QUEUE } from '../queue/queue-names.js';
 import { RedisLock } from '../redis/redis-lock.js';
 import { kstDate, parseKstWeekStart, previousKstWeek, type KstWeek } from './kst-week.js';
 import { WeeklyReport, WeeklyReportStatus } from './weekly-report.entity.js';
@@ -57,6 +60,30 @@ export function isPermanentWeeklyReportError(error: unknown): boolean {
   return error instanceof PartnerPermanentError || (error instanceof BusinessError && error.code === 'WEEKLY_REPORT_TOO_LARGE');
 }
 
+/** 수동 보내기 job(report 큐). 화면·HTTP 요청은 job만 넣고 202로 끝난다(Day 5 최종 리뷰 Minor 6, decisions/0038) */
+export const WEEKLY_REPORT_SEND_JOB = 'weekly-report-send';
+
+/** 같은 주의 수동 보내기 job은 하나 — 대기·처리 중에 다시 눌러도 BullMQ가 같은 jobId를 더 넣지 않는다 */
+export const weeklyReportSendJobId = (weekStart: string) => `weekly-report-send-${weekStart}`;
+
+/**
+ * 수동 보내기 job 옵션: BullMQ 재시도 없음(실패는 행의 lastError로 남고 운영자가 다시 누른다).
+ * 끝나면(성공·실패) job을 지운다 — 남아 있으면 같은 jobId를 다시 넣을 수 없다.
+ */
+const SEND_JOB_OPTS = { attempts: 1, removeOnComplete: true, removeOnFail: true };
+
+/** job이 아직 끝나지 않은 상태 */
+const PENDING_JOB_STATES = new Set(['waiting', 'active', 'delayed', 'prioritized', 'waiting-children']);
+
+export interface SendRequestResult extends SendResult {
+  /** report 큐에 보내기 job이 있다(이번에 넣었거나 이미 있었다) */
+  queued: boolean;
+}
+
+export interface WeeklyReportSendJobData {
+  weekStart: string;
+}
+
 /** 메신저가 같은 리포트를 한 번으로 볼 수 있게 주마다 하나 */
 export const weeklyReportIdempotencyKey = (weekStart: string) => `weekly-report-${weekStart}`;
 
@@ -78,7 +105,31 @@ export class WeeklyReportService {
     private readonly queries: WeeklyReportQueries,
     private readonly toktok: ToktokClient,
     private readonly lock: RedisLock,
+    @InjectQueue(QUEUE.REPORT) private readonly queue: Queue,
   ) {}
+
+  /**
+   * 수동 보내기 요청(POST /reports/weekly): 끝나지 않은 주는 422, 이미 보낸 주는 job 없이 alreadySent.
+   * 아니면 그 주의 행을 만들고 report 큐에 job을 넣는다(같은 주는 jobId로 하나). 실제 보내기는 report 큐 처리기가 send()로 한다.
+   * HTTP 요청이 톡톡 재시도·Retry-After(최악 약 10.6분)를 기다리지 않게 하려고 나눴다(Day 5 최종 리뷰 Minor 6, decisions/0038).
+   */
+  async request(week: KstWeek, now = new Date()): Promise<SendRequestResult> {
+    this.assertEnded(week, now);
+    const row = await this.ensureRow(week.weekStart);
+    if (row.status === WeeklyReportStatus.SENT) return { report: row, alreadySent: true, queued: false };
+    await this.queue.add(WEEKLY_REPORT_SEND_JOB, { weekStart: week.weekStart } satisfies WeeklyReportSendJobData, {
+      ...SEND_JOB_OPTS,
+      jobId: weeklyReportSendJobId(week.weekStart),
+    });
+    return { report: row, alreadySent: false, queued: true };
+  }
+
+  /** 그 주의 수동 보내기 job이 아직 끝나지 않았는지(대기·처리 중). 화면이 "보내는 중"을 보여 줄 때 쓴다 */
+  async isQueued(weekStart: string): Promise<boolean> {
+    const job = await this.queue.getJob(weeklyReportSendJobId(weekStart));
+    if (!job) return false;
+    return PENDING_JOB_STATES.has(await job.getState());
+  }
 
   /**
    * 주기 job: now 기준 지난주를 보내고, 그 앞 4주 안에서 못 보낸 주(PENDING·GENERATED)를 최근 주부터 이어 보낸다(Task 8 리뷰).
@@ -137,13 +188,7 @@ export class WeeklyReportService {
    * 주기 job은 늘 지난주(to ≤ now)라 걸리지 않는다. 잠금·행을 만들기 전에 막는다(decisions/0035).
    */
   async send(week: KstWeek, now = new Date()): Promise<SendResult> {
-    if (week.to.getTime() > now.getTime()) {
-      throw new BusinessError(
-        422,
-        'WEEK_NOT_ENDED',
-        `${week.weekStart} 주는 아직 끝나지 않았습니다(${week.to.toISOString()}에 끝남). 끝난 주만 보낼 수 있습니다.`,
-      );
-    }
+    this.assertEnded(week, now);
     const key = this.lock.keyOf('report-lock', `weekly-${week.weekStart}`);
     const token = await this.lock.acquire(key, weeklyReportLockTtlMs());
     if (!token) throw new BusinessError(409, 'WEEKLY_REPORT_IN_PROGRESS', `${week.weekStart} 주간 리포트를 다른 요청이 보내는 중입니다.`);
@@ -151,6 +196,16 @@ export class WeeklyReportService {
       return await this.sendLocked(week, now);
     } finally {
       await this.lock.release(key, token).catch((error: unknown) => this.logger.warn(`잠금 해제 실패 weekly-${week.weekStart}: ${String(error)}`));
+    }
+  }
+
+  private assertEnded(week: KstWeek, now: Date): void {
+    if (week.to.getTime() > now.getTime()) {
+      throw new BusinessError(
+        422,
+        'WEEK_NOT_ENDED',
+        `${week.weekStart} 주는 아직 끝나지 않았습니다(${week.to.toISOString()}에 끝남). 끝난 주만 보낼 수 있습니다.`,
+      );
     }
   }
 
@@ -258,7 +313,7 @@ export class WeeklyReportService {
   }
 }
 
-export function toWeeklyReportView(r: WeeklyReport, alreadySent = false) {
+export function toWeeklyReportView(r: WeeklyReport, alreadySent = false, queued = false) {
   return {
     weekStart: r.weekStart,
     status: r.status,
@@ -269,5 +324,6 @@ export function toWeeklyReportView(r: WeeklyReport, alreadySent = false) {
     attempts: r.attempts,
     lastError: r.lastError,
     alreadySent,
+    queued,
   };
 }

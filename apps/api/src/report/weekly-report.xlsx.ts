@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
-import { ANOMALY_RULE_LABEL } from '../anomaly/anomaly-rules.js';
+import { ANOMALY_RULE_LABEL } from '../anomaly/anomaly-labels.js';
 import type { AnomalyRule } from '../anomaly/anomaly.entity.js';
-import { KIND_LABEL } from '../van/van-compare.js';
+import { KIND_LABEL } from '../van/van-labels.js';
 import type { VanMismatchKind } from '../van/van.entities.js';
 import { kstDate } from './kst-week.js';
 import type { WeeklyReportData } from './weekly-report.queries.js';

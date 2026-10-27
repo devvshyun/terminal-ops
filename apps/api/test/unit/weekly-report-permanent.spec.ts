@@ -25,7 +25,7 @@ describe('주간 리포트 주기 job: 영구 오류는 재시도하지 않는�
   /** send를 주마다 정한 결과로 바꾼 서비스. 지난주(2026-10-19) 앞 못 보낸 주는 2026-10-12, 2026-10-05 */
   const service = (results: Record<string, () => SendResult | Error>) => {
     const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    const s = new WeeklyReportService({} as never, {} as never, {} as never, {} as never);
+    const s = new WeeklyReportService({} as never, {} as never, {} as never, {} as never, {} as never);
     vi.spyOn(s as unknown as { unsentWeeksBefore: () => Promise<string[]> }, 'unsentWeeksBefore').mockResolvedValue(['2026-10-12', '2026-10-05']);
     vi.spyOn(s, 'send').mockImplementation(async (week) => {
       const r = results[week.weekStart]!();
@@ -86,6 +86,48 @@ describe('주간 리포트 주기 job: 영구 오류는 재시도하지 않는�
         expect(error).toBe(e);
         expect(error).not.toBeInstanceOf(UnrecoverableError);
       }
+    });
+  });
+
+  describe('처리기(weekly-report-send job, 수동 보내기 — decisions/0038)', () => {
+    const processor = (send: () => Promise<unknown>) => {
+      vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+      const reports = { send: vi.fn().mockImplementation(send) } as Partial<WeeklyReportService>;
+      return { p: new ReportProcessor({} as VanReconciliationService, {} as AnomalyService, reports as WeeklyReportService), reports };
+    };
+    const job = (data: unknown) => ({ name: 'weekly-report-send', data }) as Job;
+
+    it('그 주를 send로 보내고 결과를 돌려준다. weekStart가 월요일이 아니면 UnrecoverableError(보내지 않음)', async () => {
+      const { p, reports } = processor(async () => ok('2026-10-19'));
+      expect(await p.process(job({ weekStart: '2026-10-19' }))).toEqual({ weekStart: '2026-10-19', status: 'SENT', alreadySent: false });
+      expect(vi.mocked(reports.send!).mock.calls[0]![0].weekStart).toBe('2026-10-19');
+      await expect(p.process(job({ weekStart: '2026-10-20' }))).rejects.toBeInstanceOf(UnrecoverableError);
+      await expect(p.process(job({}))).rejects.toBeInstanceOf(UnrecoverableError);
+      expect(reports.send).toHaveBeenCalledTimes(1);
+    });
+
+    it('같은 주를 주기 job이 보내는 중(409 WEEKLY_REPORT_IN_PROGRESS)이면 건너뛴다(그쪽이 끝낸다)', async () => {
+      const { p } = processor(async () => {
+        throw new BusinessError(409, 'WEEKLY_REPORT_IN_PROGRESS', 'x');
+      });
+      expect(await p.process(job({ weekStart: '2026-10-19' }))).toEqual({ weekStart: '2026-10-19', skipped: true });
+    });
+
+    it('영구 오류는 UnrecoverableError, 일시 오류는 그대로 던진다(재시도 옵션이 없어 job은 실패로 끝나고 행에 lastError가 남는다)', async () => {
+      const perm = await processor(async () => {
+        throw permanent();
+      })
+        .p.process(job({ weekStart: '2026-10-19' }))
+        .catch((e: unknown) => e);
+      expect(perm).toBeInstanceOf(UnrecoverableError);
+      const e = transient();
+      const temp = await processor(async () => {
+        throw e;
+      })
+        .p.process(job({ weekStart: '2026-10-19' }))
+        .catch((x: unknown) => x);
+      expect(temp).toBe(e);
     });
   });
 });

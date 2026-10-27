@@ -132,3 +132,6 @@
 - [ ] 스냅숏 대조의 일관성 — 스캔 도중 변경, 재검증으로 거짓 양성 거르기, 놓친 것은 다음 실행(최종 일관성) (experiments/0012)
 - [ ] 셸 따옴표·heredoc 구분자 따옴표 규칙 — `<<'EOF'`와 `<<EOF`, 작은따옴표 안의 작은따옴표 (troubleshooting/0024)
 - [ ] MySQL DDL 암묵 커밋(implicit commit) — 마이그레이션 하나에 ALTER가 여럿이면 중간 실패 시 앞 것만 남는다, 원자적 DDL(8.0)의 범위 (troubleshooting/0025)
+- [ ] 테스트의 시간 — 고정 시계·가짜 타이머·실제 시각을 섞을 때 생기는 날짜 의존 실패 (troubleshooting/0026)
+- [ ] 의존 방향과 계층 — 아래층(알림·리포트)이 위층(도메인 규칙)을 import하지 않게, import 문 검사 테스트 (decisions/0037)
+- [ ] 비동기 요청 패턴 — 202 Accepted + 상태 조회(폴링), jobId로 중복 막기, 실패를 어디에 남기나 (decisions/0038)
