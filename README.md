@@ -33,14 +33,14 @@ Node 24, Docker Desktop(WSL2)이 필요하다. 명령은 Git Bash 기준.
 
 ```bash
 cp .env.example .env                 # 로컬 개발 전용 값
-docker compose up -d                 # MySQL·Redis
+docker compose up -d --wait          # MySQL·Redis, healthcheck가 healthy가 될 때까지 기다린다(첫 실행은 MySQL 초기화에 수십 초)
 for a in api admin partners device-sim; do (cd apps/$a && npm ci); done
 cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB 스키마와 기준 데이터(모델·가맹점·검수 항목)
 
 # 터미널 네 개(또는 백그라운드 — 끌 때는 PID로)
 (cd apps/partners && npm run build && npm start)       # :4010
 (cd apps/api && npm run build && npm start)            # :3000, 워커·주기 작업 포함(.env의 RUN_WORKERS·RUN_SCHEDULERS)
-(cd apps/api && npm run start:worker)                  # 선택: 워커만 따로 더 띄우기
+(cd apps/api && npm run start:worker)                  # 선택: 워커만 따로 — main api가 RUN_WORKERS=0일 때만. 둘 다 워커면 report 큐 한 번에 하나(decisions/0038) 가정이 깨진다
 (cd apps/admin && npm run dev)                         # :5173 → 브라우저 http://localhost:5173
 ```
 
@@ -76,7 +76,7 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 | [0001](docs/experiments/0001-같은-단말기-동시-전이.md) | 같은 단말기에 전이 20건이 동시에 오면 1건만 반영되나 | 고치기 전 HTTP 200 1·409 11·500 8(데드락). 단말기 UPDATE를 이력 INSERT보다 먼저 flush한 뒤 3회 모두 200 1·409 19 | 낙관적 락으로 성공은 늘 1건. 500은 flush 순서가 만든 InnoDB S→X 데드락 → UPDATE 먼저 |
 | [0002](docs/experiments/0002-같은-단말기-동시-검수.md) | 같은 단말기 동시 검수 10건 | 검수 기록 먼저: 매번 201 1·500 9. 전이 먼저: 6회 모두 201 1·409 9, 500 0 | 같은 작업 단위의 INSERT가 UPDATE보다 먼저 나가는 문제가 검수에도 → 전이 먼저(decisions/0006) |
 | [0003](docs/experiments/0003-번개택배-중복-이벤트.md) | 번개택배가 30% 확률로 이벤트를 두 번 보내면 두 번 반영되나 | 응답 안 중복 81개가 왔지만 3회 모두 carrier_event 120(운송장당 4), DELIVERED 단말기당 최대 1. 약 11.2초 | 중복 반영 0. 응답 안 → 저장된 키 → unique 3단 |
-| [0004](docs/experiments/0004-번개택배-429-비율별-수집.md) | 429 10/30/50%에서 수집이 끝나나 | 모두 30/30 완료. 조회 135/155/210 = 성공 120 + 429 수. 10%·30% 약 14.6~16.1초, 50% 약 21.3~22.3초 | 429 하나가 정확히 재시도 하나. 더 부르는 수는 1/(1−p)로 늘어 50%에서 급해진다 |
+| [0004](docs/experiments/0004-번개택배-429-비율별-수집.md) | 429 10/30/50%에서 수집이 끝나나 | (10/30/50%는 설정한 확률 `force429Rate`. seed 4에서 실제 429 비율은 15/135 약 11%, 35/155 약 23%, 90/210 약 43%) 모두 30/30 완료. 조회 135/155/210 = 성공 120 + 429 수. 10%·30% 약 14.6~16.1초, 50% 약 21.3~22.3초 | 429 하나가 정확히 재시도 하나. 더 부르는 수는 1/(1−p)로 늘어 50%에서 급해진다 |
 | [0005](docs/experiments/0005-워커-프로세스-2개.md) | 워커 2개가 같은 큐를 나누면 같은 운송장을 동시에 보거나 알림을 두 번 보내나 | SyncRun 60/60으로 나눔, 같은 운송장 겹침 0, DELIVERED 중복 0, outbox 180 = 톡톡 수신 180·중복 키 0. limiter 초당 10에서 약 11.8초, 500에서 약 2.5초 | jobId `track-<id>`가 같은 운송장 job을 하나로. BullMQ limiter는 큐 단위라 워커를 늘려도 호출 상한은 같다 |
 | [0006](docs/experiments/0006-대량-처리.md) | N+1 대 일괄, 박스 500대·엑셀 5,000행, relay addBulk | 500행 N+1 쿼리 2,503·약 2.2초 대 일괄 12·약 0.3초(차이 대부분은 행마다 flush). 박스 500대 약 0.4초, 엑셀 1,000행 0.5~0.6초·5,000행 2.2~2.7초(RSS +31~42MB). relay 1회 최대 52~103ms → 15~34ms | 일괄 엔진 한 곳. relay는 addBulk(decisions/0024) |
 | [0007](docs/experiments/0007-교체-단말기-동시-요청.md) | 같은 교체 단말기를 10건이 동시에 요청하면 | Day 3: 성공 1·422 9·데드락 0, 고아 운송장 매회 9장. Day 4(Redis 예약 뒤): 고아 0, 진 9건은 REPLACEMENT_RESERVED. 서로 다른 교체 단말기 10대는 201 10 | 트랜잭션 밖 사전 확인은 동시 요청을 못 거른다 → 교체 단말기 예약(decisions/0026) |
@@ -86,7 +86,7 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 | [0011](docs/experiments/0011-실행계획-단말기-10만-이력-100만.md) | 단말기 10만·이력 100만에서 F4·주간 리포트 쿼리의 실행계획 | F4 status_changed_at 인덱스 8.2·9.8ms 대 이력 서브쿼리 102·220ms. 리포트 이력 집계 전체 훑기 165~192ms, 커버링 인덱스는 합 0.2초 줄이지만 이력 대량 INSERT +99%. 중복 인덱스는 INSERT +29%·+20MB | F4는 status_changed_at(decisions/0034), 리포트 이력에는 인덱스를 더하지 않음(decisions/0036) |
 | [0012](docs/experiments/0012-VAN-대조-5만-건.md) | VAN 등록 5만 건 대조, 스캔 도중 변경 | 6.8~7.2초(수집 91%, 그중 약 4.2초는 개발 환경 전송 기다림으로 추정), 쿼리 343개, 업체 호출 = 페이지 + 후보. 재검증 전 거짓 양성 6 → 재검증 뒤 0, 지나간 자리의 새 어긋남 949건은 다음 실행이 모두 찾음 | 재검증이 필요하다. 놓친 어긋남은 최대 한 주기 늦게 잡힌다(decisions/0033) |
 | [0013](docs/experiments/0013-단말기-목록-API-10만-대.md) | 단말기 10만 대에서 목록 API, joined 대 select-in | 조건 없음 1쪽 p50 91.2ms → 5.2ms(약 17.5배), 모델 36.1 → 3.6ms, 가맹점 21.1 → 3.5ms, 상태 21.7 → 3.3ms. 결과가 작은 조건만 2.1 대 2.9ms. offset 끝쪽 10.3ms | 연관은 select-in, 10만 대에서는 offset 유지(decisions/0039) |
-| [0014](docs/experiments/0014-워커-강제-종료와-알림.md) | 알림을 처리하던 워커를 강제 종료하면 알림이 사라지나 | 알림 300건, 2회. 처리 중 SIGKILL: 유실 0, 중복 수신 5(죽을 때 처리 중이던 job 5 = concurrency 5), 죽임 → 모두 SENT 약 61.4초(대기분은 새 워커가 약 4.0초, 나머지는 stalled 복구 대기). job 유실 흉내(`drain`): 워커만으로는 3초 동안 0건, 복구 sweep 300/300 다시 넣은 뒤 약 4.2초에 모두, 중복 0. 죽인 직후 sweep은 살아 있는 job 210개를 건드리지 않음 | 유실 0, 단 at-least-once — 처리 중이던 것은 중복될 수 있어 메신저 멱등키가 거른다(decisions/0016). 큐에서 사라진 job은 복구 sweep이 메운다(decisions/0042) |
+| [0014](docs/experiments/0014-워커-강제-종료와-알림.md) | 알림을 처리하던 워커를 강제 종료하면 알림이 사라지나 | 알림 300건, 2회. 처리 중 SIGKILL: 유실 0, 중복 수신 5(죽을 때 처리 중이던 job 5 = concurrency 5), 죽임 → 모두 SENT 약 61.4초(대기분은 새 워커가 약 4.0초, 나머지는 stalled 복구 대기로 추정 — BullMQ 기본값 lockDuration·stalledInterval 30초 기준, 따로 재지 않음). job 유실 흉내(`drain`): 워커만으로는 3초 동안 0건, 복구 sweep 300/300 다시 넣은 뒤 약 4.2초에 모두, 중복 0. 죽인 직후 sweep은 살아 있는 job 210개를 건드리지 않음 | 유실 0, 단 at-least-once — 처리 중이던 것은 중복될 수 있어 메신저 멱등키가 거른다(decisions/0016). 큐에서 사라진 job은 복구 sweep이 메운다(decisions/0042) |
 | [0015](docs/experiments/0015-대시보드-캐시-전후.md) | 대시보드 캐시 전후 p50/p95, 동시 50개의 MySQL 쿼리 수 | 단말기 10만·이력 약 100만, 2회. 요청 하나 캐시 없음 p50 169.1·172.5ms / p95 192.9·189.5ms 대 적중 p50 0.4ms(HTTP 2.0·1.9ms). 빈 캐시에 동시 50개: 캐시만이면 SELECT 350(캐시 없음과 같음)·전체 약 1.5초, single-flight면 SELECT 7·169~190ms | 캐시만으로는 캐시가 빈 순간의 동시 미스를 못 줄인다 → TTL 30초 캐시 + 프로세스 안 single-flight(decisions/0044) |
 | [0016](docs/experiments/0016-상태-조건-목록-status-id-인덱스.md) | 상태 조건 목록에 (status, id) 인덱스가 필요한가 | 드문 상태(450·50대)는 기존 `(status, status_changed_at)` 인덱스로 450·50행 + 정렬, 흔한 상태(약 1만·5천 대)는 PK 역순 175·396행에서 멈춤. 인덱스가 있어도 계획이 바뀐 것은 IN_SERVICE 하나, p50은 어느 상태든 1.7~2.9ms로 차이 없음(IN_SERVICE 2.89 → 2.84ms). 쓰기 UPDATE +6.1%·INSERT +4.1%, 인덱스 +1.46MB | 사전 기준(p50 2배 이상 그리고 1ms 이상 감소)에 해당 없음 → 채택하지 않음(decisions/0045) |
 
