@@ -1,8 +1,10 @@
+import type { Carrier, TerminalStatus, TransitionSource } from '@terminal-ops/contracts';
+
 /**
  * 화면에 보이는 이름만 둔다(규칙은 두지 않는다 — 가능한 전이는 서버가 준다, decisions/0040).
- * 키는 api enum 값(terminal-status.ts 등)이다. 모르는 값이 오면 값을 그대로 보여 준다(label()).
+ * 키는 contracts의 상태 유니온이다 — 값이 하나라도 빠지거나 없는 값이 있으면 tsc가 막는다(decisions/0048). 모르는 값이 오면 값을 그대로 보여 준다(label()).
  */
-export const TERMINAL_STATUS_LABEL: Record<string, string> = {
+export const TERMINAL_STATUS_LABEL: Record<TerminalStatus, string> = {
   RECEIVED: '입고',
   INSPECTED: '검수 합격',
   DEFECTIVE: '불량',
@@ -17,9 +19,9 @@ export const TERMINAL_STATUS_LABEL: Record<string, string> = {
   DISPOSED: '폐기',
 };
 
-export const TERMINAL_STATUSES = Object.keys(TERMINAL_STATUS_LABEL);
+export const TERMINAL_STATUSES = Object.keys(TERMINAL_STATUS_LABEL) as TerminalStatus[];
 
-export const SOURCE_LABEL: Record<string, string> = {
+export const SOURCE_LABEL: Record<TransitionSource, string> = {
   MANUAL: '수동',
   INSPECTION: '검수',
   BATCH: '배치',
@@ -30,7 +32,7 @@ export const SOURCE_LABEL: Record<string, string> = {
   SERVICE: 'A/S',
 };
 
-export const CARRIER_LABEL: Record<string, string> = {
+export const CARRIER_LABEL: Record<Carrier, string> = {
   BUNGAE: '번개택배',
   NEURIMBO: '느림보물류',
 };

@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
 import { api } from '../api/client';
-import type { ConnectivityView, HistoryView, InspectionRecord, TerminalDetail } from '../api/types';
+import type { ConnectivityView, HistoryView, InspectionRecord, TerminalDetail } from '@terminal-ops/contracts';
 import { ErrorBox } from '../components/ErrorBox';
 import { TerminalActions } from '../components/TerminalActions';
 import { formatKst } from '../lib/format';

@@ -2,9 +2,10 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { loginAs, mockApi, renderPage } from '../test/render';
-import { RolloutsPage, type RolloutView } from './RolloutsPage';
+import type { RolloutView, TicketView } from '@terminal-ops/contracts';
+import { RolloutsPage } from './RolloutsPage';
 import { ServiceTicketDetailPage } from './ServiceTicketDetailPage';
-import { ServiceTicketsPage, type TicketView } from './ServiceTicketsPage';
+import { ServiceTicketsPage } from './ServiceTicketsPage';
 
 const ticket = (over: Partial<TicketView> = {}): TicketView => ({
   id: 7,

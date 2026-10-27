@@ -1,14 +1,15 @@
+import type { ApiErrorBody, ErrorCode } from '@terminal-ops/contracts';
 import { getOperator } from '../operator';
 
 /** 개발 서버 프록시가 Nest api로 넘기는 경로 앞부분(vite.config.ts, decisions/0041) */
 export const API_BASE = '/api';
 
-/** api 오류 응답. 서버는 { statusCode, code?, message } 모양으로 준다(DomainExceptionFilter, ValidationPipe) */
+/** api 오류 응답. 서버는 { statusCode, code?, message } 모양(contracts ApiErrorBody)으로 준다(DomainExceptionFilter, ValidationPipe) */
 export class ApiError extends Error {
   constructor(
     readonly status: number,
     /** 서버가 준 원인 코드(VERSION_CONFLICT, PO_CLOSED …). 검증 오류(400)·404에는 없다 */
-    readonly code: string | null,
+    readonly code: ErrorCode | null,
     message: string,
     readonly body: unknown,
   ) {
@@ -72,7 +73,8 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     }
   }
   if (!res.ok) {
-    const code = (body as { code?: unknown } | null)?.code;
+    // 서버가 contracts 밖의 코드를 주지 않는다는 전제(api는 ErrorCode 유니온 밖의 코드를 컴파일하지 못한다, decisions/0048)
+    const code = (body as Partial<ApiErrorBody> | null)?.code;
     throw new ApiError(res.status, typeof code === 'string' ? code : null, messageOf(res.status, body), body);
   }
   return body as T;

@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
 import { api } from '../api/client';
-import type { TerminalDetail, TerminalPage } from '../api/types';
+import type { Carrier, RemoteCheckRequest, ReplaceRequest, TerminalDetail, TerminalPage, TicketView } from '@terminal-ops/contracts';
 import { ErrorBox } from '../components/ErrorBox';
 import { WriteButton } from '../components/WriteButton';
 import { formatKst } from '../lib/format';
 import { CARRIER_LABEL, label } from '../lib/labels';
-import { TICKET_STATUS_LABEL, type TicketView } from './ServiceTicketsPage';
+import { TICKET_STATUS_LABEL } from './ServiceTicketsPage';
 import { keys } from '../api/query-keys';
 
 /**
@@ -21,7 +21,7 @@ export function ServiceTicketDetailPage() {
   const [note, setNote] = useState('');
   const [resolved, setResolved] = useState(false);
   const [replacement, setReplacement] = useState('');
-  const [carrier, setCarrier] = useState('BUNGAE');
+  const [carrier, setCarrier] = useState<Carrier>('BUNGAE');
 
   const ticket = useQuery({ queryKey: keys.serviceTicket.one(id), queryFn: () => api<TicketView>(`/service-tickets/${id}`), enabled: validId });
   const t = ticket.data;
@@ -112,7 +112,7 @@ export function ServiceTicketDetailPage() {
                   <label>
                     <input type="checkbox" checked={resolved} onChange={(e) => setResolved(e.target.checked)} /> 원격으로 해결됨(종결)
                   </label>
-                  <WriteButton disabled={!note.trim() || act.isPending} onClick={() => act.mutate({ path: 'remote-checks', body: { resolved, note: note.trim() } })}>
+                  <WriteButton disabled={!note.trim() || act.isPending} onClick={() => act.mutate({ path: 'remote-checks', body: { resolved, note: note.trim() } satisfies RemoteCheckRequest })}>
                     점검 기록
                   </WriteButton>
                 </div>
@@ -128,7 +128,7 @@ export function ServiceTicketDetailPage() {
                       </option>
                     ))}
                   </select>
-                  <select aria-label="교체 택배사" value={carrier} onChange={(e) => setCarrier(e.target.value)}>
+                  <select aria-label="교체 택배사" value={carrier} onChange={(e) => setCarrier(e.target.value as Carrier)}>
                     {Object.entries(CARRIER_LABEL).map(([code, name]) => (
                       <option key={code} value={code}>
                         {name}
@@ -138,7 +138,7 @@ export function ServiceTicketDetailPage() {
                   <WriteButton
                     className="primary"
                     disabled={!chosen || act.isPending}
-                    onClick={() => act.mutate({ path: 'replacements', body: { replacementSerialNo: chosen, carrier } })}
+                    onClick={() => act.mutate({ path: 'replacements', body: { replacementSerialNo: chosen, carrier } satisfies ReplaceRequest })}
                   >
                     교체 출고
                   </WriteButton>

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { mockApi, renderPage } from '../test/render';
 import { BatchHistoryPage } from './BatchHistoryPage';
-import type { WeeklyReportView } from './reports/WeeklyReportsPage';
+import type { WeeklyReportView } from '@terminal-ops/contracts';
 
 const syncRun = (over: Record<string, unknown> = {}) => ({
   id: 9,
@@ -95,8 +95,8 @@ describe('배치 실행 이력 (decisions/0039)', () => {
       'GET /reports/weekly': () => ({
         body: {
           items: [
-            weekly({ weekStart: '2026-10-26', status: 'FAILED', attempts: 2, sentAt: null, lastError: '메일 서버 응답 없음', queued: true, queuedAt: '2026-10-27T00:00:00.000Z' }),
-            weekly({ weekStart: '2026-10-19', status: 'FAILED', attempts: 1, sentAt: null, lastError: '첨부 생성 실패' }),
+            weekly({ weekStart: '2026-10-26', status: 'PENDING', attempts: 2, sentAt: null, lastError: '메일 서버 응답 없음', queued: true, queuedAt: '2026-10-27T00:00:00.000Z' }),
+            weekly({ weekStart: '2026-10-19', status: 'GENERATED', attempts: 1, sentAt: null, lastError: '첨부 생성 실패' }),
           ],
           nextBefore: null,
         },

@@ -6,8 +6,9 @@ import { loginAs, mockApi, renderPage } from '../../test/render';
 import { AnomaliesPage } from './AnomaliesPage';
 import { PurchaseOrdersPage } from './PurchaseOrdersPage';
 import { VanRunDetailPage } from './VanRunDetailPage';
-import { VanRunsPage, type VanRunView } from './VanRunsPage';
-import { lastWeekMonday, queueWait, WORKER_HINT_AFTER_MIN, weekStartProblem, WeeklyReportsPage, type WeeklyReportView } from './WeeklyReportsPage';
+import type { VanRunView, WeeklyReportView } from '@terminal-ops/contracts';
+import { VanRunsPage } from './VanRunsPage';
+import { lastWeekMonday, queueWait, WORKER_HINT_AFTER_MIN, weekStartProblem, WeeklyReportsPage } from './WeeklyReportsPage';
 
 /** 'YYYY-MM-DD'에 days일을 더한다(테스트용) */
 const addDays = (day: string, days: number) => {

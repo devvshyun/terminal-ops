@@ -1,4 +1,4 @@
-import type { DashboardView } from '../api/types';
+import type { DashboardView } from '@terminal-ops/contracts';
 
 /** 서버 GET /dashboard/summary 응답 모양(api DashboardView, decisions/0044) — 처음 화면을 그리는 테스트가 함께 쓴다 */
 export const dashboardBody = (over: Partial<DashboardView> = {}): DashboardView => ({

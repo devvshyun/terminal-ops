@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { api } from '../api/client';
 import { keys } from '../api/query-keys';
-import type { DashboardView } from '../api/types';
+import type { DashboardView } from '@terminal-ops/contracts';
 import { ErrorBox } from '../components/ErrorBox';
 import { useNow } from '../hooks/useNow';
 import { ageText, formatKst } from '../lib/format';

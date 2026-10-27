@@ -6,21 +6,8 @@ import { ErrorBox } from '../../components/ErrorBox';
 import { MoreButton } from '../../components/MoreButton';
 import { RunningPoller } from '../../components/RunningPoller';
 import { formatKst } from '../../lib/format';
-import type { VanRunView } from './VanRunsPage';
+import type { VanRunDetail } from '@terminal-ops/contracts';
 import { keys } from '../../api/query-keys';
-
-interface VanItemView {
-  id: number;
-  serialNo: string;
-  kind: string;
-  kindLabel: string;
-  ourValue: string;
-  vanValue: string;
-  verified: boolean;
-  reason: string | null;
-}
-
-type RunWithItems = VanRunView & { items: VanItemView[]; nextAfterId: number | null };
 
 /** VAN 대조 실행 하나. 실행 번호가 바뀌면 key로 새로 그려 필터(종류·재검증)를 처음 값으로 되돌린다 */
 export function VanRunDetailPage() {
@@ -35,7 +22,7 @@ function VanRunDetail({ id }: { id: number }) {
   const detail = useInfiniteQuery({
     queryKey: keys.vanRun.items(id, kind, verified),
     queryFn: ({ pageParam }) =>
-      api<RunWithItems>(`/van-reconciliations/${id}`, { query: { kind, verified, afterId: pageParam ?? undefined, limit: 100 } }),
+      api<VanRunDetail>(`/van-reconciliations/${id}`, { query: { kind, verified, afterId: pageParam ?? undefined, limit: 100 } }),
     initialPageParam: null as number | null,
     getNextPageParam: (last) => last.nextAfterId,
   });

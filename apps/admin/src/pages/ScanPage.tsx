@@ -1,30 +1,11 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../api/client';
-import type { BeforeIdPage } from '../api/types';
+import type { BeforeIdPage, CreateScanRequest, PurchaseOrderStatus, PurchaseOrderView, RowResultCode, ScanKind, ScanView } from '@terminal-ops/contracts';
 import { ErrorBox } from '../components/ErrorBox';
 import { WriteButton } from '../components/WriteButton';
 import { formatKst } from '../lib/format';
 import { keys } from '../api/query-keys';
-
-interface PurchaseOrderView {
-  id: number;
-  poNo: string;
-  modelCode: string;
-  quantity: number;
-  status: string;
-}
-
-interface ScanResultView {
-  scanId: string;
-  kind: string;
-  poNo: string | null;
-  actor: string;
-  replayed: boolean;
-  createdAt: string;
-  summary: Record<string, number>;
-  results: { serialNo: string; result: string; message?: string }[];
-}
 
 /** 스캐너가 박스마다 만드는 멱등 키(서버 규칙: 영문·숫자·_·- 8~64자) */
 export function newScanId(): string {
@@ -52,9 +33,9 @@ const retryable = (error: unknown) =>
   !(error instanceof ApiError) || error.status >= 500 || (error.status === 409 && (error.code === 'SCAN_IN_PROGRESS' || error.code === 'VERSION_CONFLICT'));
 
 /** 열린 발주 상태. 상태별로 따로 불러 합친다 — 한 번에 최근 100개를 받아 거르면 CLOSED가 쌓였을 때 오래된 열린 발주가 잘린다 */
-const OPEN_PO_STATUSES = ['ORDERED', 'RECEIVING'] as const;
+const OPEN_PO_STATUSES = ['ORDERED', 'RECEIVING'] as const satisfies readonly PurchaseOrderStatus[];
 
-const SUCCESS = new Set(['CREATED', 'RETURNED']);
+const SUCCESS = new Set<RowResultCode>(['CREATED', 'RETURNED']);
 
 /**
  * 박스 일괄 스캔(F6). 박스 하나 = 요청 하나. scanId는 처음 보낼 때 만들고, 결과를 받거나 박스를 버릴 때까지 같은 값을 쓴다 —
@@ -63,7 +44,7 @@ const SUCCESS = new Set(['CREATED', 'RETURNED']);
  */
 export function ScanPage() {
   const client = useQueryClient();
-  const [kind, setKind] = useState<'RECEIVE' | 'RETURN_IN'>('RECEIVE');
+  const [kind, setKind] = useState<ScanKind>('RECEIVE');
   const [poNo, setPoNo] = useState('');
   const [text, setText] = useState('');
   const [scanId, setScanId] = useState<string | null>(null);
@@ -86,7 +67,7 @@ export function ScanPage() {
   });
 
   const scan = useMutation({
-    mutationFn: (body: { scanId: string; kind: string; poNo?: string; serials: string[] }) => api<ScanResultView>('/scans', { method: 'POST', body }),
+    mutationFn: (body: CreateScanRequest) => api<ScanView>('/scans', { method: 'POST', body }),
     onSuccess: () => {
       // 스캔은 여러 단말기의 상태와 발주 입고 수를 바꾼다: 단말기 목록·상세, 발주 목록·입고 대조를 모두 다시 읽는다(Day 6 최종 리뷰 Minor 4)
       void client.invalidateQueries({ queryKey: keys.terminals.all });

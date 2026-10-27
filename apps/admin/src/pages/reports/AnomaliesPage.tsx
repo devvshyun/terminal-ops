@@ -8,31 +8,7 @@ import { WriteButton } from '../../components/WriteButton';
 import { formatKst } from '../../lib/format';
 import { label, TERMINAL_STATUS_LABEL } from '../../lib/labels';
 import { keys } from '../../api/query-keys';
-
-interface AnomalyRuleView {
-  rule: string;
-  label: string;
-  days: number | null;
-}
-
-interface AnomalyView {
-  id: number;
-  serialNo: string | null;
-  status: string | null;
-  rule: string;
-  ruleLabel: string;
-  detectedAt: string;
-  lastSeenAt: string;
-  resolvedAt: string | null;
-  detail: { days?: number };
-}
-
-interface ScanSummary {
-  detected: number;
-  continuing: number;
-  resolved: number;
-  newSerials: string[];
-}
+import type { AfterIdPage, AnomalyRuleView, AnomalyScanSummary, AnomalyView } from '@terminal-ops/contracts';
 
 /** 이상 단말기(F4): 규칙·열림으로 거르고 afterId로 이어 본다(서버 목록은 오름차순 키셋, decisions/0033). 바로 찾기는 동기(decisions/0038) */
 export function AnomaliesPage() {
@@ -43,12 +19,12 @@ export function AnomaliesPage() {
   const list = useInfiniteQuery({
     queryKey: keys.anomalies.list(rule, open),
     queryFn: ({ pageParam }) =>
-      api<{ items: AnomalyView[]; nextAfterId: number | null }>('/anomalies', { query: { rule, open, afterId: pageParam ?? undefined, limit: 100 } }),
+      api<AfterIdPage<AnomalyView>>('/anomalies', { query: { rule, open, afterId: pageParam ?? undefined, limit: 100 } }),
     initialPageParam: null as number | null,
     getNextPageParam: (last) => last.nextAfterId,
   });
   const scan = useMutation({
-    mutationFn: () => api<ScanSummary>('/anomaly-scans', { method: 'POST' }),
+    mutationFn: () => api<AnomalyScanSummary>('/anomaly-scans', { method: 'POST' }),
     onSuccess: () => client.invalidateQueries({ queryKey: keys.anomalies.all }),
   });
   const items = list.data?.pages.flatMap((p) => p.items) ?? [];

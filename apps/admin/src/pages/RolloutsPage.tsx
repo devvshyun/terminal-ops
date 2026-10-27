@@ -8,36 +8,10 @@ import { WriteButton } from '../components/WriteButton';
 import { formatKst } from '../lib/format';
 import { label } from '../lib/labels';
 import { keys } from '../api/query-keys';
+import type { RolloutStatus, RolloutView } from '@terminal-ops/contracts';
 
-export interface StageStats {
-  stage: number;
-  percent: number;
-  targets: number;
-  offered: number;
-  succeeded: number;
-  failed: number;
-  timedOut: number;
-}
-
-export interface RolloutView {
-  id: number;
-  modelCode: string;
-  version: string;
-  status: string;
-  stages: number[];
-  currentStage: number;
-  failureThreshold: number;
-  minSamples: number;
-  stageTimeoutMs: number;
-  stageStartedAt: string;
-  createdBy: string;
-  createdAt: string;
-  finishedAt: string | null;
-  endReason: string | null;
-  stageStats: StageStats[];
-}
-
-const ROLLOUT_STATUS_LABEL: Record<string, string> = {
+/** 배포 상태 이름. 키가 contracts RolloutStatus와 하나라도 다르면 tsc가 막는다 */
+const ROLLOUT_STATUS_LABEL: Record<RolloutStatus, string> = {
   RUNNING: '진행 중',
   PAUSED: '멈춤',
   COMPLETED: '완료',

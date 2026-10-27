@@ -1,11 +1,27 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
-import type { InspectionItemView, MerchantView, TerminalDetail } from '../api/types';
+import type {
+  AllocateRequest,
+  CancelAllocationRequest,
+  Carrier,
+  CreateShipmentRequest,
+  InspectionItemView,
+  InspectionResultInput,
+  InspectRequest,
+  InspectResult,
+  MerchantView,
+  TerminalDetail,
+  TerminalStatus,
+  TransitionRequest,
+} from '@terminal-ops/contracts';
 import { CARRIER_LABEL, label, TERMINAL_STATUS_LABEL } from '../lib/labels';
 import { ErrorBox } from './ErrorBox';
 import { WriteButton } from './WriteButton';
 import { keys } from '../api/query-keys';
+
+/** expectedVersion은 run()이 붙인다 */
+type Unversioned<T> = Omit<T, 'expectedVersion'>;
 
 /**
  * 단말기 상세의 "할 수 있는 일". 무엇을 보여 줄지는 서버가 준 allowedTransitions·actions만 본다(전이 규칙을 화면에 두지 않는다, decisions/0040).
@@ -14,13 +30,13 @@ import { keys } from '../api/query-keys';
 export function TerminalActions({ terminal, onReload }: { terminal: TerminalDetail; onReload: () => void }) {
   const client = useQueryClient();
   const path = `/terminals/${encodeURIComponent(terminal.serialNo)}`;
-  const [pick, setSelected] = useState<string | null>(null);
+  const [pick, setSelected] = useState<TerminalStatus | null>(null);
   // 다시 불러온 상세에서 고른 전이가 없어졌거나 막혔으면 선택을 푼다
   const selected = terminal.allowedTransitions.some((t) => t.to === pick && t.blockedReason === null) ? pick : null;
   const [reason, setReason] = useState('');
   const [merchantCode, setMerchantCode] = useState('');
   const [cancelReason, setCancelReason] = useState('');
-  const [carrier, setCarrier] = useState('BUNGAE');
+  const [carrier, setCarrier] = useState<Carrier>('BUNGAE');
 
   const merchants = useQuery({
     queryKey: keys.merchants,
@@ -39,7 +55,8 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
       await client.invalidateQueries({ queryKey: keys.terminals.all });
     },
   });
-  const run = (url: string, body: Record<string, unknown>) => action.mutate({ url, body: { ...body, expectedVersion: terminal.version } });
+  /** 본문에 화면에서 본 version을 붙여 보낸다. 본문 모양은 부르는 곳에서 contracts 요청 타입으로 satisfies */
+  const run = (url: string, body: object) => action.mutate({ url, body: { ...body, expectedVersion: terminal.version } });
 
   const nothing =
     terminal.allowedTransitions.length === 0 && !Object.values(terminal.actions).some(Boolean);
@@ -85,7 +102,7 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
               <WriteButton
                 className="primary"
                 disabled={!reason.trim() || action.isPending}
-                onClick={() => run(`${path}/transitions`, { to: selected, reason: reason.trim() })}
+                onClick={() => run(`${path}/transitions`, { to: selected, reason: reason.trim() } satisfies Unversioned<TransitionRequest>)}
               >
                 {label(TERMINAL_STATUS_LABEL, selected)}(으)로 바꾸기
               </WriteButton>
@@ -104,7 +121,7 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
               </option>
             ))}
           </select>
-          <WriteButton disabled={!merchantCode || action.isPending} onClick={() => run(`${path}/allocations`, { merchantCode })}>
+          <WriteButton disabled={!merchantCode || action.isPending} onClick={() => run(`${path}/allocations`, { merchantCode } satisfies Unversioned<AllocateRequest>)}>
             가맹점 배정
           </WriteButton>
         </div>
@@ -115,7 +132,7 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
           <input aria-label="배정 취소 사유" placeholder="배정 취소 사유" value={cancelReason} maxLength={200} onChange={(e) => setCancelReason(e.target.value)} />
           <WriteButton
             disabled={!cancelReason.trim() || action.isPending}
-            onClick={() => run(`${path}/allocation-cancellations`, { reason: cancelReason.trim() })}
+            onClick={() => run(`${path}/allocation-cancellations`, { reason: cancelReason.trim() } satisfies Unversioned<CancelAllocationRequest>)}
           >
             배정 취소
           </WriteButton>
@@ -124,14 +141,14 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
 
       {terminal.actions.ship ? (
         <div className="row">
-          <select aria-label="택배사" value={carrier} onChange={(e) => setCarrier(e.target.value)}>
+          <select aria-label="택배사" value={carrier} onChange={(e) => setCarrier(e.target.value as Carrier)}>
             {Object.entries(CARRIER_LABEL).map(([code, name]) => (
               <option key={code} value={code}>
                 {name}
               </option>
             ))}
           </select>
-          <WriteButton disabled={action.isPending} onClick={() => run('/shipments', { serialNo: terminal.serialNo, carrier })}>
+          <WriteButton disabled={action.isPending} onClick={() => run('/shipments', { serialNo: terminal.serialNo, carrier } satisfies Unversioned<CreateShipmentRequest>)}>
             출고(운송장 발급)
           </WriteButton>
         </div>
@@ -152,8 +169,8 @@ function InspectForm({ terminal, onReload }: { terminal: TerminalDetail; onReloa
   });
   const [failed, setFailed] = useState<Record<string, boolean>>({});
   const inspect = useMutation({
-    mutationFn: (results: { itemCode: string; passed: boolean }[]) =>
-      api(`/terminals/${encodeURIComponent(terminal.serialNo)}/inspections`, { method: 'POST', body: { results } }),
+    mutationFn: (results: InspectionResultInput[]) =>
+      api<InspectResult>(`/terminals/${encodeURIComponent(terminal.serialNo)}/inspections`, { method: 'POST', body: { results } satisfies InspectRequest }),
     onSuccess: async () => {
       setFailed({});
       await client.invalidateQueries({ queryKey: keys.terminal.one(terminal.serialNo) });

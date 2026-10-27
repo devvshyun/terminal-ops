@@ -2,12 +2,12 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, useNavigate } from 'react-router';
 import { describe, expect, it } from 'vitest';
-import type { TerminalDetail } from '../api/types';
+import type { TerminalDetail, TerminalStatus, TerminalView, TransitionTarget } from '@terminal-ops/contracts';
 import { loginAs, mockApi, renderPage } from '../test/render';
 import { TerminalDetailPage } from './TerminalDetailPage';
 import { TerminalListPage } from './TerminalListPage';
 
-const row = (serialNo: string, status = 'IN_STOCK') => ({
+const row = (serialNo: string, status: TerminalStatus = 'IN_STOCK'): TerminalView => ({
   serialNo,
   modelCode: 'SN-100',
   merchantCode: null,
@@ -293,7 +293,7 @@ describe('단말기 상세 (F2, decisions/0040)', () => {
     });
 
     it('다시 불러온 상세에서 고른 전이가 사라졌으면 선택을 풀고, 상세 전체(타임라인 포함)를 다시 읽는다', async () => {
-      let transitions = [{ to: 'DELIVERED', blockedReason: null as string | null }];
+      let transitions: TransitionTarget[] = [{ to: 'DELIVERED', blockedReason: null }];
       const { calls } = mockApi(common(() => detail({ allowedTransitions: transitions })));
       open();
       await userEvent.click(await screen.findByRole('button', { name: '→ 배송 완료' }));
