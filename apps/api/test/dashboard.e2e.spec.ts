@@ -1,8 +1,9 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Redis } from 'ioredis';
 import { Anomaly, AnomalyRule } from '../src/anomaly/anomaly.entity.js';
 import { env } from '../src/config/env.js';
-import { dashboardCacheKey } from '../src/dashboard/dashboard.service.js';
+import { DashboardQueries } from '../src/dashboard/dashboard.queries.js';
+import { dashboardCacheKey, DashboardService } from '../src/dashboard/dashboard.service.js';
 import { Firmware, FirmwareRollout, RolloutStatus } from '../src/firmware/firmware.entities.js';
 import { Merchant } from '../src/merchant/merchant.entity.js';
 import { REDIS } from '../src/redis/redis.provider.js';
@@ -22,6 +23,7 @@ describe('대시보드 집계와 캐시 (decisions/0044)', () => {
   let ids: Map<string, number>;
   /** 가장 최근에 끝난 VAN 실행 id, 이번 주 월요일(KST) — beforeAll이 채운다 */
   let latestVanRun = 0;
+  let vanFinishedAt = 0;
   let weekStart = '';
   const em = () => t.orm.em.fork();
   const get = (query: Record<string, string> = {}) => t.http().get('/dashboard/summary').query(query);
@@ -66,6 +68,7 @@ describe('대시보드 집계와 캐시 (decisions/0044)', () => {
     run(VanRunStatus.FAILED, 9);
     await e.flush();
     latestVanRun = latest.id;
+    vanFinishedAt = now.getTime();
     // 이력: 이번 주 시작 시각(포함)에 둘, 그 1초 전(지난주)에 하나
     const week = kstWeekOf(now);
     const history = 'insert into terminal_status_history (terminal_id, from_status, to_status, source, actor, reason, occurred_at) values (?, ?, ?, ?, ?, ?, ?)';
@@ -113,6 +116,8 @@ describe('대시보드 집계와 캐시 (decisions/0044)', () => {
       fromCache: false,
     });
     expect(Date.parse(res.body.cachedAt)).not.toBeNaN();
+    // finishedAt은 넣은 시각 그대로(DB datetime ↔ UTC ISO 변환이 시간대만큼 밀리지 않는다 — 초 미만은 잘릴 수 있어 1초 안)
+    expect(Math.abs(Date.parse(res.body.van.finishedAt) - vanFinishedAt)).toBeLessThan(1_000);
   });
 
   it('두 번째 요청은 캐시(같은 cachedAt). 캐시가 살아 있는 동안은 데이터가 바뀌어도 옛 값, refresh=true면 다시 집계한다', async () => {
@@ -142,6 +147,126 @@ describe('대시보드 집계와 캐시 (decisions/0044)', () => {
     }
     expect(log.queries.filter((q) => /from `?terminal_status_history`?/i.test(q))).toHaveLength(1);
     expect(new Set(bodies.map((b) => b.cachedAt)).size).toBe(1);
+  });
+
+  describe('새로고침과 진행 중 집계(리뷰 반영)', () => {
+    let svc: DashboardService;
+    let queries: DashboardQueries;
+    let real: DashboardQueries['collect'];
+    /** 집계 호출 수와, 첫 집계를 붙잡아 두는 문 */
+    let calls = 0;
+    let release: () => void = () => {};
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    /** collect를 감싼다: 호출을 세고, holdFirst면 첫 호출을 release()까지 멈춘다 */
+    function spyCollect(holdFirst: boolean) {
+      calls = 0;
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      return vi.spyOn(queries, 'collect').mockImplementation(async (now?: Date) => {
+        calls += 1;
+        if (holdFirst && calls === 1) await gate;
+        return real(now);
+      });
+    }
+
+    beforeAll(() => {
+      svc = t.app.get(DashboardService);
+      queries = t.app.get(DashboardQueries);
+      real = queries.collect.bind(queries);
+    });
+
+    it('일반 집계가 도는 중 refresh는 그 집계에 합류하지 않고 새로 집계한다', async () => {
+      const spy = spyCollect(true);
+      try {
+        const normal = svc.summary();
+        await vi.waitFor(() => expect(calls).toBe(1));
+        await sleep(5);
+        const refreshing = svc.summary({ refresh: true });
+        await vi.waitFor(() => expect(calls).toBe(2));
+        const refreshed = await refreshing;
+        release();
+        const old = await normal;
+        expect(refreshed.fromCache).toBe(false);
+        expect(Date.parse(refreshed.cachedAt)).toBeGreaterThan(Date.parse(old.cachedAt));
+      } finally {
+        release();
+        spy.mockRestore();
+      }
+    });
+
+    it('늦게 끝난 옛 집계가 새로고침 결과를 캐시에서 덮어쓰지 않는다', async () => {
+      const spy = spyCollect(true);
+      try {
+        const normal = svc.summary();
+        await vi.waitFor(() => expect(calls).toBe(1));
+        await sleep(5);
+        const refreshing = svc.summary({ refresh: true });
+        await vi.waitFor(() => expect(calls).toBe(2));
+        const refreshed = await refreshing;
+        release();
+        await normal;
+        expect((await svc.summary()).cachedAt).toBe(refreshed.cachedAt);
+      } finally {
+        release();
+        spy.mockRestore();
+      }
+    });
+
+    it('동시에 온 refresh 둘은 집계 하나를 함께 쓴다', async () => {
+      const spy = spyCollect(false);
+      try {
+        const [a, b] = await Promise.all([svc.summary({ refresh: true }), svc.summary({ refresh: true })]);
+        expect(calls).toBe(1);
+        expect(a.cachedAt).toBe(b.cachedAt);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('refresh 집계가 도는 중 캐시가 빈 일반 요청은 그 refresh에 합류한다(더 새로운 값)', async () => {
+      const spy = spyCollect(true);
+      try {
+        const refreshing = svc.summary({ refresh: true });
+        await vi.waitFor(() => expect(calls).toBe(1));
+        const normal = svc.summary();
+        await sleep(20);
+        release();
+        const [r, n] = await Promise.all([refreshing, normal]);
+        expect(calls).toBe(1);
+        expect(n.cachedAt).toBe(r.cachedAt);
+      } finally {
+        release();
+        spy.mockRestore();
+      }
+    });
+
+    it('집계가 실패하면 진행 중 표시를 비워 다음 요청은 다시 집계한다', async () => {
+      const spy = vi.spyOn(queries, 'collect').mockRejectedValueOnce(new Error('집계 실패(테스트)'));
+      try {
+        await expect(svc.summary()).rejects.toThrow('집계 실패(테스트)');
+        const ok = await svc.summary();
+        expect(ok.terminals.total).toBeGreaterThan(0);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('Redis 읽기·쓰기가 실패해도 캐시 없이 집계해 200', async () => {
+      const get = vi.spyOn(redis, 'get').mockRejectedValueOnce(new Error('redis down(테스트)'));
+      const set = vi.spyOn(redis, 'set').mockRejectedValueOnce(new Error('redis down(테스트)'));
+      try {
+        const res = await t.http().get('/dashboard/summary');
+        expect(res.status).toBe(200);
+        expect(res.body.fromCache).toBe(false);
+        expect(get).toHaveBeenCalled();
+        expect(set).toHaveBeenCalled();
+      } finally {
+        get.mockRestore();
+        set.mockRestore();
+      }
+    });
   });
 
   it('refresh는 true·false만(그 밖은 400)', async () => {
