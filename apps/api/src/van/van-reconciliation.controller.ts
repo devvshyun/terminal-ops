@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { BeforeIdQuery } from '../common/keyset.js';
 import { Operator } from '../common/operator.decorator.js';
 import { StartVanReconciliationDto } from './dto/start-van-reconciliation.dto.js';
 import { VanItemsQuery } from './dto/van-items.query.js';
@@ -14,6 +15,13 @@ export class VanReconciliationController {
   @HttpCode(202)
   async start(@Operator() actor: string, @Body() body: StartVanReconciliationDto) {
     return toVanRunView(await this.runs.request(actor, { acknowledgeDrop: body.acknowledgeDrop === true }));
+  }
+
+  /** 실행 목록(최근 것부터, ?beforeId=&limit=) */
+  @Get()
+  async list(@Query() query: BeforeIdQuery) {
+    const { items, nextBeforeId } = await this.runs.list(query);
+    return { items: items.map(toVanRunView), nextBeforeId };
   }
 
   /** 실행 요약 + 결과 한 페이지(?kind=&verified=&afterId=&limit=) */

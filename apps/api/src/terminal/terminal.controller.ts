@@ -8,7 +8,7 @@ import { TerminalImportService, type UploadedSpreadsheet } from './terminal-impo
 import { TerminalService } from './terminal.service.js';
 import { TransitionService } from './transition.service.js';
 import { TransitionSource } from './terminal-status.js';
-import { toHistoryView, toTerminalView } from './terminal.views.js';
+import { toHistoryView, toTerminalDetailView, toTerminalView } from './terminal.views.js';
 
 @Controller('terminals')
 export class TerminalController {
@@ -42,9 +42,10 @@ export class TerminalController {
     return { ...result, items: result.items.map(toTerminalView) };
   }
 
+  /** 상세: 기본 정보 + 지금 상태에서 할 수 있는 전이·작업(decisions/0040) */
   @Get(':serialNo')
   async get(@Param('serialNo') serialNo: string) {
-    return toTerminalView(await this.terminals.getBySerial(serialNo));
+    return toTerminalDetailView(await this.terminals.getBySerial(serialNo));
   }
 
   @Get(':serialNo/history')

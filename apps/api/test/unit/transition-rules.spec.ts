@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkTransition } from '../../src/terminal/transition-rules.js';
+import { checkTransition, targetsFrom } from '../../src/terminal/transition-rules.js';
 import { TerminalStatus as S, TransitionSource as Src } from '../../src/terminal/terminal-status.js';
 
 const normal = { requiresReinspection: false };
@@ -99,6 +99,37 @@ describe('checkTransition', () => {
   it('폐기는 끝 상태다', () => {
     for (const to of Object.values(S)) {
       expect(checkTransition(S.DISPOSED, to, Src.MANUAL, normal).ok).toBe(false);
+    }
+  });
+});
+
+describe('targetsFrom — 화면이 그리는 전이 버튼 (decisions/0040)', () => {
+  it('MANUAL로 갈 수 있는 상태만 준다(배정·출고·검수 전용 전이는 빠진다)', () => {
+    expect(targetsFrom(S.SHIPPED, Src.MANUAL, normal)).toEqual([{ to: S.DELIVERED, blockedReason: null }]);
+    expect(targetsFrom(S.IN_STOCK, Src.MANUAL, normal)).toEqual([]);
+    expect(targetsFrom(S.RECEIVED, Src.MANUAL, normal)).toEqual([]);
+    expect(targetsFrom(S.IN_STOCK, Src.ALLOCATION, normal)).toEqual([{ to: S.ALLOCATED, blockedReason: null }]);
+    expect(targetsFrom(S.DISPOSED, Src.MANUAL, normal)).toEqual([]);
+  });
+
+  it('모델 정책에 막힌 전이는 빼지 않고 이유와 함께 준다(재검수 필수 모델의 회수 → 재고)', () => {
+    expect(targetsFrom(S.RETURNED, Src.MANUAL, normal)).toEqual([{ to: S.IN_STOCK, blockedReason: null }]);
+    expect(targetsFrom(S.RETURNED, Src.MANUAL, strict)).toEqual([{ to: S.IN_STOCK, blockedReason: expect.stringContaining('재검수') }]);
+  });
+
+  it('모든 상태·경로·정책에서 targetsFrom과 checkTransition이 같은 답을 한다(규칙 표 하나)', () => {
+    for (const policy of [normal, strict]) {
+      for (const source of Object.values(Src)) {
+        for (const from of Object.values(S)) {
+          const targets = targetsFrom(from, source, policy);
+          for (const to of Object.values(S)) {
+            const target = targets.find((x) => x.to === to);
+            const check = checkTransition(from, to, source, policy);
+            expect(check.ok, `${from} -> ${to} (${source})`).toBe(target !== undefined && target.blockedReason === null);
+            if (target?.blockedReason) expect(check).toEqual({ ok: false, reason: target.blockedReason });
+          }
+        }
+      }
     }
   });
 });

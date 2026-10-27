@@ -1,6 +1,6 @@
-import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { Operator } from '../common/operator.decorator.js';
-import { OpenTicketDto, RemoteCheckDto, ReplaceDto } from './dto/service-ticket.dto.js';
+import { ListTicketsQuery, OpenTicketDto, RemoteCheckDto, ReplaceDto } from './dto/service-ticket.dto.js';
 import { ReplacementService } from './replacement.service.js';
 import { ServiceTicketService } from './service-ticket.service.js';
 import { toTicketView } from './service-ticket.views.js';
@@ -15,6 +15,13 @@ export class ServiceTicketController {
   @Post()
   async open(@Body() dto: OpenTicketDto, @Operator() actor: string) {
     return toTicketView(await this.tickets.open(dto, actor));
+  }
+
+  /** 접수 목록(최근 것부터, ?status=&serialNo=&beforeId=&limit=) */
+  @Get()
+  async list(@Query() query: ListTicketsQuery) {
+    const { items, nextBeforeId } = await this.tickets.list(query);
+    return { items: items.map(toTicketView), nextBeforeId };
   }
 
   @Get(':id')

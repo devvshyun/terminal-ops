@@ -6,7 +6,8 @@ import { BusinessError } from '../common/domain-errors.js';
 import { QUEUE } from '../queue/queue-names.js';
 import { toVanRunView, VanReconciliationService, type VanRunJobData } from '../van/van-reconciliation.service.js';
 import { VanRunStatus } from '../van/van.entities.js';
-import { isPermanentWeeklyReportError, WeeklyReportService } from './weekly-report.service.js';
+import { parseKstWeekStart } from './kst-week.js';
+import { isPermanentWeeklyReportError, WEEKLY_REPORT_SEND_JOB, WeeklyReportService, type WeeklyReportSendJobData } from './weekly-report.service.js';
 
 /**
  * report 큐: 오래 걸리는 집계 job(VAN 대조, 이상 단말기 찾기, 주간 리포트). device 큐(concurrency 1, 짧은 job)와 나눠
@@ -67,6 +68,25 @@ export class ReportProcessor extends WorkerHost {
         else this.logger.log(`weekly-report 끝: ${report.weekStart} 주 ${report.status}, ${report.fileSize}바이트`);
         if (carriedOver.length > 0) this.logger.log(`weekly-report 이어 보냄: ${carriedOver.map((c) => `${c.weekStart} ${c.status}`).join(', ')}`);
         return { weekStart: report.weekStart, status: report.status, alreadySent, carriedOver };
+      }
+      case WEEKLY_REPORT_SEND_JOB: {
+        // 수동 보내기(POST /reports/weekly가 넣은 job, decisions/0038). 재시도 없음 — 실패는 행의 lastError로 남고 운영자가 다시 누른다
+        const weekStart = (job.data as Partial<WeeklyReportSendJobData>).weekStart;
+        const week = typeof weekStart === 'string' ? parseKstWeekStart(weekStart) : null;
+        if (!week) throw new UnrecoverableError(`${WEEKLY_REPORT_SEND_JOB}: weekStart가 KST 월요일이 아닙니다: ${JSON.stringify(job.data)}`);
+        try {
+          const { report, alreadySent } = await this.reports.send(week);
+          this.logger.log(`${WEEKLY_REPORT_SEND_JOB} 끝: ${report.weekStart} 주 ${report.status}${alreadySent ? '(이미 보냄)' : ''}`);
+          return { weekStart: report.weekStart, status: report.status, alreadySent };
+        } catch (error) {
+          // 같은 주를 주기 job이 보내는 중 — 그쪽이 끝낸다
+          if (error instanceof BusinessError && error.code === 'WEEKLY_REPORT_IN_PROGRESS') {
+            this.logger.warn(`${WEEKLY_REPORT_SEND_JOB} 건너뜀: ${week.weekStart} 주를 다른 보내기가 처리 중`);
+            return { weekStart: week.weekStart, skipped: true };
+          }
+          this.logger.warn(`${WEEKLY_REPORT_SEND_JOB} 실패: ${week.weekStart} 주 — ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`);
+          throw isPermanentWeeklyReportError(error) ? new UnrecoverableError(`${WEEKLY_REPORT_SEND_JOB} 영구 오류 — ${String(error)}`) : error;
+        }
       }
       default:
         throw new UnrecoverableError(`모르는 report job: ${job.name}`);

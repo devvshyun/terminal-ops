@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { EntityManager } from '@mikro-orm/mysql';
+import { EntityManager, LoadStrategy } from '@mikro-orm/mysql';
 import type { RegisterTerminalDto } from './dto/register-terminal.dto.js';
 import type { ListTerminalsQuery } from './dto/list-terminals.query.js';
 import { TerminalModel } from './terminal-model.entity.js';
@@ -30,19 +30,33 @@ export class TerminalService {
     });
   }
 
-  async list(query: ListTerminalsQuery) {
+  /**
+   * 목록(offset 페이지 + 전체 수, decisions/0039). 모델·가맹점은 select-in으로 따로 읽는다(실험 0013):
+   * 기본(joined)이면 목록 SQL이 terminal 전체를 모델·가맹점과 해시 조인한 뒤 id로 정렬해 20행을 자르고(10만 대 약 100ms),
+   * count도 같은 조인을 탄다. select-in이면 목록은 PK를 거꾸로 읽어 바로 멈추고, 모델·가맹점은 그 20행의 id로 한 번씩 읽는다.
+   * 모델·가맹점 코드로 거를 때는 MikroORM이 거르기용 조인만 붙인다.
+   * @param strategy 실험 0013이 joined와 비교하려고만 바꾼다(운영 코드는 기본값)
+   */
+  async list(query: ListTerminalsQuery, strategy: LoadStrategy = LoadStrategy.SELECT_IN) {
     const where = {
       ...(query.status ? { status: query.status } : {}),
       ...(query.modelCode ? { model: { code: query.modelCode } } : {}),
+      ...(query.merchantCode ? { merchant: { code: query.merchantCode } } : {}),
       ...(query.q ? { serialNo: { $like: `${escapeLike(query.q)}%` } } : {}),
     };
     const [items, total] = await this.em.findAndCount(Terminal, where, {
       populate: ['model', 'merchant'],
+      strategy,
       orderBy: { id: 'desc' },
       limit: query.size,
       offset: (query.page - 1) * query.size,
     });
     return { items, total, page: query.page, size: query.size };
+  }
+
+  /** 모델 목록(코드 순). 화면의 필터·등록 선택지 */
+  async models(): Promise<TerminalModel[]> {
+    return this.em.find(TerminalModel, {}, { orderBy: { code: 'asc' } });
   }
 
   async getBySerial(serialNo: string): Promise<Terminal> {

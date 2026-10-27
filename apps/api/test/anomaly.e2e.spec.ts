@@ -239,7 +239,9 @@ describe('이상 단말기 찾기 (F4, decisions/0034)', () => {
     const more = await insertTerminals(t, [{ serialNo: 'AL-01', status: S.SHIPPED, merchantCode: G, statusChangedAt: daysAgo(20) }]);
     const al = more.get('AL-01')!;
     const continuingId = ids.get('AN-03')!; // 앞 테스트부터 열려 있는 RETURN_STALLED
-    const t1 = new Date(NOW.getTime() + 10 * HOUR); // 먼저 시작했지만 늦게 쓰는 찾기
+    // troubleshooting/0026: 앞 테스트의 POST /anomaly-scans가 실제 지금 시각으로 last_seen_at을 쓴다. 기준을 NOW(고정)로 두면
+    // 실제 시각이 NOW + 10시간을 넘은 날부터 greatest()가 그 값을 지켜 실패했다. 실제 지금보다 뒤로 잡는다
+    const t1 = new Date(Math.max(NOW.getTime(), Date.now()) + 10 * HOUR); // 먼저 시작했지만 늦게 쓰는 찾기
     const t2 = new Date(t1.getTime() + 1000); // 나중에 시작했지만 먼저 끝나는 찾기
     const find = CoreEntityManager.prototype.find;
     let entered = false;

@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { EntityManager, LockMode } from '@mikro-orm/mysql';
+import { EntityManager, LoadStrategy, LockMode } from '@mikro-orm/mysql';
 import { BusinessError } from '../common/domain-errors.js';
+import { beforeIdWhere, keysetPage } from '../common/keyset.js';
 import { Terminal } from '../terminal/terminal.entity.js';
 import { TerminalStatus } from '../terminal/terminal-status.js';
-import type { OpenTicketDto, RemoteCheckDto } from './dto/service-ticket.dto.js';
+import type { ListTicketsQuery, OpenTicketDto, RemoteCheckDto } from './dto/service-ticket.dto.js';
 import { OPEN_TICKET_STATUSES, ServiceTicket, ServiceTicketStatus } from './service-ticket.entity.js';
 
 export const TICKET_POPULATE = ['terminal', 'merchant', 'replacementTerminal', 'outboundShipment'] as const;
@@ -45,6 +46,20 @@ export class ServiceTicketService {
       }
     });
     return this.get(id);
+  }
+
+  /** 접수 목록(최근 것부터, id 키셋 — decisions/0039) */
+  async list(q: ListTicketsQuery) {
+    const rows = await this.em.fork().find(
+      ServiceTicket,
+      {
+        ...beforeIdWhere(q.beforeId),
+        ...(q.status ? { status: q.status } : {}),
+        ...(q.serialNo ? { terminal: { serialNo: q.serialNo } } : {}),
+      },
+      { populate: TICKET_POPULATE, strategy: LoadStrategy.SELECT_IN, orderBy: { id: 'desc' }, limit: q.limit + 1 },
+    );
+    return keysetPage(rows, q.limit);
   }
 
   async get(id: number): Promise<ServiceTicket> {

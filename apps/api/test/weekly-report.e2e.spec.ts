@@ -2,12 +2,14 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import ExcelJS from 'exceljs';
 import type { Redis } from 'ioredis';
 import { env } from '../src/config/env.js';
+import { BusinessError } from '../src/common/domain-errors.js';
+import { PartnerError } from '../src/common/partner-errors.js';
 import { RedisLock } from '../src/redis/redis-lock.js';
 import { kstWeekOf, parseKstWeekStart } from '../src/report/kst-week.js';
 import { REDIS } from '../src/redis/redis.provider.js';
 import { WeeklyReport, WeeklyReportStatus } from '../src/report/weekly-report.entity.js';
 import { WeeklyReportQueries } from '../src/report/weekly-report.queries.js';
-import { WeeklyReportService } from '../src/report/weekly-report.service.js';
+import { toWeeklyReportView, WeeklyReportService } from '../src/report/weekly-report.service.js';
 import { SHEET_NAMES } from '../src/report/weekly-report.xlsx.js';
 import { TerminalStatus as S } from '../src/terminal/terminal-status.js';
 import { partners } from './helpers/partners.js';
@@ -27,7 +29,24 @@ describe('주간 운영 리포트 — xlsx, 톡톡 첨부, 멱등, 내려받기 
   let t: TestApp;
   const em = () => t.orm.em.fork();
   const row = (weekStart: string) => em().findOneOrFail(WeeklyReport, { weekStart });
-  const send = (weekStart?: string) => t.http().post('/reports/weekly').set(OP).send(weekStart ? { weekStart } : {});
+  /** HTTP 보내기 요청(이제 job만 넣고 202, decisions/0038). 입력 검증(400·422)을 볼 때 쓴다 */
+  const post = (weekStart: string) => t.http().post('/reports/weekly').set(OP).send({ weekStart });
+  /**
+   * 보내기 동작 자체(파일·톡톡·멱등·오류 기록)는 서비스 send를 바로 불러 본다. HTTP가 비동기가 되면서(decisions/0038) 응답 코드로는
+   * 결과를 볼 수 없어서, 예전 HTTP 응답과 같은 모양({ status, body })으로 바꿔 아래 테스트의 기대값을 그대로 둔다.
+   * 오류 → 상태 코드는 DomainExceptionFilter와 같다(BusinessError는 그 status, PartnerError는 502, 그 밖은 500).
+   * job으로 도는 경로(202 → 처리기 → SENT)는 weekly-report-async.e2e.spec.ts가 본다.
+   */
+  const send = async (weekStart: string): Promise<{ status: number; body: Record<string, unknown> }> => {
+    try {
+      const { report, alreadySent } = await t.app.get(WeeklyReportService).send(parseKstWeekStart(weekStart)!);
+      return { status: 200, body: toWeeklyReportView(report, alreadySent) };
+    } catch (error) {
+      if (error instanceof BusinessError) return { status: error.status, body: { code: error.code, message: error.message } };
+      if (error instanceof PartnerError) return { status: 502, body: { code: 'PARTNER_ERROR', reason: error.name, message: error.message } };
+      return { status: 500, body: { message: String(error) } };
+    }
+  };
 
   beforeAll(async () => {
     t = await createTestApp();
@@ -203,7 +222,7 @@ describe('주간 운영 리포트 — xlsx, 톡톡 첨부, 멱등, 내려받기 
     expect((await readXlsx(file.body as Buffer)).worksheets).toHaveLength(SHEET_NAMES.length);
 
     expect((await t.http().get('/reports/weekly/2026-10-20')).body.code).toBe('INVALID_WEEK_START'); // 화요일
-    expect((await send('2026-10-20')).status).toBe(400);
+    expect((await post('2026-10-20')).status).toBe(400);
     expect((await t.http().get('/reports/weekly/2026-09-07')).status).toBe(404);
     expect((await t.http().get('/reports/weekly/2026-09-07/file')).status).toBe(404);
   });
@@ -212,7 +231,7 @@ describe('주간 운영 리포트 — xlsx, 톡톡 첨부, 멱등, 내려받기 
     const thisWeek = kstWeekOf(new Date());
     const nextWeek = kstWeekOf(new Date(thisWeek.to.getTime()));
     for (const week of [thisWeek, nextWeek]) {
-      const res = await send(week.weekStart);
+      const res = await post(week.weekStart);
       expect(res.status).toBe(422);
       expect(res.body.code).toBe('WEEK_NOT_ENDED');
       expect(await em().findOne(WeeklyReport, { weekStart: week.weekStart })).toBeNull();

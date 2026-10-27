@@ -1,6 +1,8 @@
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import { BeforeIdQuery } from '../../common/keyset.js';
 import { FIRMWARE_VERSION_PATTERN } from '../../device/heartbeat.service.js';
 import { SERIAL_NO_MESSAGE, SERIAL_NO_PATTERN } from '../../terminal/bulk-rows.js';
+import { RolloutStatus } from '../firmware.entities.js';
 
 const VERSION_MESSAGE = 'version은 영문·숫자·점·하이픈 1~20자입니다.';
 
@@ -62,4 +64,11 @@ export class FirmwareReportDto {
 
   @Matches(FIRMWARE_VERSION_PATTERN, { message: VERSION_MESSAGE })
   version!: string;
+}
+
+/** GET /firmware-rollouts 조건(최근 배포부터, decisions/0039) */
+export class ListRolloutsQuery extends BeforeIdQuery {
+  @IsOptional()
+  @IsEnum(RolloutStatus)
+  status?: RolloutStatus;
 }

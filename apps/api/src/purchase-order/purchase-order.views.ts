@@ -3,6 +3,7 @@ import type { PurchaseOrder } from './purchase-order.entity.js';
 /** model이 populate돼 있어야 한다. */
 export function toPurchaseOrderView(po: PurchaseOrder) {
   return {
+    id: po.id,
     poNo: po.poNo,
     modelCode: po.model.code,
     quantity: po.quantity,

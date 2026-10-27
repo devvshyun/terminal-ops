@@ -6,6 +6,7 @@ import { env } from '../config/env.js';
 import { OUTBOX_TYPE, OutboxEvent } from '../outbox/outbox-event.entity.js';
 import { RedisLock } from '../redis/redis-lock.js';
 import { Terminal } from '../terminal/terminal.entity.js';
+import { ANOMALY_RULE_LABEL } from './anomaly-labels.js';
 import { Anomaly, AnomalyRule } from './anomaly.entity.js';
 import { findAnomalies, type AnomalyMatch, type AnomalyThresholds } from './anomaly-rules.js';
 
@@ -178,6 +179,7 @@ export class AnomalyService {
         serialNo: terminals.get(a.terminalId)?.serialNo ?? null,
         status: terminals.get(a.terminalId)?.status ?? null,
         rule: a.rule,
+        ruleLabel: ANOMALY_RULE_LABEL[a.rule],
         detectedAt: a.detectedAt.toISOString(),
         lastSeenAt: a.lastSeenAt.toISOString(),
         resolvedAt: a.resolvedAt?.toISOString() ?? null,

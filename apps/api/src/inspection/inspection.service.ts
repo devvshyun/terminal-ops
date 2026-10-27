@@ -65,6 +65,27 @@ export class InspectionService {
     });
   }
 
+  /** 단말기의 검수 기록(최근 것부터, 결과 항목은 체크리스트 순서). 단말기가 없으면 404 */
+  async history(serialNo: string) {
+    const em = this.em.fork();
+    const terminal = await em.findOne(Terminal, { serialNo }, { populate: ['model'] });
+    if (!terminal) throw new NotFoundException(`단말기 ${serialNo}이(가) 없습니다.`);
+    const items = await em.find(InspectionItem, { model: terminal.model }, { orderBy: { sortOrder: 'asc' } });
+    const order = new Map(items.map((item, i) => [item.code, i]));
+    const label = new Map(items.map((item) => [item.code, item.label]));
+    const inspections = await em.find(Inspection, { terminal }, { populate: ['results'], orderBy: { id: 'desc' } });
+    return inspections.map((i) => ({
+      id: i.id,
+      passed: i.passed,
+      actor: i.actor,
+      inspectedAt: i.inspectedAt.toISOString(),
+      results: i.results
+        .getItems()
+        .sort((a, b) => (order.get(a.itemCode) ?? 99) - (order.get(b.itemCode) ?? 99))
+        .map((r) => ({ itemCode: r.itemCode, label: label.get(r.itemCode) ?? r.itemCode, passed: r.passed, note: r.note ?? null })),
+    }));
+  }
+
   /** 모델·항목별 불합격 통계. 집계는 DB에서 한 번에 한다(행을 앱으로 가져와 세지 않는다). */
   async failureStats(modelCode?: string) {
     const params: string[] = [];

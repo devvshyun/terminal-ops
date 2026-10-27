@@ -59,11 +59,3 @@ export function ourValueOf(our: OurSide | null): string {
 export function vanValueOf(van: VanSide | null): string {
   return van ? `${van.status} / ${van.merchantCode}` : 'VAN에 없음';
 }
-
-/** 알림·리포트에 쓰는 짧은 이름 */
-export const KIND_LABEL: Record<VanMismatchKind, string> = {
-  [VanMismatchKind.NOT_REGISTERED]: '미등록',
-  [VanMismatchKind.REGISTERED_BUT_NOT_IN_SERVICE]: '운영 아님',
-  [VanMismatchKind.MERCHANT_MISMATCH]: '가맹점 다름',
-  [VanMismatchKind.SUSPENDED_WHILE_IN_SERVICE]: '정지',
-};

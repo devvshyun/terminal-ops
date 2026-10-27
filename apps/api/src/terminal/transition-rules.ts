@@ -60,3 +60,20 @@ export function checkTransition(from: S, to: S, source: TransitionSource, policy
   if (blocked) return { ok: false, reason: blocked };
   return { ok: true };
 }
+
+/** 한 상태에서 갈 수 있는 상태 하나. 모델 정책에 막혔으면 이유(화면이 버튼을 비활성으로 두고 이유를 보여 준다) */
+export interface TransitionTarget {
+  to: S;
+  blockedReason: string | null;
+}
+
+/**
+ * from에서 source 경로로 갈 수 있는 상태(전이 표 순서). checkTransition과 같은 표(RULES)를 읽는다 — 화면은 이 목록으로 버튼을 그리고
+ * 전이 규칙을 따로 갖지 않는다(decisions/0040). 모델 정책에 막힌 것도 빼지 않고 blockedReason과 함께 준다.
+ */
+export function targetsFrom(from: S, source: TransitionSource, policy: ModelPolicy): TransitionTarget[] {
+  return RULES.filter((r) => r.from === from && (r.only ?? DEFAULT_SOURCES).includes(source)).map((r) => ({
+    to: r.to,
+    blockedReason: r.blockedBy?.(policy) ?? null,
+  }));
+}
