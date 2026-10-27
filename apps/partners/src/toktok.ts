@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { readJson, sendJson } from './http.js';
+import { readJson, sendJson, sleep } from './http.js';
 import type { PartnersState } from './state.js';
 
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -15,6 +15,7 @@ function failed(state: PartnersState, res: ServerResponse, rate = state.config.t
 /**
  * POST /toktok/hooks/:channel  { idempotencyKey, text, attachments?: [fileId] } → 200. 받은 메시지는 중복이어도 모두 저장한다.
  * attachments는 먼저 POST /toktok/files로 올린 파일의 id. 모르는 id가 있으면 400 UNKNOWN_FILE(메시지를 저장하지 않는다).
+ * delayMs가 있으면 저장한 뒤 그만큼 늦게 응답한다 — 그 사이 보낸 쪽이 죽으면 "받았지만 SENT를 못 쓴" 알림이 된다(실험 0014).
  */
 export async function toktokHook(state: PartnersState, channel: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
   state.count('toktok.hook');
@@ -36,6 +37,7 @@ export async function toktokHook(state: PartnersState, channel: string, req: Inc
       return { fileId: f.fileId, fileName: f.fileName, size: f.size };
     }),
   });
+  if (state.config.toktok.delayMs > 0) await sleep(state.config.toktok.delayMs);
   sendJson(res, 200, { ok: true });
 }
 

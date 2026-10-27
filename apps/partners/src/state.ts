@@ -31,6 +31,8 @@ export interface ToktokConfig {
   hookFailRate: number;
   /** 올릴 수 있는 파일 크기 상한(바이트, base64를 푼 크기) */
   maxFileBytes: number;
+  /** 메시지(웹훅)를 저장한 뒤 응답까지 늦추는 시간(ms). "받았지만 응답 전에 보낸 쪽이 죽은" 장면용(실험 0014) */
+  delayMs: number;
 }
 
 export interface SeumConfig {
@@ -83,7 +85,7 @@ export function defaultConfig(): PartnersConfig {
     seed: 42,
     bungae: { advancePerPoll: 1, duplicateRate: 0, rateLimitPerSec: 20, force429Rate: 0, retryAfterSec: 1, delayMs: 0 },
     neurimbo: { advancePerPoll: 1, delayMs: 0, error5xxRate: 0, shuffle: false },
-    toktok: { failRate: 0, hookFailRate: 0, maxFileBytes: 5 * 1024 * 1024 },
+    toktok: { failRate: 0, hookFailRate: 0, maxFileBytes: 5 * 1024 * 1024, delayMs: 0 },
     seum: { shortfall: 0, foreignSerials: 0, error5xxRate: 0 },
     bridgevan: { maxLimit: 1000, delayMs: 0, error5xxRate: 0, force429Rate: 0, retryAfterSec: 1, mutateDuringScan: 0 },
   };
