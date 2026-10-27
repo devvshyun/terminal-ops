@@ -21,9 +21,14 @@ interface VanItemView {
 
 type RunWithItems = VanRunView & { items: VanItemView[]; nextAfterId: number | null };
 
-/** VAN 대조 실행 하나: 요약(종류별 수·단계별 시간)과 결과 항목(종류·재검증 여부로 거르고 afterId로 이어 본다) */
+/** VAN 대조 실행 하나. 실행 번호가 바뀌면 key로 새로 그려 필터(종류·재검증)를 처음 값으로 되돌린다 */
 export function VanRunDetailPage() {
-  const id = Number(useParams().id);
+  const id = useParams().id ?? '';
+  return <VanRunDetail key={id} id={Number(id)} />;
+}
+
+/** 요약(종류별 수·단계별 시간)과 결과 항목(종류·재검증 여부로 거르고 afterId로 이어 본다) */
+function VanRunDetail({ id }: { id: number }) {
   const [kind, setKind] = useState('');
   const [verified, setVerified] = useState('true');
   const detail = useInfiniteQuery({
@@ -49,7 +54,7 @@ export function VanRunDetailPage() {
             <dt>상태</dt>
             <dd>
               <strong className={run.status === 'FAILED' ? 'bad' : undefined}>{run.status}</strong>
-              {run.status === 'RUNNING' ? <RunningPoller refetch={() => void detail.refetch()} text="대조 진행 중" /> : null}
+              {run.status === 'RUNNING' ? <RunningPoller refetch={detail.refetch} text="대조 진행 중" /> : null}
             </dd>
             <dt>기간</dt>
             <dd>
@@ -91,6 +96,9 @@ export function VanRunDetailPage() {
           <option value="">전체</option>
         </select>
       </div>
+      {run?.status === 'RUNNING' ? (
+        <p className="muted">진행 중이라 재검증 결과가 아직 다 쌓이지 않았습니다. 끝나면(COMPLETED) 항목과 종류별 수가 바뀔 수 있습니다.</p>
+      ) : null}
       <table>
         <thead>
           <tr>

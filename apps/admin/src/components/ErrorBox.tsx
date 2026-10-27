@@ -6,6 +6,8 @@ const HINT: Record<string, string> = {
   INVALID_TRANSITION: '지금 상태에서 할 수 없는 변경입니다.',
   DUPLICATE: '이미 있는 값입니다.',
   PARTNER_ERROR: '외부 업체(가상) 응답이 실패했습니다. 잠시 뒤 다시 시도하세요.',
+  VAN_RECONCILIATION_RUNNING: '이미 진행 중인 작업이 있습니다. 끝난 뒤 다시 실행하세요.',
+  ANOMALY_SCAN_RUNNING: '이미 진행 중인 작업이 있습니다. 끝난 뒤 다시 실행하세요.',
 };
 
 export function describeError(error: unknown): { title: string; detail: string; code: string | null } {

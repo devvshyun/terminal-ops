@@ -41,12 +41,25 @@ export function lastWeekMonday(today = kstToday()): string {
 }
 
 /**
+ * 보낼 주로 고른 값의 문제(없으면 null). 월요일만, 지난주 월요일(max)까지만 — 끝나지 않은 주는 서버도 422 WEEK_NOT_ENDED.
+ * 'YYYY-MM-DD'끼리는 문자열 비교가 날짜 순서와 같다.
+ */
+export function weekStartProblem(value: string, max = lastWeekMonday()): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return '주를 고르세요.';
+  if (new Date(`${value}T00:00:00Z`).getUTCDay() !== 1) return '월요일을 고르세요.';
+  if (value > max) return `${max} 주까지만 보낼 수 있습니다(끝나지 않은 주).`;
+  return null;
+}
+
+/**
  * 주간 운영 리포트(F11): 주 목록, 보내기(비동기 202 — 대기열에 있는 동안 2초마다 다시 읽는다, decisions/0038), xlsx 내려받기.
  * 끝나지 않은 주는 서버가 422 WEEK_NOT_ENDED로 거절한다.
  */
 export function WeeklyReportsPage() {
   const client = useQueryClient();
-  const [weekStart, setWeekStart] = useState(lastWeekMonday());
+  const maxWeek = lastWeekMonday();
+  const [weekStart, setWeekStart] = useState(maxWeek);
+  const weekProblem = weekStartProblem(weekStart, maxWeek);
   const list = useInfiniteQuery({
     queryKey: ['weekly-reports'],
     queryFn: ({ pageParam }) => api<{ items: WeeklyReportView[]; nextBefore: string | null }>('/reports/weekly', { query: { before: pageParam ?? undefined } }),
@@ -68,12 +81,13 @@ export function WeeklyReportsPage() {
       <div className="filters">
         <label>
           주(월요일){' '}
-          <input aria-label="보낼 주" type="date" value={weekStart} onChange={(e) => setWeekStart(e.target.value)} />
+          <input aria-label="보낼 주" type="date" max={maxWeek} value={weekStart} onChange={(e) => setWeekStart(e.target.value)} />
         </label>
-        <WriteButton className="primary" disabled={!weekStart || send.isPending} onClick={() => send.mutate(weekStart)}>
+        <WriteButton className="primary" disabled={weekProblem !== null || send.isPending} onClick={() => send.mutate(weekStart)}>
           보내기
         </WriteButton>
-        {queued ? <RunningPoller refetch={() => void list.refetch()} text="보내는 중" /> : null}
+        {weekProblem ? <span className="bad">{weekProblem}</span> : null}
+        {queued ? <RunningPoller refetch={list.refetch} text="보내는 중" /> : null}
       </div>
       {send.data ? (
         <p role="status">

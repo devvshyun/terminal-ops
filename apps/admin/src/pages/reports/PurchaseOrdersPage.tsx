@@ -92,9 +92,9 @@ export function PurchaseOrdersPage() {
         </thead>
         <tbody>
           {itemsOf(list.data).map((p) => (
-            <tr key={p.id} aria-selected={selected === p.poNo}>
+            <tr key={p.id}>
               <td>
-                <button type="button" onClick={() => setSelected(p.poNo)}>
+                <button type="button" aria-pressed={selected === p.poNo} onClick={() => setSelected(p.poNo)}>
                   {p.poNo}
                 </button>
               </td>

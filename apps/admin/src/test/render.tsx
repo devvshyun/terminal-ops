@@ -15,7 +15,10 @@ export interface Call {
   headers: Record<string, string>;
 }
 
-export type Handler = (call: Call) => { status?: number; body?: unknown } | undefined;
+type HandlerResult = { status?: number; body?: unknown } | undefined;
+
+/** 응답을 늦추고 싶으면 Promise를 돌려준다(느린 응답 테스트) */
+export type Handler = (call: Call) => HandlerResult | Promise<HandlerResult>;
 
 /**
  * 가짜 api. 키는 'GET /terminals'처럼 메서드와 경로(쿼리 제외, /api 뗀 것). 경로의 `:x`는 아무 한 마디와 맞는다.
@@ -39,7 +42,7 @@ export function mockApi(handlers: Record<string, Handler>) {
     };
     calls.push(call);
     const found = patterns.find((p) => p.method === call.method && p.regex.test(call.path));
-    const result = found ? (found.handler(call) ?? {}) : { status: 404, body: { statusCode: 404, message: `가짜 api에 없음: ${call.method} ${call.path}` } };
+    const result = found ? ((await found.handler(call)) ?? {}) : { status: 404, body: { statusCode: 404, message: `가짜 api에 없음: ${call.method} ${call.path}` } };
     const status = result.status ?? 200;
     return new Response(result.body === undefined ? '' : JSON.stringify(result.body), {
       status,

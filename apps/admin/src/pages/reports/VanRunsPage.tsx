@@ -58,7 +58,7 @@ export function VanRunsPage() {
         <button type="button" onClick={() => void list.refetch()}>
           새로고침
         </button>
-        {running ? <RunningPoller refetch={() => void list.refetch()} text="대조 진행 중" /> : null}
+        {running ? <RunningPoller refetch={list.refetch} text="대조 진행 중" /> : null}
       </div>
       <ErrorBox error={list.error ?? start.error} />
       <table>
