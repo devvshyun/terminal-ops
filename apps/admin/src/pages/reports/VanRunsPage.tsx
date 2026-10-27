@@ -30,7 +30,11 @@ export interface VanRunView {
   error: string | null;
 }
 
-/** VAN 등록 대조(F9) 실행 목록과 수동 실행. 실행은 비동기(202) — 목록이 RUNNING이면 저절로 다시 읽는다 */
+/**
+ * VAN 등록 대조(F9) 실행 목록과 수동 실행. 실행은 비동기(202) — 목록이 RUNNING이면 저절로 다시 읽는다.
+ * 실행 버튼은 RUNNING 행이 있어도 끄지 않는다: 진행 중이면 서버가 409 VAN_RECONCILIATION_RUNNING으로 막고,
+ * 하트비트가 끊긴 RUNNING 행은 서버 start()의 failStale이 그 요청에서 FAILED로 정리한다(Day 6 최종 리뷰 Important 1).
+ */
 export function VanRunsPage() {
   const client = useQueryClient();
   const [acknowledgeDrop, setAcknowledgeDrop] = useState(false);
@@ -52,7 +56,7 @@ export function VanRunsPage() {
         <label>
           <input type="checkbox" checked={acknowledgeDrop} onChange={(e) => setAcknowledgeDrop(e.target.checked)} /> 수집 급감 확인함(이번 실행만 급감 검사 건너뜀)
         </label>
-        <WriteButton className="primary" disabled={start.isPending || running} onClick={() => start.mutate()}>
+        <WriteButton className="primary" disabled={start.isPending} onClick={() => start.mutate()}>
           대조 실행
         </WriteButton>
         <button type="button" onClick={() => void list.refetch()}>

@@ -96,7 +96,7 @@ const run = (over: Partial<VanRunView> = {}): VanRunView => ({
 });
 
 describe('VAN 등록 대조 (F9)', () => {
-  it('실행 목록과 수동 실행(202). 진행 중인 실행이 있으면 실행 버튼이 꺼지고 다시 읽기를 알린다', async () => {
+  it('실행 목록과 수동 실행(202). 진행 중인 실행이 있으면 다시 읽기를 알린다(버튼은 켜 둔다 — 막는 것은 서버 409)', async () => {
     let runs = [run()];
     const { calls } = mockApi({
       'GET /van-reconciliations': () => ({ body: { items: runs, nextBeforeId: null } }),
@@ -112,8 +112,29 @@ describe('VAN 등록 대조 (F9)', () => {
     await userEvent.click(screen.getByRole('button', { name: '대조 실행' }));
     expect(await screen.findByRole('link', { name: '#4' })).toBeInTheDocument();
     expect(calls.find((c) => c.method === 'POST')!.body).toEqual({ acknowledgeDrop: true });
-    expect(screen.getByRole('button', { name: '대조 실행' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '대조 실행' })).toBeEnabled();
     expect(screen.getByRole('status')).toHaveTextContent('대조 진행 중');
+  });
+
+  it('멈춘 RUNNING 행(하트비트 10분 전)이 있어도 실행 버튼은 켜져 있고, 누르면 POST가 한 번 나가 서버 409 메시지를 보여 준다(최종 리뷰 Important 1)', async () => {
+    const stale = new Date(Date.now() - 10 * 60_000).toISOString();
+    const { calls } = mockApi({
+      'GET /van-reconciliations': () => ({ body: { items: [run({ id: 4, status: 'RUNNING', finishedAt: null, heartbeatAt: stale }), run()], nextBeforeId: null } }),
+      'POST /van-reconciliations': () => ({
+        status: 409,
+        body: { statusCode: 409, code: 'VAN_RECONCILIATION_RUNNING', message: '진행 중인 VAN 대조가 있습니다. 끝난 뒤 다시 요청하세요.' },
+      }),
+    });
+    loginAs();
+    renderPage(<VanRunsPage />);
+    await screen.findByRole('link', { name: '#4' });
+    const button = screen.getByRole('button', { name: '대조 실행' });
+    expect(button).toBeEnabled();
+    await userEvent.click(button);
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('이미 진행 중인 작업이 있습니다');
+    expect(alert).toHaveTextContent('VAN_RECONCILIATION_RUNNING');
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(1);
   });
 
   it('실행 상세: 요약, 종류 이름(kindLabel), 재검증 기본은 어긋남만, 더 보기는 afterId', async () => {
