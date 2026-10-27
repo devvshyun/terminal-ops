@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../api/client';
 import type { BeforeIdPage } from '../api/types';
@@ -38,9 +38,20 @@ export function parseSerials(text: string): string[] {
     .filter(Boolean);
 }
 
-/** 이 오류면 같은 박스를 같은 scanId로 다시 보내면 된다(처리 중·연결 실패·5xx). 그 밖(입력 오류 등)은 박스를 고쳐 새 scanId로 */
+/** 붙여 넣은 시리얼 중 앞에 이미 나온 것의 수(서버는 박스 안 중복을 행별 결과로 거절한다) */
+export function countDuplicates(serials: string[]): number {
+  return serials.length - new Set(serials).size;
+}
+
+/**
+ * 이 오류면 같은 박스를 같은 scanId로 다시 보내면 된다(처리 중·연결 실패·5xx, 그리고 회수 박스가 다른 작업과 겹쳐 통째로 되돌려진
+ * 409 VERSION_CONFLICT — 서버가 결과를 저장하지 않았으니 같은 내용을 다시 보내면 처음부터 처리한다). 그 밖(입력 오류 등)은 박스를 고쳐 새 scanId로
+ */
 const retryable = (error: unknown) =>
-  !(error instanceof ApiError) || error.status >= 500 || (error.status === 409 && error.code === 'SCAN_IN_PROGRESS');
+  !(error instanceof ApiError) || error.status >= 500 || (error.status === 409 && (error.code === 'SCAN_IN_PROGRESS' || error.code === 'VERSION_CONFLICT'));
+
+/** 열린 발주 상태. 상태별로 따로 불러 합친다 — 한 번에 최근 100개를 받아 거르면 CLOSED가 쌓였을 때 오래된 열린 발주가 잘린다 */
+const OPEN_PO_STATUSES = ['ORDERED', 'RECEIVING'] as const;
 
 const SUCCESS = new Set(['CREATED', 'RETURNED']);
 
@@ -55,35 +66,55 @@ export function ScanPage() {
   const [poNo, setPoNo] = useState('');
   const [text, setText] = useState('');
   const [scanId, setScanId] = useState<string | null>(null);
+  /** 지금 박스의 scanId(늦게 온 응답이 그새 바뀐 박스의 scanId를 지우지 않게 비교용) */
+  const currentScanId = useRef<string | null>(null);
+  const changeScanId = (id: string | null) => {
+    currentScanId.current = id;
+    setScanId(id);
+  };
 
   const orders = useQuery({
     queryKey: ['purchase-orders', 'open'],
-    queryFn: () => api<BeforeIdPage<PurchaseOrderView>>('/purchase-orders', { query: { limit: 100 } }),
-    select: (page) => page.items.filter((p) => p.status !== 'CLOSED'),
+    queryFn: async () => {
+      const pages = await Promise.all(
+        OPEN_PO_STATUSES.map((status) => api<BeforeIdPage<PurchaseOrderView>>('/purchase-orders', { query: { status, limit: 100 } })),
+      );
+      return pages.flatMap((p) => p.items).sort((a, b) => b.id - a.id); // 최근 발주부터
+    },
     enabled: kind === 'RECEIVE',
   });
 
   const scan = useMutation({
     mutationFn: (body: { scanId: string; kind: string; poNo?: string; serials: string[] }) => api<ScanResultView>('/scans', { method: 'POST', body }),
-    onSuccess: () => void client.invalidateQueries({ queryKey: ['terminals'] }),
-    onError: (error) => {
-      if (!retryable(error)) setScanId(null); // 내용을 고쳐야 하는 오류: 다음 보내기는 새 scanId
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['terminals'] });
+      void client.invalidateQueries({ queryKey: ['purchase-orders'] }); // 입고로 ORDERED → RECEIVING
+    },
+    onError: (error, body) => {
+      // 내용을 고쳐야 하는 오류: 다음 보내기는 새 scanId. 그새 다른 박스로 넘어갔으면 그 박스의 scanId는 건드리지 않는다
+      if (!retryable(error) && currentScanId.current === body.scanId) changeScanId(null);
     },
   });
 
   const serials = parseSerials(text);
+  const duplicates = countDuplicates(serials);
   const locked = scanId !== null; // 보냈거나 보내는 중인 박스는 고치지 않는다
+  const result = scan.data;
   const send = () => {
     const id = scanId ?? newScanId();
-    setScanId(id);
+    changeScanId(id);
     scan.mutate({ scanId: id, kind, ...(kind === 'RECEIVE' ? { poNo } : {}), serials });
   };
   const nextBox = () => {
-    setScanId(null);
+    // 보냈는데 결과를 못 받은 박스: 서버가 처리했을 수도 있다. 버리면 같은 scanId로 확인할 방법이 없어진다
+    if (scanId !== null && result === undefined && !window.confirm('결과를 받지 못한 박스입니다. 버리시겠습니까? 서버가 이미 처리했을 수 있습니다 — 같은 scanId로 다시 보내면 저장된 결과를 받습니다.')) {
+      return;
+    }
+    changeScanId(null);
     setText('');
     scan.reset();
   };
-  const result = scan.data;
+  const conflict = scan.error instanceof ApiError && scan.error.isVersionConflict;
 
   return (
     <section>
@@ -119,6 +150,7 @@ export function ScanPage() {
       />
       <div className="row">
         <span>{serials.length}개</span>
+        {duplicates > 0 ? <span className="field-error">중복 {duplicates}개</span> : null}
         {scanId ? <code aria-label="scanId">{scanId}</code> : null}
         <WriteButton
           className="primary"
@@ -127,12 +159,13 @@ export function ScanPage() {
         >
           {scanId && scan.isError ? '같은 scanId로 다시 보내기' : '보내기'}
         </WriteButton>
-        <button type="button" onClick={nextBox}>
+        <button type="button" disabled={scan.isPending} onClick={nextBox}>
           새 박스
         </button>
         {serials.length > 500 ? <span className="field-error">한 박스는 500개까지입니다.</span> : null}
       </div>
       <ErrorBox error={scan.error} />
+      {conflict ? <p className="muted">다른 작업과 겹쳐 이 박스 전체가 되돌려졌습니다(처리된 것 없음). 같은 scanId로 다시 보내세요.</p> : null}
       {result ? (
         <div className="panel">
           <h3>
