@@ -1,13 +1,10 @@
-import { useState } from 'react';
-import { useInfiniteQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
-import { api } from '../api/client';
-import { itemsOf, useBeforeIdList } from '../api/lists';
+import { itemsOf, useBeforeIdList, useWeeklyReports } from '../api/lists';
 import { ErrorBox } from '../components/ErrorBox';
 import { MoreButton } from '../components/MoreButton';
+import { RunningPoller, type Refetch } from '../components/RunningPoller';
 import { formatKst } from '../lib/format';
 import type { VanRunView } from './reports/VanRunsPage';
-import type { WeeklyReportView } from './reports/WeeklyReportsPage';
 
 interface SyncRunView {
   id: number;
@@ -37,6 +34,7 @@ const OUTCOMES = ['OK', 'DELIVERED', 'NOOP', 'SKIPPED', 'ERROR'];
 /**
  * 배치 실행 이력: 실행마다 행을 남기는 배치 세 가지(택배 수집 SyncRun, VAN 대조 실행, 주간 리포트 주별 행).
  * 이상 단말기 찾기는 실행 기록 표가 없다 — 결과는 이상 단말기 화면(열린 이상)과 알림으로 본다(decisions/0039).
+ * 탭과 택배 수집 조건은 주소(?tab=&job=&outcome=)에 둔다. 탭을 바꾸면 조건은 버린다(조건은 택배 수집 탭에만 있다, decisions/0041 Task 9 보탬).
  */
 export function BatchHistoryPage() {
   const [params, setParams] = useSearchParams();
@@ -58,18 +56,26 @@ export function BatchHistoryPage() {
 }
 
 function SyncRuns() {
-  const [job, setJob] = useState('');
-  const [outcome, setOutcome] = useState('');
+  const [params, setParams] = useSearchParams();
+  const job = params.get('job') ?? '';
+  const outcome = params.get('outcome') ?? '';
   const list = useBeforeIdList<SyncRunView>('sync-runs', '/sync-runs', { job, outcome });
+  /** 조건 하나를 주소에 쓴다(빈 값이면 뺀다). 다른 조건과 탭은 그대로 */
+  const setFilter = (key: 'job' | 'outcome', value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setParams(next);
+  };
   return (
     <>
       <div className="filters">
-        <select aria-label="큐" value={job} onChange={(e) => setJob(e.target.value)}>
+        <select aria-label="큐" value={job} onChange={(e) => setFilter('job', e.target.value)}>
           <option value="">큐 전체</option>
           <option value="track-bungae">track-bungae(번개택배)</option>
           <option value="track-neurimbo">track-neurimbo(느림보물류)</option>
         </select>
-        <select aria-label="결과" value={outcome} onChange={(e) => setOutcome(e.target.value)}>
+        <select aria-label="결과" value={outcome} onChange={(e) => setFilter('outcome', e.target.value)}>
           <option value="">결과 전체</option>
           {OUTCOMES.map((o) => (
             <option key={o} value={o}>
@@ -116,10 +122,24 @@ function SyncRuns() {
   );
 }
 
+/** 새로고침 버튼과, 진행 중(RUNNING·대기열)이면 2초 다시 읽기. 같은 캐시 키를 쓰는 VAN·주간 리포트 화면에서 넘어와도 낡은 상태가 남지 않게 */
+function Refresh({ refetch, running, text }: { refetch: Refetch; running: boolean; text: string }) {
+  return (
+    <div className="filters">
+      <button type="button" onClick={() => void refetch({ cancelRefetch: true })}>
+        새로고침
+      </button>
+      {running ? <RunningPoller refetch={refetch} text={text} /> : null}
+    </div>
+  );
+}
+
 function VanRuns() {
   const list = useBeforeIdList<VanRunView>('van-runs', '/van-reconciliations');
+  const runs = itemsOf(list.data);
   return (
     <>
+      <Refresh refetch={list.refetch} running={runs.some((r) => r.status === 'RUNNING')} text="대조 진행 중" />
       <ErrorBox error={list.error} />
       <table>
         <thead>
@@ -133,7 +153,7 @@ function VanRuns() {
           </tr>
         </thead>
         <tbody>
-          {itemsOf(list.data).map((r) => (
+          {runs.map((r) => (
             <tr key={r.id}>
               <td>
                 <Link to={`/reports/van/${r.id}`}>#{r.id}</Link>
@@ -153,14 +173,11 @@ function VanRuns() {
 }
 
 function WeeklyRuns() {
-  const list = useInfiniteQuery({
-    queryKey: ['weekly-reports'],
-    queryFn: ({ pageParam }) => api<{ items: WeeklyReportView[]; nextBefore: string | null }>('/reports/weekly', { query: { before: pageParam ?? undefined } }),
-    initialPageParam: null as string | null,
-    getNextPageParam: (last) => last.nextBefore,
-  });
+  const list = useWeeklyReports();
+  const items = list.data?.pages.flatMap((p) => p.items) ?? [];
   return (
     <>
+      <Refresh refetch={list.refetch} running={items.some((r) => r.queued)} text="보내는 중" />
       <ErrorBox error={list.error} />
       <table>
         <thead>
@@ -174,13 +191,13 @@ function WeeklyRuns() {
           </tr>
         </thead>
         <tbody>
-          {(list.data?.pages.flatMap((p) => p.items) ?? []).map((r) => {
+          {items.map((r) => {
             // 대기열에 있는 동안의 lastError는 지난 시도의 것이다 — 주간 리포트 화면과 같게 숨긴다
             const lastError = r.queued ? null : r.lastError;
             return (
               <tr key={r.weekStart}>
                 <td>
-                  <Link to="/reports/weekly">{r.weekStart}</Link>
+                  <Link to={`/reports/weekly?week=${r.weekStart}`}>{r.weekStart}</Link>
                 </td>
                 <td>
                   {r.status}

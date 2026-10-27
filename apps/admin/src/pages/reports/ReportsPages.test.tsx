@@ -281,6 +281,18 @@ describe('주간 운영 리포트 (F11, decisions/0038)', () => {
     expect(weekStartProblem('', '2026-10-19')).toBe('주를 고르세요.');
   });
 
+  it('주소의 ?week=가 보낼 주 입력의 처음 값이 되고 그 주의 행을 표시한다(배치 이력에서 넘어올 때), 모양이 틀리면 지난주 월요일', async () => {
+    const week = addDays(lastWeekMonday(), -7);
+    mockApi({ 'GET /reports/weekly': () => ({ body: { items: [report({ weekStart: week })], nextBefore: null } }) });
+    loginAs();
+    const first = renderPage(<WeeklyReportsPage />, { route: `/reports/weekly?week=${week}`, path: '/reports/weekly' });
+    expect(screen.getByLabelText('보낼 주')).toHaveValue(week);
+    expect((await screen.findByRole('cell', { name: week })).closest('tr')).toHaveAttribute('aria-current', 'true');
+    first.unmount();
+    renderPage(<WeeklyReportsPage />, { route: '/reports/weekly?week=nope', path: '/reports/weekly' });
+    expect(screen.getByLabelText('보낼 주')).toHaveValue(lastWeekMonday());
+  });
+
   it('날짜 입력은 지난주 월요일이 최대이고, 월요일이 아니거나 그 뒤의 주면 보내기를 끄고 이유를 보여 준다', async () => {
     mockApi({ 'GET /reports/weekly': () => ({ body: { items: [], nextBefore: null } }) });
     loginAs();

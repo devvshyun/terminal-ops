@@ -142,7 +142,7 @@ export function ServiceTicketDetailPage() {
                 </div>
                 {stock.data && stock.data.items.length === 0 ? <p className="muted">같은 모델의 재고가 없습니다.</p> : null}
                 {stock.data && stock.data.total > stock.data.items.length ? (
-                  <p className="muted">같은 모델 재고 {stock.data.total}대 중 최근 {stock.data.items.length}대만 표시합니다.</p>
+                  <p className="muted">같은 모델 재고 {stock.data.total}대 중 최근 등록 순 {stock.data.items.length}대만 표시합니다.</p>
                 ) : null}
               </div>
             </>

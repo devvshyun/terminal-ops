@@ -79,3 +79,19 @@ export interface BeforeIdPage<T> {
   items: T[];
   nextBeforeId: number | null;
 }
+
+/** 주간 리포트 주별 행(서버 toWeeklyReportView + 큐 상태, decisions/0038) */
+export interface WeeklyReportView {
+  weekStart: string;
+  status: string;
+  fileName: string | null;
+  fileSize: number | null;
+  generatedAt: string | null;
+  sentAt: string | null;
+  attempts: number;
+  lastError: string | null;
+  alreadySent: boolean;
+  queued: boolean;
+  /** 수동 보내기 job을 넣은 시각(대기·처리 중일 때만 ISO, POST 202 응답에는 null) */
+  queuedAt: string | null;
+}

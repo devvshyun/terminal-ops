@@ -155,7 +155,7 @@ describe('A/S 리뷰 반영 (Task 7 리뷰)', () => {
       'GET /terminals': () => ({ body: { items: Array.from({ length: 50 }, (_, i) => ({ serialNo: `ST-${i}`, modelCode: 'SN-200' })), total: 120, page: 1, size: 50 } }),
     });
     renderPage(<ServiceTicketDetailPage />, { route: '/service-tickets/7', path: '/service-tickets/:id' });
-    expect(await screen.findByText(/최근 50대만 표시/)).toBeInTheDocument();
+    expect(await screen.findByText(/최근 등록 순 50대만 표시/)).toBeInTheDocument();
   });
 
   it('원격 점검을 기록하면 "해결됨" 체크가 초기화된다', async () => {

@@ -1,26 +1,16 @@
 import { useState } from 'react';
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router';
 import { api, downloadUrl } from '../../api/client';
+import { useWeeklyReports } from '../../api/lists';
+import type { WeeklyReportView } from '../../api/types';
 import { ErrorBox } from '../../components/ErrorBox';
 import { MoreButton } from '../../components/MoreButton';
 import { RunningPoller } from '../../components/RunningPoller';
 import { WriteButton } from '../../components/WriteButton';
 import { formatKst, kstToday } from '../../lib/format';
 
-export interface WeeklyReportView {
-  weekStart: string;
-  status: string;
-  fileName: string | null;
-  fileSize: number | null;
-  generatedAt: string | null;
-  sentAt: string | null;
-  attempts: number;
-  lastError: string | null;
-  alreadySent: boolean;
-  queued: boolean;
-  /** 수동 보내기 job을 넣은 시각(대기·처리 중일 때만 ISO, POST 202 응답에는 null) */
-  queuedAt: string | null;
-}
+export type { WeeklyReportView };
 
 /** 이만큼 넘게 대기열에 있으면 워커가 안 도는 것을 의심한다(decisions/0038 — 워커가 없으면 job이 waiting에 남는다) */
 export const WORKER_HINT_AFTER_MIN = 10;
@@ -58,14 +48,13 @@ export function weekStartProblem(value: string, max = lastWeekMonday()): string 
 export function WeeklyReportsPage() {
   const client = useQueryClient();
   const maxWeek = lastWeekMonday();
-  const [weekStart, setWeekStart] = useState(maxWeek);
+  // 배치 실행 이력의 행 링크(?week=)로 들어오면 그 주를 처음 값으로 — 다시 보낼 주를 이어 받는다. 모양이 틀리면 지난주 월요일
+  const [params] = useSearchParams();
+  const linkedWeek = params.get('week');
+  const fromLink = linkedWeek && /^\d{4}-\d{2}-\d{2}$/.test(linkedWeek) ? linkedWeek : null;
+  const [weekStart, setWeekStart] = useState(fromLink ?? maxWeek);
   const weekProblem = weekStartProblem(weekStart, maxWeek);
-  const list = useInfiniteQuery({
-    queryKey: ['weekly-reports'],
-    queryFn: ({ pageParam }) => api<{ items: WeeklyReportView[]; nextBefore: string | null }>('/reports/weekly', { query: { before: pageParam ?? undefined } }),
-    initialPageParam: null as string | null,
-    getNextPageParam: (last) => last.nextBefore,
-  });
+  const list = useWeeklyReports();
   const send = useMutation({
     mutationFn: (week: string) => api<WeeklyReportView>('/reports/weekly', { method: 'POST', body: { weekStart: week } }),
     onSuccess: () => client.invalidateQueries({ queryKey: ['weekly-reports'] }),
@@ -113,7 +102,7 @@ export function WeeklyReportsPage() {
             // 대기열에 있는 동안의 lastError는 지난 시도의 것이다 — 지금 보내는 중인데 실패처럼 보이지 않게 숨긴다
             const lastError = r.queued ? null : r.lastError;
             return (
-              <tr key={r.weekStart}>
+              <tr key={r.weekStart} aria-current={r.weekStart === fromLink ? 'true' : undefined}>
                 <td>{r.weekStart}</td>
                 <td>
                   {r.status}
