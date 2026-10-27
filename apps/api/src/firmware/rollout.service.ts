@@ -1,8 +1,9 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { EntityManager, LockMode } from '@mikro-orm/mysql';
+import { EntityManager, LoadStrategy, LockMode } from '@mikro-orm/mysql';
 import type { Redis } from 'ioredis';
 import { fromDbDatetime } from '../common/db-datetime.js';
 import { BusinessError } from '../common/domain-errors.js';
+import { beforeIdWhere, keysetPage } from '../common/keyset.js';
 import { deviceKeys } from '../device/device-keys.js';
 import { OfferStore } from '../device/offer-store.js';
 import { REDIS } from '../redis/redis.provider.js';
@@ -325,6 +326,20 @@ export class RolloutService {
       for (const r of rows) reported.push(serialOf.get(r.id)!);
     }
     if (reported.length > 0) await this.offers.withdraw(rolloutId, reported);
+  }
+
+  /** 배포 목록(최근 것부터, id 키셋 — decisions/0039). 단계별 통계는 배포마다 한 쿼리(limit 상한 100) */
+  async list(q: { status?: RolloutStatus; beforeId?: number; limit: number }) {
+    const em = this.em.fork();
+    const rows = await em.find(
+      FirmwareRollout,
+      { ...beforeIdWhere(q.beforeId), ...(q.status ? { status: q.status } : {}) },
+      { populate: ['firmware.model'], strategy: LoadStrategy.SELECT_IN, orderBy: { id: 'desc' }, limit: q.limit + 1 },
+    );
+    const page = keysetPage(rows, q.limit);
+    const items = [];
+    for (const rollout of page.items) items.push({ rollout, stats: await this.stageStats(rollout, em) });
+    return { items, nextBeforeId: page.nextBeforeId };
   }
 
   async get(id: number): Promise<FirmwareRollout> {

@@ -4,6 +4,7 @@ import type { Queue } from 'bullmq';
 import { EntityManager, IsolationLevel, UniqueConstraintViolationException, type QueryResult } from '@mikro-orm/mysql';
 import { fromDbDatetime } from '../common/db-datetime.js';
 import { BusinessError } from '../common/domain-errors.js';
+import { beforeIdWhere, keysetPage } from '../common/keyset.js';
 import { PartnerPermanentError } from '../common/partner-errors.js';
 import { withPartnerRetry } from '../common/partner-retry.js';
 import { env } from '../config/env.js';
@@ -12,6 +13,7 @@ import { QUEUE } from '../queue/queue-names.js';
 import type { TerminalStatus } from '../terminal/terminal-status.js';
 import { BridgevanClient, type VanRegistrationDto } from './bridgevan.client.js';
 import { betterRegistration, classify, ourValueOf, serialKey, vanValueOf, type OurSide, type VanSide } from './van-compare.js';
+import { KIND_LABEL } from './van-labels.js';
 import { VAN_CALL_ATTEMPTS } from './van-limits.js';
 import {
   VanMismatchKind,
@@ -510,6 +512,12 @@ export class VanReconciliationService {
     return run;
   }
 
+  /** 실행 목록(최근 것부터, id 키셋 — decisions/0039). 화면의 VAN 대조·배치 실행 이력 */
+  async list(q: { beforeId?: number; limit: number }) {
+    const rows = await this.em.fork().find(VanReconciliationRun, beforeIdWhere(q.beforeId), { orderBy: { id: 'desc' }, limit: q.limit + 1 });
+    return keysetPage(rows, q.limit);
+  }
+
   /** 결과 행 한 페이지(id 순, afterId 뒤부터). 다음 페이지가 있으면 nextAfterId */
   async items(runId: number, q: { kind?: VanMismatchKind; verified?: boolean; afterId?: number; limit: number }) {
     const rows = await this.em.fork().find(
@@ -524,7 +532,16 @@ export class VanReconciliationService {
     );
     const page = rows.slice(0, q.limit);
     return {
-      items: page.map((it) => ({ id: it.id, serialNo: it.serialNo, kind: it.kind, ourValue: it.ourValue, vanValue: it.vanValue, verified: it.verified, reason: it.reason })),
+      items: page.map((it) => ({
+        id: it.id,
+        serialNo: it.serialNo,
+        kind: it.kind,
+        kindLabel: KIND_LABEL[it.kind],
+        ourValue: it.ourValue,
+        vanValue: it.vanValue,
+        verified: it.verified,
+        reason: it.reason,
+      })),
       nextAfterId: rows.length > q.limit ? page.at(-1)!.id : null,
     };
   }

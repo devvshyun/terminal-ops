@@ -124,6 +124,15 @@ export class WeeklyReportService {
     return { report: row, alreadySent: false, queued: true };
   }
 
+  /** 주 목록(최근 주부터). before가 있으면 그 주보다 앞 주만(week_start unique 인덱스 범위, decisions/0039) */
+  async list(q: { before?: string; limit: number }): Promise<{ items: WeeklyReport[]; nextBefore: string | null }> {
+    const rows = await this.em
+      .fork()
+      .find(WeeklyReport, q.before ? { weekStart: { $lt: q.before } } : {}, { orderBy: { weekStart: 'desc' }, limit: q.limit + 1 });
+    const items = rows.slice(0, q.limit);
+    return { items, nextBefore: rows.length > q.limit ? items.at(-1)!.weekStart : null };
+  }
+
   /**
    * 그 주의 수동 보내기 job이 아직 끝나지 않았는지(대기·처리 중)와 넣은 시각. 화면이 "보내는 중"·"N분째 대기"를 보여 줄 때 쓴다.
    * 워커(RUN_WORKERS 또는 워커 프로세스)가 없으면 job이 waiting에 남는다 — queuedAt으로 오래 기다리는 것을 드러낸다(decisions/0038).

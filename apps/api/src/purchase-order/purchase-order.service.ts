@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { EntityManager, IsolationLevel, LockMode } from '@mikro-orm/mysql';
+import { EntityManager, IsolationLevel, LoadStrategy, LockMode } from '@mikro-orm/mysql';
 import { BusinessError } from '../common/domain-errors.js';
+import { beforeIdWhere, keysetPage } from '../common/keyset.js';
 import { TerminalModel } from '../terminal/terminal-model.entity.js';
 import type { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto.js';
+import type { ListPurchaseOrdersQuery } from './dto/list-purchase-orders.query.js';
 import { PurchaseOrder, PurchaseOrderStatus } from './purchase-order.entity.js';
 import { SeumClient } from './seum.client.js';
 
@@ -130,6 +132,16 @@ export class PurchaseOrderService {
     });
     const closed = await this.em.fork().findOneOrFail(PurchaseOrder, found.id);
     return { ...(await this.reconcile(poNo)), status: closed.status, closedAt: closed.closedAt?.toISOString() ?? null, closedBy: closed.closedBy };
+  }
+
+  /** 발주 목록(최근 것부터, id 키셋 — decisions/0039). 화면의 입고 스캔 발주 선택과 입고 대조 목록 */
+  async list(q: ListPurchaseOrdersQuery) {
+    const rows = await this.em.fork().find(
+      PurchaseOrder,
+      { ...beforeIdWhere(q.beforeId), ...(q.status ? { status: q.status } : {}) },
+      { populate: ['model'], strategy: LoadStrategy.SELECT_IN, orderBy: { id: 'desc' }, limit: q.limit + 1 },
+    );
+    return keysetPage(rows, q.limit);
   }
 
   async get(poNo: string): Promise<PurchaseOrder> {

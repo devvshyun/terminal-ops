@@ -1,6 +1,6 @@
-import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { Operator } from '../common/operator.decorator.js';
-import { CreateRolloutDto, RegisterFirmwareDto } from './dto/firmware.dto.js';
+import { CreateRolloutDto, ListRolloutsQuery, RegisterFirmwareDto } from './dto/firmware.dto.js';
 import { FirmwareService, toFirmwareView } from './firmware.service.js';
 import { RolloutService, toRolloutView } from './rollout.service.js';
 import type { FirmwareRollout } from './firmware.entities.js';
@@ -21,6 +21,13 @@ export class FirmwareController {
   @Post('firmware-rollouts')
   async create(@Body() dto: CreateRolloutDto, @Operator() actor: string) {
     return this.view(await this.rollouts.create(dto, actor));
+  }
+
+  /** 배포 목록과 단계별 통계(최근 것부터, ?status=&beforeId=&limit=) */
+  @Get('firmware-rollouts')
+  async list(@Query() query: ListRolloutsQuery) {
+    const { items, nextBeforeId } = await this.rollouts.list(query);
+    return { items: items.map(({ rollout, stats }) => toRolloutView(rollout, stats)), nextBeforeId };
   }
 
   @Get('firmware-rollouts/:id')

@@ -1,5 +1,8 @@
 import { Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
 import { Operator } from '../common/operator.decorator.js';
+import { ANOMALY_RULE_LABEL } from './anomaly-labels.js';
+import { ruleThresholdDays } from './anomaly-rules.js';
+import { AnomalyRule } from './anomaly.entity.js';
 import { ListAnomaliesQuery } from './dto/list-anomalies.query.js';
 import { AnomalyService } from './anomaly.service.js';
 
@@ -7,6 +10,12 @@ import { AnomalyService } from './anomaly.service.js';
 @Controller()
 export class AnomalyController {
   constructor(private readonly anomalies: AnomalyService) {}
+
+  /** 규칙 목록(이름·기준일). 화면의 규칙 필터가 쓴다 — 규칙 이름을 화면에 따로 두지 않게(decisions/0040) */
+  @Get('anomaly-rules')
+  rules() {
+    return Object.values(AnomalyRule).map((rule) => ({ rule, label: ANOMALY_RULE_LABEL[rule], days: ruleThresholdDays(rule) }));
+  }
 
   @Get('anomalies')
   async list(@Query() query: ListAnomaliesQuery) {

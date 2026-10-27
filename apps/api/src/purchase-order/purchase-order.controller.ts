@@ -1,6 +1,7 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { Operator } from '../common/operator.decorator.js';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto.js';
+import { ListPurchaseOrdersQuery } from './dto/list-purchase-orders.query.js';
 import { PurchaseOrderService } from './purchase-order.service.js';
 import { toPurchaseOrderView } from './purchase-order.views.js';
 
@@ -11,6 +12,13 @@ export class PurchaseOrderController {
   @Post()
   async create(@Body() dto: CreatePurchaseOrderDto, @Operator() actor: string) {
     return toPurchaseOrderView(await this.orders.create(dto, actor));
+  }
+
+  /** 발주 목록(최근 것부터, ?status=&beforeId=&limit=) */
+  @Get()
+  async list(@Query() query: ListPurchaseOrdersQuery) {
+    const { items, nextBeforeId } = await this.orders.list(query);
+    return { items: items.map(toPurchaseOrderView), nextBeforeId };
   }
 
   @Get(':poNo/reconciliation')

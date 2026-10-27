@@ -1,6 +1,8 @@
-import { IsBoolean, IsEnum, IsString, Length, Matches } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString, Length, Matches } from 'class-validator';
 import { Carrier } from '../../carrier/carrier.types.js';
+import { BeforeIdQuery } from '../../common/keyset.js';
 import { SERIAL_NO_MESSAGE, SERIAL_NO_PATTERN } from '../../terminal/bulk-rows.js';
+import { ServiceTicketStatus } from '../service-ticket.entity.js';
 
 export class OpenTicketDto {
   @Matches(SERIAL_NO_PATTERN, { message: SERIAL_NO_MESSAGE })
@@ -29,4 +31,16 @@ export class ReplaceDto {
 
   @IsEnum(Carrier)
   carrier!: Carrier;
+}
+
+/** GET /service-tickets 조건(최근 접수부터, decisions/0039) */
+export class ListTicketsQuery extends BeforeIdQuery {
+  @IsOptional()
+  @IsEnum(ServiceTicketStatus)
+  status?: ServiceTicketStatus;
+
+  /** 고장 접수된 단말기 시리얼(정확히 같은 것) */
+  @IsOptional()
+  @IsString()
+  serialNo?: string;
 }

@@ -8,6 +8,13 @@ import { AnomalyRule } from './anomaly.entity.js';
 /** 규칙별 기준일 */
 export type AnomalyThresholds = typeof env.anomalyDays;
 
+/** 규칙의 기준일(일 수). 가맹점 없음 규칙은 기준일이 없어 null. 화면이 규칙 목록과 함께 보여 준다 */
+export function ruleThresholdDays(rule: AnomalyRule, d: AnomalyThresholds = env.anomalyDays): number | null {
+  if (rule === AnomalyRule.IN_SERVICE_NO_MERCHANT) return null;
+  if (rule === AnomalyRule.OFFLINE_TOO_LONG) return d.offlineTooLong;
+  return ageRules(d).find((r) => r.rule === rule)!.days;
+}
+
 /** 규칙에 걸린 단말기 한 대 */
 export interface AnomalyMatch {
   terminalId: number;
