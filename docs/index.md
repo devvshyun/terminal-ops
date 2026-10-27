@@ -2,7 +2,7 @@
 
 > 이 파일은 `node scripts/docs-index.mjs`가 만든다. 손으로 고치지 않는다(decisions/0046). 기록을 더한 뒤 다시 만들고, `--check`로 확인한다.
 
-## 결정 기록 (46)
+## 결정 기록 (49)
 
 - [0001](decisions/0001-인증은-작업자-헤더로.md) 인증은 하지 않고, 작업자는 요청 헤더로 기록한다
 - [0002](decisions/0002-esm-vitest-tsc-빌드.md) ESM + Vitest + tsc 빌드로 API를 만든다
@@ -50,8 +50,11 @@
 - [0044](decisions/0044-대시보드-집계와-Redis-캐시.md) 대시보드 집계는 Redis에 30초 캐시한다 — TTL만, 프로세스 안 single-flight
 - [0045](decisions/0045-상태-조건-목록에-status-id-인덱스를-더하지-않는다.md) 상태 조건 단말기 목록에 (status, id) 인덱스를 더하지 않는다
 - [0046](decisions/0046-기록-색인은-스크립트로-만든다.md) 기록 색인(docs/index.md)은 스크립트로 만들고 --check로 확인한다
+- [0047](decisions/0047-공유-타입은-file-의존-타입-전용-TS-소스-패키지로.md) 공유 타입은 각 앱의 file: 의존으로 연결하는 타입 전용 TS 소스 패키지로 둔다
+- [0048](decisions/0048-계약은-반환-타입-implements-enum-단언으로-강제한다.md) 계약은 반환 타입·implements·enum 단언·오류 코드 오버로드로 컴파일 때 강제한다
+- [0049](decisions/0049-계약-범위는-응답-요청-본문-오류-코드까지.md) 계약 범위는 응답·쓰기 요청 본문·오류 코드까지, 쿼리 문자열과 런타임 검증은 넣지 않는다
 
-## 트러블슈팅 (28)
+## 트러블슈팅 (29)
 
 - [0001](troubleshooting/0001-설치-직후-WSL2-미동작.md) 설치 직후 WSL2·Docker가 동작하지 않음
 - [0002](troubleshooting/0002-em-create-optionalprops-타입오류.md) em.create에서 TS2345 "Property 'version' is missing"
@@ -81,6 +84,7 @@
 - [0026](troubleshooting/0026-실제-시각과-고정-시각이-섞인-테스트가-날짜가-지나-실패.md) 실제 시각과 고정 시각이 섞인 테스트가 날짜가 지나 실패
 - [0027](troubleshooting/0027-SENT면-큐를-보지-않자-끝난-job-기다리기가-먼저-끝남.md) SENT면 큐를 보지 않게 하자 "job 끝" 기다리기가 job보다 먼저 끝남
 - [0028](troubleshooting/0028-Windows에서-process-kill-SIGKILL로-끈-자식의-exit가-code-1-signal-null.md) Windows에서 process.kill(pid, 'SIGKILL')로 끈 자식의 exit가 code 1·signal null
+- [0029](troubleshooting/0029-swc는-계약의-타입-별칭을-design-type에-Object로-내보낸다.md) swc(vitest)는 타입 별칭(유니온)을 design:type에 Object로 내보낸다 (tsc 빌드는 String)
 
 ## 실험 (16)
 

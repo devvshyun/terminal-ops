@@ -1,6 +1,7 @@
 /**
  * api의 런타임 enum(MikroORM 엔티티·class-validator가 쓴다)과 @terminal-ops/contracts의 문자열 유니온이 같은 값 집합인지 타입으로 단언한다(decisions/0048).
  * 어느 한쪽에만 값이 있으면 api tsc(build·typecheck)가 이 파일에서 TS2344로 실패하고, 메시지에 빠진 값이 나온다.
+ * 응답에 나가는 enum만 단언한다. 응답 본문에 나오지 않는 내부 enum(TargetStatus·VanStatus·CarrierEventCode·OutboxStatus)은 계약에 없고 여기서도 단언하지 않는다.
  * 런타임 코드는 없다(빌드하면 빈 모듈). import하는 곳도 없다 — tsconfig의 include(src)로 검사 대상에 들어간다.
  */
 import type * as C from '@terminal-ops/contracts';
