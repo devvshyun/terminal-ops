@@ -9,4 +9,5 @@ export const NAV: { to: string; label: string }[] = [
   { to: '/reports/van', label: 'VAN 대조' },
   { to: '/reports/purchase-orders', label: '발주 입고 대조' },
   { to: '/reports/weekly', label: '주간 리포트' },
+  { to: '/batch-runs', label: '배치 실행 이력' },
 ];

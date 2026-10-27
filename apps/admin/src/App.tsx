@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router';
 import { Layout } from './components/Layout';
+import { BatchHistoryPage } from './pages/BatchHistoryPage';
 import { AnomaliesPage } from './pages/reports/AnomaliesPage';
 import { PurchaseOrdersPage } from './pages/reports/PurchaseOrdersPage';
 import { VanRunDetailPage } from './pages/reports/VanRunDetailPage';
@@ -30,7 +31,8 @@ export function App() {
         <Route path="reports/van/:id" element={<VanRunDetailPage />} />
         <Route path="reports/purchase-orders" element={<PurchaseOrdersPage />} />
         <Route path="reports/weekly" element={<WeeklyReportsPage />} />
-        <Route path="*" element={<p>없는 화면입니다.</p>} />
+        <Route path="batch-runs" element={<BatchHistoryPage />} />
+        <Route path="*"element={<p>없는 화면입니다.</p>} />
       </Route>
     </Routes>
   );
