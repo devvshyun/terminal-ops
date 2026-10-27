@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import type { TerminalPage } from '@terminal-ops/contracts';
 import { Operator } from '../common/operator.decorator.js';
 import { SingleFileInterceptor } from '../common/upload.interceptor.js';
 import { RegisterTerminalDto } from './dto/register-terminal.dto.js';
@@ -37,7 +38,7 @@ export class TerminalController {
   }
 
   @Get()
-  async list(@Query() query: ListTerminalsQuery) {
+  async list(@Query() query: ListTerminalsQuery): Promise<TerminalPage> {
     const result = await this.terminals.list(query);
     return { ...result, items: result.items.map(toTerminalView) };
   }

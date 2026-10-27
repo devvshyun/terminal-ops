@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EntityManager, LoadStrategy, LockMode } from '@mikro-orm/mysql';
 import type { Redis } from 'ioredis';
-import type { ApiErrorBody, RuleViolationCode } from '@terminal-ops/contracts';
+import type { ApiErrorBody, RolloutView, RuleViolationCode, StageStats } from '@terminal-ops/contracts';
 import { fromDbDatetime } from '../common/db-datetime.js';
 import { BusinessError } from '../common/domain-errors.js';
 import { beforeIdWhere, keysetPage } from '../common/keyset.js';
@@ -47,16 +47,6 @@ interface OfferedTarget {
   offeredAt: Date;
   /** 단말기가 지금 운영 중(IN_SERVICE)인지. 아니면 응답할 수 없어 시간 초과·실패율에서 뺀다 */
   inService: boolean;
-}
-
-export interface StageStats {
-  stage: number;
-  percent: number;
-  targets: number;
-  offered: number;
-  succeeded: number;
-  failed: number;
-  timedOut: number;
 }
 
 /** 단계 비율은 1~100, 커지는 순서, 마지막은 100 */
@@ -466,7 +456,7 @@ function toStageStats(rollout: FirmwareRollout, rows: TargetCount[]): StageStats
   });
 }
 
-export function toRolloutView(rollout: FirmwareRollout, stats: StageStats[]) {
+export function toRolloutView(rollout: FirmwareRollout, stats: StageStats[]): RolloutView {
   return {
     id: rollout.id,
     modelCode: rollout.firmware.model.code,

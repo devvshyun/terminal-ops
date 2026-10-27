@@ -1,10 +1,11 @@
 import { IsBoolean, IsEnum, IsOptional, IsString, Length, Matches } from 'class-validator';
+import type { OpenTicketRequest, RemoteCheckRequest, ReplaceRequest } from '@terminal-ops/contracts';
 import { Carrier } from '../../carrier/carrier.types.js';
 import { BeforeIdQuery } from '../../common/keyset.js';
 import { SERIAL_NO_MESSAGE, SERIAL_NO_PATTERN } from '../../terminal/bulk-rows.js';
 import { ServiceTicketStatus } from '../service-ticket.entity.js';
 
-export class OpenTicketDto {
+export class OpenTicketDto implements OpenTicketRequest {
   @Matches(SERIAL_NO_PATTERN, { message: SERIAL_NO_MESSAGE })
   serialNo!: string;
 
@@ -14,7 +15,7 @@ export class OpenTicketDto {
   symptom!: string;
 }
 
-export class RemoteCheckDto {
+export class RemoteCheckDto implements RemoteCheckRequest {
   /** 원격 점검으로 해결됐는지 */
   @IsBoolean()
   resolved!: boolean;
@@ -25,7 +26,7 @@ export class RemoteCheckDto {
   note!: string;
 }
 
-export class ReplaceDto {
+export class ReplaceDto implements ReplaceRequest {
   @Matches(SERIAL_NO_PATTERN, { message: SERIAL_NO_MESSAGE })
   replacementSerialNo!: string;
 

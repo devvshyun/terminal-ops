@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import type { BeforeIdPage, TicketView } from '@terminal-ops/contracts';
 import { Operator } from '../common/operator.decorator.js';
 import { ListTicketsQuery, OpenTicketDto, RemoteCheckDto, ReplaceDto } from './dto/service-ticket.dto.js';
 import { ReplacementService } from './replacement.service.js';
@@ -19,7 +20,7 @@ export class ServiceTicketController {
 
   /** 접수 목록(최근 것부터, ?status=&serialNo=&beforeId=&limit=) */
   @Get()
-  async list(@Query() query: ListTicketsQuery) {
+  async list(@Query() query: ListTicketsQuery): Promise<BeforeIdPage<TicketView>> {
     const { items, nextBeforeId } = await this.tickets.list(query);
     return { items: items.map(toTicketView), nextBeforeId };
   }

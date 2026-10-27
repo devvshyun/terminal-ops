@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EntityManager, IsolationLevel, LoadStrategy, LockMode } from '@mikro-orm/mysql';
+import type { ClosedPurchaseOrder, PurchaseOrderReconciliation } from '@terminal-ops/contracts';
 import { BusinessError } from '../common/domain-errors.js';
 import { beforeIdWhere, keysetPage } from '../common/keyset.js';
 import { TerminalModel } from '../terminal/terminal-model.entity.js';
@@ -67,7 +68,7 @@ export class PurchaseOrderService {
    * utf8mb4_0900_ai_ci로 맞췄지만(decisions/0025), 쿼리가 연결 설정에 기대지 않도록 열 정의에도 collate를 적는다(troubleshooting/0008).
    * 그러면 serial_no unique 인덱스(eq_ref)도 쓴다.
    */
-  async reconcile(poNo: string) {
+  async reconcile(poNo: string): Promise<PurchaseOrderReconciliation> {
     const po = await this.get(poNo);
     const note = await this.ensureDeliveryNote(po);
     const { received, missing, unexpected } = await this.em.fork().transactional(
@@ -118,7 +119,7 @@ export class PurchaseOrderService {
    * 명세는 마감 트랜잭션 전에(밖에서) 받는다. 응답의 대조 결과에 명세가 필요한데, 마감을 커밋한 뒤 공장 호출이 실패하면
    * "마감은 됐는데 요청은 502"가 되기 때문이다. 먼저 받아 두면 공장이 실패할 때 마감하지 않고 502로 끝난다(HTTP를 트랜잭션 안에 두지 않는 것은 decisions/0012와 같음).
    */
-  async close(poNo: string, actor: string) {
+  async close(poNo: string, actor: string): Promise<ClosedPurchaseOrder> {
     const found = await this.get(poNo);
     if (found.status !== PurchaseOrderStatus.CLOSED) await this.ensureDeliveryNote(found);
     await this.em.fork().transactional(async (tx) => {

@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
+import type { CreatedShipmentView } from '@terminal-ops/contracts';
 import { Operator } from '../common/operator.decorator.js';
 import { toTerminalView } from '../terminal/terminal.views.js';
 import { CreateShipmentDto } from './dto/create-shipment.dto.js';
@@ -10,7 +11,7 @@ export class ShipmentController {
   constructor(private readonly shipments: ShipmentService) {}
 
   @Post()
-  async create(@Body() dto: CreateShipmentDto, @Operator() actor: string) {
+  async create(@Body() dto: CreateShipmentDto, @Operator() actor: string): Promise<CreatedShipmentView> {
     const { shipment, terminal } = await this.shipments.create(dto, actor);
     return { ...toShipmentView(shipment), terminal: toTerminalView(terminal) };
   }

@@ -1,7 +1,8 @@
+import type { ShipmentView } from '@terminal-ops/contracts';
 import type { CarrierEvent, Shipment } from './shipment.entities.js';
 
 /** terminal이 populate돼 있어야 한다. */
-export function toShipmentView(s: Shipment, events?: CarrierEvent[]) {
+export function toShipmentView(s: Shipment, events?: CarrierEvent[]): ShipmentView {
   return {
     id: s.id,
     serialNo: s.terminal.serialNo,

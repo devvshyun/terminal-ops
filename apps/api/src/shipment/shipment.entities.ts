@@ -103,8 +103,8 @@ export class SyncRun {
   @Property({ length: 50 })
   worker!: string;
 
-  /** SYNC_RUN_OUTCOMES 중 하나 */
-  @Property({ length: 20 })
+  /** SYNC_RUN_OUTCOMES 중 하나. type을 적는 이유: swc(vitest)는 계약의 타입 별칭을 design:type에 Object로 내보내 MikroORM이 UnknownType으로 읽는다(troubleshooting/0029) */
+  @Property({ type: 'string', length: 20 })
   outcome!: SyncRunOutcome;
 
   @Property()

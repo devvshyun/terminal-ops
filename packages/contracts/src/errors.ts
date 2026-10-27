@@ -1,6 +1,6 @@
 /**
  * 오류 응답의 원인 코드(`code`). 화면은 code로 원인을 가른다(어드민 ErrorBox 안내, 다시 보내도 되는지 등).
- * api는 이 유니온 밖의 코드를 던질 수 없다 — BusinessError의 code 타입이 BusinessErrorCode이고, 나머지 응답은 `satisfies ApiErrorBody`(decisions/0048).
+ * BusinessError는 타입으로(생성자가 이 유니온의 코드만 받는다), 나머지 오류 본문은 `satisfies ApiErrorBody` 관례로 지킨다(decisions/0048).
  */
 
 /** 업무 규칙 충돌(409) — api BusinessError(409, …) */
@@ -52,6 +52,15 @@ export interface ApiErrorBody {
   statusCode: number;
   code?: ErrorCode;
   message: string | string[];
+}
+
+/** 검수 결과가 모델 체크리스트와 맞지 않을 때의 400 본문(POST /terminals/:serialNo/inspections). code가 없고 어긋난 항목 코드를 나열한다 */
+export interface InspectionMismatchBody {
+  statusCode: 400;
+  message: string;
+  missing: string[];
+  unknown: string[];
+  duplicated: string[];
 }
 
 /** 502 PARTNER_ERROR: 외부 업체 쪽 실패. reason = 원인 분류(PartnerError의 name) */

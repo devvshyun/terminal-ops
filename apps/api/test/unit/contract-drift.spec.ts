@@ -10,7 +10,9 @@ import { beforeAll, describe, expect, it } from 'vitest';
 const API = resolve(import.meta.dirname, '../..');
 const CONTRACTS = resolve(API, '../../packages/contracts/src');
 /** 검사 대상 api 파일(이 파일들이 import하는 것도 함께 검사된다) */
-const ROOTS = ['src/common/contract-assertions.ts', 'src/scan/scan.service.ts'].map((f) => resolve(API, f));
+const ROOTS = ['src/common/contract-assertions.ts', 'src/scan/scan.service.ts', 'src/terminal/terminal.views.ts', 'src/service/dto/service-ticket.dto.ts'].map((f) =>
+  resolve(API, f),
+);
 
 const norm = (p: string) => p.replaceAll('\\', '/').toLowerCase();
 
@@ -66,5 +68,20 @@ describe('contracts가 바뀌면 api tsc가 실패한다 (decisions/0048)', () =
   it('오류 코드를 contracts에서 빼면 그 코드를 던지는 곳이 실패한다', () => {
     const errors = diagnosticsWith('errors.ts', (t) => t.replace(/ {2}\| 'PO_CLOSED'\r?\n/, '')); // 체크아웃 줄바꿈(CRLF·LF) 어느 쪽이든
     expect(errors).toEqual([expect.stringMatching(/^src\/scan\/scan\.service\.ts:TS2769 No overload matches this call/)]);
+  });
+
+  it('응답 필드 이름을 contracts에서 바꾸면 그 응답을 만드는 view 함수가 실패한다', () => {
+    const errors = diagnosticsWith('terminal.ts', (t) => t.replace('  serialNo: string;', '  serialNumber: string;')); // 첫 번째 = TerminalView
+    expect(errors).toEqual([expect.stringMatching(/^src\/terminal\/terminal\.views\.ts:TS2353 .*'serialNo' does not exist in type 'TerminalView'/)]);
+  });
+
+  it('contracts에 응답 필드를 더하고 api가 채우지 않으면 실패한다', () => {
+    const errors = diagnosticsWith('terminal.ts', (t) => t.replace('  merchantCode: string | null;', '  merchantCode: string | null;\n  installedAt: string | null;'));
+    expect(errors).toEqual([expect.stringMatching(/^src\/terminal\/terminal\.views\.ts:TS2741 Property 'installedAt' is missing/)]);
+  });
+
+  it('요청 본문 필드를 contracts에서 바꾸면 그 모양을 implements한 DTO가 실패한다', () => {
+    const errors = diagnosticsWith('requests.ts', (t) => t.replace('  symptom: string;', '  description: string;'));
+    expect(errors).toEqual([expect.stringMatching(/^src\/service\/dto\/service-ticket\.dto\.ts:TS2420 Class 'OpenTicketDto' incorrectly implements interface 'OpenTicketRequest'/)]);
   });
 });

@@ -6,3 +6,7 @@
 export type * from './statuses.js';
 export type * from './errors.js';
 export type * from './common.js';
+export type * from './terminal.js';
+export type * from './operations.js';
+export type * from './reports.js';
+export type * from './requests.js';

@@ -11,8 +11,9 @@
   - 응답을 만드는 함수(view 함수, 객체를 직접 만드는 서비스·컨트롤러 메서드)에 계약 반환 타입을 단다. 이미 계약 타입이 붙은 view를 그대로 돌려주는 컨트롤러 메서드에는 달지 않는다.
   - `src/common/contract-assertions.ts`가 `` `${Enum}` ``과 계약 유니온이 양방향으로 같은지 단언한다(`Assert<Same<Api, Contract>>`, 다르면 TS2344에 `onlyInApi`/`onlyInContract`와 그 값). 원래 유니온이던 `RowResultCode`·`RowResult`는 api가 계약 것을 그대로 쓴다.
   - `BusinessError` 생성자는 (b) 오버로드. 필터·400 응답 본문은 `satisfies ApiErrorBody`(PARTNER_ERROR는 `PartnerErrorBody`).
-  - DTO는 `implements` 계약 요청 타입. 어드민은 보내는 본문에 `satisfies`.
-  - 어드민은 계약 타입으로 응답을 읽고, 이름표는 `Record<유니온, string>`, `ApiError.code`는 `ErrorCode | null`.
-  - 증명: `apps/api/test/unit/contract-drift.spec.ts` — 계약 파일 하나를 메모리에서 바꿔 TypeScript 컴파일러 API로 api 일부(단언 파일, 박스 스캔 서비스, 단말기 view, A/S DTO)를 검사하고, 기대한 파일에서 기대한 오류 코드(TS2344·TS2769·TS2353·TS2741·TS2420)가 나는지 본다. 바꾸지 않은 상태는 오류 0.
-- 결과·대가: 계약을 바꾸면 api·어드민 tsc가 바로 실패해 같은 커밋에서 맞추게 된다. 대신 검사는 `npm run build`·`typecheck`(그리고 drift 테스트의 대표 경우)에서만 일어난다 — `npm test`만 돌리면 api·어드민의 다른 어긋남은 보이지 않는다. 반환 타입을 단 함수가 거짓말을 하면(예: raw SQL 결과를 `as`로 넣음) 잡지 못한다. 어드민은 서버가 계약 밖 오류 코드를 보내지 않는다고 믿는다(캐스트 한 곳).
+  - DTO는 `implements` 계약 요청 타입(Task 2에서 적용). 데코레이터가 붙은 프로퍼티의 타입은 바꾸지 않는다(swc가 별칭을 `design:type`에 `Object`로 내보낸다 — troubleshooting/0029). 어드민은 보내는 본문에 `satisfies`(Task 3에서 적용).
+  - 검수 400 본문(`missing`/`unknown`/`duplicated`, code 없음)은 `InspectionMismatchBody`로 따로 타입을 두고 `satisfies`한다.
+  - (Task 3에서 적용) 어드민은 계약 타입으로 응답을 읽고, 이름표는 `Record<유니온, string>`, `ApiError.code`는 `ErrorCode | null`.
+  - 증명(api 쪽, Task 1·2에서 갖춤): `apps/api/test/unit/contract-drift.spec.ts` — 계약 파일 하나를 메모리에서 바꿔 TypeScript 컴파일러 API로 api 일부(단언 파일, 박스 스캔 서비스, 단말기 view, A/S DTO)를 검사하고, 기대한 파일에서 기대한 오류 코드(TS2344·TS2769·TS2353·TS2741·TS2420)가 나는지 본다. 바꾸지 않은 상태는 오류 0. 어드민 쪽 증명(이름표 `Record`·`ErrorCode` 비교)은 테스트가 아니라 Task 3의 수동 확인 출력과 `typecheck`이다.
+- 결과·대가: 계약을 바꾸면 api·어드민 tsc가 바로 실패해 같은 커밋에서 맞추게 된다. 대신 검사는 `npm run build`·`typecheck`(그리고 drift 테스트의 대표 경우)에서만 일어난다 — `npm test`만 돌리면 api·어드민의 다른 어긋남은 보이지 않는다. 반환 타입을 단 함수가 거짓말을 하면(예: raw SQL 결과를 `as`로 넣음) 잡지 못한다. swc(vitest)와 tsc 빌드의 데코레이터 메타데이터가 별칭 타입에서 달라진다(troubleshooting/0029) — 엔티티에는 `type`을 명시한다. 어드민은 서버가 계약 밖 오류 코드를 보내지 않는다고 믿는다(캐스트 한 곳).
 - 다시 볼 조건: 계약 밖 응답이 실제로 나간 사고가 생기면 해당 경계에 런타임 검증을. 테스트만 돌리는 흐름(CI)이 생기면 `npm test` 앞에 `typecheck`를 묶는다.

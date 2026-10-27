@@ -1,14 +1,12 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Redis } from 'ioredis';
+import type { DashboardView } from '@terminal-ops/contracts';
 import { env } from '../config/env.js';
 import { REDIS } from '../redis/redis.provider.js';
-import { DashboardQueries, type DashboardSummary } from './dashboard.queries.js';
+import { DashboardQueries } from './dashboard.queries.js';
 
-/** 화면에 주는 값: 집계 + 그 집계를 만든 시각(cachedAt)과 이번 응답이 캐시에서 왔는지 */
-export interface DashboardView extends DashboardSummary {
-  cachedAt: string;
-  fromCache: boolean;
-}
+/** 화면에 주는 값: 집계 + 그 집계를 만든 시각(cachedAt)과 이번 응답이 캐시에서 왔는지(contracts DashboardView) */
+export type { DashboardView };
 
 /** 캐시 키. 큐와 같은 접두사라 테스트(test-…)와 개발(terminal-ops)이 섞이지 않는다 */
 export const dashboardCacheKey = () => `${env.queuePrefix}:dash:summary`;

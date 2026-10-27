@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/mysql';
+import type { InspectionMismatchBody, InspectionRecord } from '@terminal-ops/contracts';
 import { Terminal } from '../terminal/terminal.entity.js';
 import { TerminalStatus, TransitionSource } from '../terminal/terminal-status.js';
 import { TransitionService } from '../terminal/transition.service.js';
@@ -37,7 +38,7 @@ export class InspectionService {
           missing,
           unknown,
           duplicated,
-        });
+        } satisfies InspectionMismatchBody);
       }
 
       const failedItems = dto.results.filter((r) => !r.passed).map((r) => r.itemCode);
@@ -66,7 +67,7 @@ export class InspectionService {
   }
 
   /** 단말기의 검수 기록(최근 것부터, 결과 항목은 체크리스트 순서). 단말기가 없으면 404 */
-  async history(serialNo: string) {
+  async history(serialNo: string): Promise<InspectionRecord[]> {
     const em = this.em.fork();
     const terminal = await em.findOne(Terminal, { serialNo }, { populate: ['model'] });
     if (!terminal) throw new NotFoundException(`단말기 ${serialNo}이(가) 없습니다.`);

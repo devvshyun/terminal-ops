@@ -177,3 +177,4 @@
 - [ ] 비동기 요청 패턴 — 202 Accepted + 상태 조회(폴링), jobId로 중복 막기, 실패를 어디에 남기나, 큐 job의 대기 시간 드러내기(job.timestamp·processedOn, 워커 없는 큐의 waiting) (decisions/0038)
 - [ ] 서버가 "할 수 있는 동작"을 응답에 싣기 — HATEOAS 링크·allowed actions, 클라이언트 규칙 복제의 문제 (decisions/0040)
 - [ ] 하위·보조 목록에도 페이지 조건이 필요한가 — `GET /terminals/:serialNo/inspections`는 limit·beforeId 없이 다 준다(단말기 하나의 검수는 적다고 봄), 단말기 목록 `?merchantCode=`는 빈 문자열을 조건 없음으로 무시하고 `page` 상한이 없다(깊은 offset 비용) (decisions/0039, Day 6 Task 2 리뷰)
+- [ ] 데코레이터 메타데이터(design:type) — tsc와 swc가 타입 별칭을 다르게 내보낸다, 어디까지 reflect-metadata에 기대나 (troubleshooting/0029)

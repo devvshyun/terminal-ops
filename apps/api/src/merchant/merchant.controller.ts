@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import type { MerchantView } from '@terminal-ops/contracts';
 import { Operator } from '../common/operator.decorator.js';
 import { toTerminalView } from '../terminal/terminal.views.js';
 import { AllocateDto } from './dto/allocate.dto.js';
@@ -10,7 +11,7 @@ export class MerchantController {
   constructor(private readonly merchants: MerchantService) {}
 
   @Get('merchants')
-  async list() {
+  async list(): Promise<MerchantView[]> {
     return (await this.merchants.list()).map((m) => ({ code: m.code, name: m.name, address: m.address }));
   }
 

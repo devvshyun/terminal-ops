@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import type { InspectionItemView, InspectResult } from '@terminal-ops/contracts';
 import { Operator } from '../common/operator.decorator.js';
 import { toTerminalView } from '../terminal/terminal.views.js';
 import { InspectionItemsQuery } from './dto/inspection-items.query.js';
@@ -11,13 +12,13 @@ export class InspectionController {
   constructor(private readonly inspections: InspectionService) {}
 
   @Get('inspection-items')
-  async items(@Query() query: InspectionItemsQuery) {
+  async items(@Query() query: InspectionItemsQuery): Promise<InspectionItemView[]> {
     const items = await this.inspections.itemsForModel(query.modelCode);
     return items.map((i) => ({ code: i.code, label: i.label, sortOrder: i.sortOrder }));
   }
 
   @Post('terminals/:serialNo/inspections')
-  async inspect(@Param('serialNo') serialNo: string, @Body() dto: InspectDto, @Operator() actor: string) {
+  async inspect(@Param('serialNo') serialNo: string, @Body() dto: InspectDto, @Operator() actor: string): Promise<InspectResult> {
     const r = await this.inspections.inspect(serialNo, dto, actor);
     return { inspectionId: r.inspection.id, passed: r.passed, failedItems: r.failedItems, terminal: toTerminalView(r.terminal) };
   }

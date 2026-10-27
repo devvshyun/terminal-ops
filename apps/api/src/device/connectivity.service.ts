@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { raw } from '@mikro-orm/core';
 import { EntityManager } from '@mikro-orm/mysql';
 import type { Redis } from 'ioredis';
+import type { ConnectivityView } from '@terminal-ops/contracts';
 import { env } from '../config/env.js';
 import { OUTBOX_TYPE, OutboxEvent } from '../outbox/outbox-event.entity.js';
 import { execOrThrow } from '../redis/redis-exec.js';
@@ -21,15 +22,6 @@ export interface DetectResult {
   online: string[];
   /** 다른 프로세스가 판정 중이라 건너뜀 */
   skipped?: boolean;
-}
-
-export interface ConnectivityView {
-  serialNo: string;
-  /** redis: 하트비트 최신값, snapshot: MySQL 스냅샷, none: 기록 없음 */
-  source: 'redis' | 'snapshot' | 'none';
-  online: boolean;
-  lastSeenAt: string | null;
-  firmwareVersion: string | null;
 }
 
 export type ConnectivityRow = Pick<DeviceConnectivity, 'terminalId' | 'online' | 'lastSeenAt' | 'firmwareVersion' | 'changedAt'>;

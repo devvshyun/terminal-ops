@@ -1,7 +1,8 @@
 import { Type } from 'class-transformer';
 import { ArrayNotEmpty, IsArray, IsBoolean, IsOptional, IsString, Length, ValidateNested } from 'class-validator';
+import type { InspectionResultInput, InspectRequest } from '@terminal-ops/contracts';
 
-export class InspectionResultDto {
+export class InspectionResultDto implements InspectionResultInput {
   @IsString()
   itemCode!: string;
 
@@ -14,7 +15,7 @@ export class InspectionResultDto {
   note?: string;
 }
 
-export class InspectDto {
+export class InspectDto implements InspectRequest {
   @IsArray()
   @ArrayNotEmpty()
   @ValidateNested({ each: true })

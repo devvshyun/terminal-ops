@@ -1,12 +1,13 @@
 import { Body, Controller, Get, Param, Post, Res } from '@nestjs/common';
 import type { Response } from 'express';
+import type { ScanView } from '@terminal-ops/contracts';
 import { Operator } from '../common/operator.decorator.js';
 import { summarize } from '../terminal/bulk-rows.js';
 import { CreateScanDto } from './dto/create-scan.dto.js';
 import type { ScanBatch } from './scan-batch.entity.js';
 import { ScanService } from './scan.service.js';
 
-function toScanView(batch: ScanBatch, replayed: boolean) {
+function toScanView(batch: ScanBatch, replayed: boolean): ScanView {
   return {
     scanId: batch.scanId,
     kind: batch.kind,

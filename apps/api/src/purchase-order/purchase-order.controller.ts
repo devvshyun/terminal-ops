@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import type { BeforeIdPage, PurchaseOrderView } from '@terminal-ops/contracts';
 import { Operator } from '../common/operator.decorator.js';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto.js';
 import { ListPurchaseOrdersQuery } from './dto/list-purchase-orders.query.js';
@@ -16,7 +17,7 @@ export class PurchaseOrderController {
 
   /** 발주 목록(최근 것부터, ?status=&beforeId=&limit=) */
   @Get()
-  async list(@Query() query: ListPurchaseOrdersQuery) {
+  async list(@Query() query: ListPurchaseOrdersQuery): Promise<BeforeIdPage<PurchaseOrderView>> {
     const { items, nextBeforeId } = await this.orders.list(query);
     return { items: items.map(toPurchaseOrderView), nextBeforeId };
   }

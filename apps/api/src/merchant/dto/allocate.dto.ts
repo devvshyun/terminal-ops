@@ -1,6 +1,7 @@
 import { IsInt, IsString, Min, MinLength } from 'class-validator';
+import type { AllocateRequest } from '@terminal-ops/contracts';
 
-export class AllocateDto {
+export class AllocateDto implements AllocateRequest {
   @IsString()
   @MinLength(1)
   merchantCode!: string;

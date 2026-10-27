@@ -1,6 +1,7 @@
 import { IsInt, IsString, Length, Matches, Min } from 'class-validator';
+import type { CancelAllocationRequest } from '@terminal-ops/contracts';
 
-export class CancelAllocationDto {
+export class CancelAllocationDto implements CancelAllocationRequest {
   @IsString()
   @Length(1, 200)
   @Matches(/\S/, { message: 'reason은 공백만으로 쓸 수 없습니다.' })

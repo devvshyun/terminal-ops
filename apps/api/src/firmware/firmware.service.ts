@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/mysql';
+import type { FirmwareView } from '@terminal-ops/contracts';
 import { TerminalModel } from '../terminal/terminal-model.entity.js';
 import type { RegisterFirmwareDto } from './dto/firmware.dto.js';
 import { Firmware } from './firmware.entities.js';
@@ -19,6 +20,6 @@ export class FirmwareService {
   }
 }
 
-export function toFirmwareView(f: Firmware) {
+export function toFirmwareView(f: Firmware): FirmwareView {
   return { id: f.id, modelCode: f.model.code, version: f.version, createdBy: f.createdBy, createdAt: f.createdAt.toISOString() };
 }

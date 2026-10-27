@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import { EntityManager, IsolationLevel, UniqueConstraintViolationException, type QueryResult } from '@mikro-orm/mysql';
+import type { AfterIdPage, VanItemView, VanRunView } from '@terminal-ops/contracts';
 import { fromDbDatetime } from '../common/db-datetime.js';
 import { BusinessError } from '../common/domain-errors.js';
 import { beforeIdWhere, keysetPage } from '../common/keyset.js';
@@ -519,7 +520,7 @@ export class VanReconciliationService {
   }
 
   /** 결과 행 한 페이지(id 순, afterId 뒤부터). 다음 페이지가 있으면 nextAfterId */
-  async items(runId: number, q: { kind?: VanMismatchKind; verified?: boolean; afterId?: number; limit: number }) {
+  async items(runId: number, q: { kind?: VanMismatchKind; verified?: boolean; afterId?: number; limit: number }): Promise<AfterIdPage<VanItemView>> {
     const rows = await this.em.fork().find(
       VanReconciliationItem,
       {
@@ -604,7 +605,7 @@ export class VanReconciliationService {
   }
 }
 
-export function toVanRunView(run: VanReconciliationRun) {
+export function toVanRunView(run: VanReconciliationRun): VanRunView {
   return {
     id: run.id,
     status: run.status,

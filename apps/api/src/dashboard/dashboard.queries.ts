@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager, IsolationLevel } from '@mikro-orm/mysql';
+import type { DashboardSummary } from '@terminal-ops/contracts';
 import { ANOMALY_RULE_LABEL } from '../anomaly/anomaly-labels.js';
 import type { AnomalyRule } from '../anomaly/anomaly.entity.js';
 import { fromDbDatetime } from '../common/db-datetime.js';
@@ -7,27 +8,11 @@ import { kstWeekOf } from '../report/kst-week.js';
 import { reportOnlineWindowMs } from '../report/weekly-report.queries.js';
 import { TerminalStatus } from '../terminal/terminal-status.js';
 
-/** 어드민 처음 화면의 숫자 묶음(decisions/0044). 모두 집계 시각(now) 기준 */
-export interface DashboardSummary {
-  terminals: {
-    total: number;
-    /** 상태 순서(전이 표의 enum 순서), 0대인 상태는 빠진다 */
-    byStatus: { status: string; count: number }[];
-    byModel: { modelCode: string; count: number }[];
-  };
-  /** 운영 중 단말기의 접속 상태(주간 리포트와 같은 MySQL 기준 — 판정 job이 맞추는 online, 창 = 오프라인 기준 + 스냅샷 주기) */
-  connectivity: { inService: number; online: number; offline: number; noRecord: number };
-  /** 열린 이상(규칙 순서, 0인 규칙은 빠진다) */
-  anomalies: { open: number; byRule: { rule: string; label: string; open: number }[] };
-  /** 끝나지 않은 펌웨어 배포(RUNNING·PAUSED) */
-  rollouts: { active: number };
-  /** 열린 A/S(OPEN·REPLACING) */
-  serviceTickets: { open: number };
-  /** 가장 최근에 끝난(COMPLETED) VAN 대조 */
-  van: { runId: number; finishedAt: string; confirmed: number; counts: Record<string, number> } | null;
-  /** 이번 주(KST 월요일 00:00부터 집계 시각까지) 상태 전이 수 */
-  week: { weekStart: string; transitions: number };
-}
+/**
+ * 어드민 처음 화면의 숫자 묶음(decisions/0044). 모두 집계 시각(now) 기준. 모양은 contracts DashboardSummary 한 곳에 있다(decisions/0048).
+ * 접속 상태는 주간 리포트와 같은 MySQL 기준 — 판정 job이 맞추는 online, 창 = 오프라인 기준 + 스냅샷 주기.
+ */
+export type { DashboardSummary };
 
 const n = (v: unknown) => Number(v ?? 0);
 
