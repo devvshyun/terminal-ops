@@ -1,5 +1,10 @@
 import { Route, Routes } from 'react-router';
 import { Layout } from './components/Layout';
+import { AnomaliesPage } from './pages/reports/AnomaliesPage';
+import { PurchaseOrdersPage } from './pages/reports/PurchaseOrdersPage';
+import { VanRunDetailPage } from './pages/reports/VanRunDetailPage';
+import { VanRunsPage } from './pages/reports/VanRunsPage';
+import { WeeklyReportsPage } from './pages/reports/WeeklyReportsPage';
 import { HomePage } from './pages/HomePage';
 import { RolloutsPage } from './pages/RolloutsPage';
 import { ScanPage } from './pages/ScanPage';
@@ -20,6 +25,11 @@ export function App() {
         <Route path="service-tickets" element={<ServiceTicketsPage />} />
         <Route path="service-tickets/:id" element={<ServiceTicketDetailPage />} />
         <Route path="firmware-rollouts" element={<RolloutsPage />} />
+        <Route path="reports/anomalies" element={<AnomaliesPage />} />
+        <Route path="reports/van" element={<VanRunsPage />} />
+        <Route path="reports/van/:id" element={<VanRunDetailPage />} />
+        <Route path="reports/purchase-orders" element={<PurchaseOrdersPage />} />
+        <Route path="reports/weekly" element={<WeeklyReportsPage />} />
         <Route path="*" element={<p>없는 화면입니다.</p>} />
       </Route>
     </Routes>

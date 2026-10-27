@@ -144,3 +144,5 @@
 - [ ] React 외부 저장소 구독 — useSyncExternalStore와 localStorage (apps/admin/src/operator.ts)
 - [ ] 서버 상태와 클라이언트 상태 — TanStack Query의 queryKey·무효화·staleTime·재시도 (apps/admin/src/query-client.ts)
 - [ ] Testing Library의 접근성 쿼리(getByRole·getByLabelText)와 사용자 관점 테스트 (apps/admin/src/components/Layout.test.tsx)
+- [ ] TanStack Query의 리렌더 조건 — tracked props(notifyOnChangeProps)·구조 공유와 dataUpdatedAt (apps/admin/src/pages/reports/WeeklyReportsPage.tsx, devlog 2026-10-27 Task 8)
+- [ ] Vitest 가짜 타이머(`useFakeTimers({ shouldAdvanceTime })`, `advanceTimersByTimeAsync`)와 폴링 테스트 (apps/admin/src/pages/reports/ReportsPages.test.tsx)

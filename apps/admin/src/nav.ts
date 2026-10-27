@@ -5,4 +5,8 @@ export const NAV: { to: string; label: string }[] = [
   { to: '/scans', label: '박스 스캔' },
   { to: '/service-tickets', label: 'A/S' },
   { to: '/firmware-rollouts', label: '펌웨어 배포' },
+  { to: '/reports/anomalies', label: '이상 단말기' },
+  { to: '/reports/van', label: 'VAN 대조' },
+  { to: '/reports/purchase-orders', label: '발주 입고 대조' },
+  { to: '/reports/weekly', label: '주간 리포트' },
 ];
