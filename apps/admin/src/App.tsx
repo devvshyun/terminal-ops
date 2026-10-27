@@ -1,7 +1,10 @@
 import { Route, Routes } from 'react-router';
 import { Layout } from './components/Layout';
 import { HomePage } from './pages/HomePage';
+import { RolloutsPage } from './pages/RolloutsPage';
 import { ScanPage } from './pages/ScanPage';
+import { ServiceTicketDetailPage } from './pages/ServiceTicketDetailPage';
+import { ServiceTicketsPage } from './pages/ServiceTicketsPage';
 import { TerminalDetailPage } from './pages/TerminalDetailPage';
 import { TerminalListPage } from './pages/TerminalListPage';
 
@@ -14,6 +17,9 @@ export function App() {
         <Route path="terminals" element={<TerminalListPage />} />
         <Route path="terminals/:serialNo" element={<TerminalDetailPage />} />
         <Route path="scans" element={<ScanPage />} />
+        <Route path="service-tickets" element={<ServiceTicketsPage />} />
+        <Route path="service-tickets/:id" element={<ServiceTicketDetailPage />} />
+        <Route path="firmware-rollouts" element={<RolloutsPage />} />
         <Route path="*" element={<p>없는 화면입니다.</p>} />
       </Route>
     </Routes>
