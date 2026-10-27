@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { Link, useNavigate } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import type { TerminalDetail } from '../api/types';
 import { loginAs, mockApi, renderPage } from '../test/render';
@@ -43,6 +44,65 @@ describe('단말기 목록 (F1)', () => {
     await waitFor(() => expect(calls.at(-1)!.query.get('status')).toBe('IN_SERVICE'));
     const last = calls.filter((c) => c.path === '/terminals').at(-1)!;
     expect([last.query.get('q'), last.query.get('page'), last.query.get('size')]).toEqual(['AS-', '1', '20']);
+  });
+});
+
+function BackButton() {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => void navigate(-1)}>
+      뒤로
+    </button>
+  );
+}
+
+describe('단말기 목록 — Task 5 리뷰 반영', () => {
+  const listApi = () =>
+    mockApi({
+      ...reference,
+      'GET /terminals': (c) => ({
+        body: { items: Number(c.query.get('page')) > 3 ? [] : [row(`T-${c.query.get('page')}`)], total: 45, page: Number(c.query.get('page')), size: 20 },
+      }),
+    });
+
+  it('검색한 뒤 뒤로 가면 입력칸(draft)도 주소의 조건으로 돌아온다', async () => {
+    listApi();
+    renderPage(
+      <>
+        <TerminalListPage />
+        <BackButton />
+      </>,
+      { route: '/terminals', path: '/terminals' },
+    );
+    await screen.findByRole('link', { name: 'T-1' });
+    await userEvent.selectOptions(screen.getByLabelText('상태'), 'IN_SERVICE');
+    await userEvent.type(screen.getByLabelText('시리얼 앞부분'), 'AS-');
+    await userEvent.click(screen.getByRole('button', { name: '검색' }));
+    await waitFor(() => expect(screen.getByLabelText('시리얼 앞부분')).toHaveValue('AS-'));
+    await userEvent.click(screen.getByRole('button', { name: '뒤로' }));
+    await waitFor(() => expect(screen.getByLabelText('시리얼 앞부분')).toHaveValue(''));
+    expect(screen.getByLabelText('상태')).toHaveValue('');
+  });
+
+  it('page가 소수면 정수로 맞춰 부른다', async () => {
+    const { calls } = listApi();
+    renderPage(<TerminalListPage />, { route: '/terminals?page=2.7', path: '/terminals' });
+    await screen.findByRole('link', { name: 'T-2' });
+    expect(calls.filter((c) => c.path === '/terminals').map((c) => c.query.get('page'))).toEqual(['2']);
+  });
+
+  it('마지막 쪽을 넘긴 page면 마지막 쪽으로 옮긴다', async () => {
+    listApi();
+    renderPage(<TerminalListPage />, { route: '/terminals?page=99', path: '/terminals' });
+    expect(await screen.findByRole('link', { name: 'T-3' })).toBeInTheDocument();
+    expect(screen.getByText('3 / 3쪽')).toBeInTheDocument();
+  });
+
+  it('표 머리글에 scope=col이 있다', async () => {
+    listApi();
+    renderPage(<TerminalListPage />, { route: '/terminals', path: '/terminals' });
+    await screen.findByRole('link', { name: 'T-1' });
+    for (const th of screen.getAllByRole('columnheader')) expect(th).toHaveAttribute('scope', 'col');
   });
 });
 
@@ -151,6 +211,122 @@ describe('단말기 상세 (F2, decisions/0040)', () => {
         { itemCode: 'POWER', passed: true },
         { itemCode: 'PRINTER', passed: false },
       ],
+    });
+  });
+
+  describe('Task 5 리뷰 반영', () => {
+    const inspectable = (version = 1) =>
+      detail({ status: 'IN_STOCK', version, allowedTransitions: [], actions: { allocate: false, cancelAllocation: false, ship: false, inspect: true } });
+
+    it('로딩 중이면 불러오는 중을 보여 준다', async () => {
+      mockApi(common(() => detail()));
+      open();
+      expect(screen.getByText('불러오는 중')).toBeInTheDocument();
+      await screen.findByText('강남김밥 (GANGNAM-KIMBAP)');
+      expect(screen.queryByText('불러오는 중')).not.toBeInTheDocument();
+    });
+
+    it('검수를 저장하면 단말기 목록 캐시도 무효화한다', async () => {
+      mockApi({
+        ...common(() => inspectable()),
+        'GET /inspection-items': () => ({ body: [{ code: 'POWER', label: '전원', sortOrder: 0 }] }),
+        'POST /terminals/AS-1/inspections': () => ({ status: 201, body: {} }),
+      });
+      loginAs();
+      const { client } = open();
+      client.setQueryData(['terminals', 'probe'], { items: [] });
+      await userEvent.click(await screen.findByRole('button', { name: '검수 결과 저장' }));
+      await waitFor(() => expect(client.getQueryState(['terminals', 'probe'])?.isInvalidated).toBe(true));
+    });
+
+    it('검수 항목을 못 읽으면 오류를 보여 준다', async () => {
+      mockApi({
+        ...common(() => inspectable()),
+        'GET /inspection-items': () => ({ status: 500, body: { statusCode: 500, message: '검수 항목 읽기 실패' } }),
+      });
+      open();
+      expect(await screen.findByRole('alert')).toHaveTextContent('검수 항목 읽기 실패');
+    });
+
+    it('검수 저장이 409면 "다시 불러오기"가 상세를 다시 읽는다', async () => {
+      let reads = 0;
+      mockApi({
+        ...common(() => {
+          reads += 1;
+          return inspectable(reads);
+        }),
+        'GET /inspection-items': () => ({ body: [{ code: 'POWER', label: '전원', sortOrder: 0 }] }),
+        'POST /terminals/AS-1/inspections': () => ({ status: 409, body: { statusCode: 409, code: 'VERSION_CONFLICT', message: '충돌' } }),
+      });
+      loginAs();
+      open();
+      await userEvent.click(await screen.findByRole('button', { name: '검수 결과 저장' }));
+      const alert = await screen.findByRole('alert');
+      const before = reads;
+      await userEvent.click(within(alert).getByRole('button', { name: '다시 불러오기' }));
+      await waitFor(() => expect(reads).toBeGreaterThan(before));
+    });
+
+    it('409 뒤 다시 불러와 재시도하면 새 version(expectedVersion)을 보낸다', async () => {
+      let reads = 0;
+      let posts = 0;
+      const { calls } = mockApi({
+        ...common(() => {
+          reads += 1;
+          return detail({ version: reads });
+        }),
+        'POST /terminals/AS-1/transitions': () =>
+          ++posts === 1 ? { status: 409, body: { statusCode: 409, code: 'VERSION_CONFLICT', message: '충돌' } } : { body: {} },
+      });
+      loginAs();
+      open();
+      await userEvent.click(await screen.findByRole('button', { name: '→ 배송 완료' }));
+      await userEvent.type(screen.getByLabelText('변경 사유'), '현장 확인');
+      await userEvent.click(screen.getByRole('button', { name: '배송 완료(으)로 바꾸기' }));
+      await userEvent.click(within(await screen.findByRole('alert')).getByRole('button', { name: '다시 불러오기' }));
+      await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+      await userEvent.click(screen.getByRole('button', { name: '배송 완료(으)로 바꾸기' }));
+      await waitFor(() => expect(posts).toBe(2));
+      const sent = calls.filter((c) => c.method === 'POST').map((c) => (c.body as { expectedVersion: number }).expectedVersion);
+      expect(sent[0]).toBe(1);
+      expect(sent[1]).toBeGreaterThan(1);
+    });
+
+    it('다시 불러온 상세에서 고른 전이가 사라졌으면 선택을 풀고, 상세 전체(타임라인 포함)를 다시 읽는다', async () => {
+      let transitions = [{ to: 'DELIVERED', blockedReason: null as string | null }];
+      const { calls } = mockApi(common(() => detail({ allowedTransitions: transitions })));
+      open();
+      await userEvent.click(await screen.findByRole('button', { name: '→ 배송 완료' }));
+      expect(screen.getByLabelText('변경 사유')).toBeInTheDocument();
+      transitions = [{ to: 'IN_SERVICE', blockedReason: null }];
+      const historyBefore = calls.filter((c) => c.path === '/terminals/AS-1/history').length;
+      await userEvent.click(screen.getByRole('button', { name: '다시 불러오기' }));
+      await screen.findByRole('button', { name: '→ 운영 중' });
+      expect(screen.queryByLabelText('변경 사유')).not.toBeInTheDocument();
+      expect(calls.filter((c) => c.path === '/terminals/AS-1/history').length).toBeGreaterThan(historyBefore);
+    });
+
+    it('다른 단말기로 옮기면 입력하던 사유가 남지 않는다', async () => {
+      mockApi({
+        ...common(() => detail()),
+        'GET /terminals/AS-2': () => ({ body: detail({ serialNo: 'AS-2' }) }),
+        'GET /terminals/AS-2/history': () => ({ body: [] }),
+        'GET /terminals/AS-2/connectivity': () => ({ body: { serialNo: 'AS-2', source: 'none', online: false, lastSeenAt: null, firmwareVersion: null } }),
+        'GET /terminals/AS-2/inspections': () => ({ body: [] }),
+      });
+      renderPage(
+        <>
+          <TerminalDetailPage />
+          <Link to="/terminals/AS-2">AS-2로</Link>
+        </>,
+        { route: '/terminals/AS-1', path: '/terminals/:serialNo' },
+      );
+      await userEvent.click(await screen.findByRole('button', { name: '→ 배송 완료' }));
+      await userEvent.type(screen.getByLabelText('변경 사유'), '남으면 안 됨');
+      await userEvent.click(screen.getByRole('link', { name: 'AS-2로' }));
+      await screen.findByRole('heading', { name: '단말기 AS-2' });
+      await screen.findByRole('button', { name: '→ 배송 완료' });
+      expect(screen.queryByLabelText('변경 사유')).not.toBeInTheDocument();
     });
   });
 });

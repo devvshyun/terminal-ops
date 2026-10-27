@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
 import { api } from '../api/client';
 import type { ConnectivityView, HistoryView, InspectionRecord, TerminalDetail } from '../api/types';
@@ -10,11 +10,15 @@ import { label, SOURCE_LABEL, TERMINAL_STATUS_LABEL } from '../lib/labels';
 /** 단말기 상세(F1·F2·F8·F13): 기본 정보, 할 수 있는 일, 상태 타임라인, 접속 상태, 검수 기록 */
 export function TerminalDetailPage() {
   const serialNo = useParams().serialNo!;
+  const client = useQueryClient();
   const base = `/terminals/${encodeURIComponent(serialNo)}`;
   const detail = useQuery({ queryKey: ['terminal', serialNo, 'detail'], queryFn: () => api<TerminalDetail>(base) });
   const history = useQuery({ queryKey: ['terminal', serialNo, 'history'], queryFn: () => api<HistoryView[]>(`${base}/history`) });
   const connectivity = useQuery({ queryKey: ['terminal', serialNo, 'connectivity'], queryFn: () => api<ConnectivityView>(`${base}/connectivity`) });
   const inspections = useQuery({ queryKey: ['terminal', serialNo, 'inspections'], queryFn: () => api<InspectionRecord[]>(`${base}/inspections`) });
+
+  /** 상세·타임라인·접속 상태·검수 기록 모두 다시 읽는다 */
+  const reloadAll = () => client.invalidateQueries({ queryKey: ['terminal', serialNo] });
 
   const t = detail.data;
   return (
@@ -24,6 +28,7 @@ export function TerminalDetailPage() {
       </p>
       <h2>단말기 {serialNo}</h2>
       <ErrorBox error={detail.error} />
+      {detail.isPending ? <p className="muted">불러오는 중</p> : null}
       {t ? (
         <>
           <div className="panel">
@@ -43,11 +48,11 @@ export function TerminalDetailPage() {
               <dt>등록</dt>
               <dd>{formatKst(t.createdAt)}</dd>
             </dl>
-            <button type="button" onClick={() => void detail.refetch()}>
+            <button type="button" onClick={() => void reloadAll()}>
               다시 불러오기
             </button>
           </div>
-          <TerminalActions terminal={t} onReload={() => void detail.refetch()} />
+          <TerminalActions key={t.serialNo} terminal={t} onReload={() => void reloadAll()} />
         </>
       ) : null}
 

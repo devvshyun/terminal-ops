@@ -13,7 +13,9 @@ import { WriteButton } from './WriteButton';
 export function TerminalActions({ terminal, onReload }: { terminal: TerminalDetail; onReload: () => void }) {
   const client = useQueryClient();
   const path = `/terminals/${encodeURIComponent(terminal.serialNo)}`;
-  const [selected, setSelected] = useState<string | null>(null);
+  const [pick, setSelected] = useState<string | null>(null);
+  // 다시 불러온 상세에서 고른 전이가 없어졌거나 막혔으면 선택을 푼다
+  const selected = terminal.allowedTransitions.some((t) => t.to === pick && t.blockedReason === null) ? pick : null;
   const [reason, setReason] = useState('');
   const [merchantCode, setMerchantCode] = useState('');
   const [cancelReason, setCancelReason] = useState('');
@@ -134,13 +136,13 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
         </div>
       ) : null}
 
-      {terminal.actions.inspect ? <InspectForm terminal={terminal} /> : null}
+      {terminal.actions.inspect ? <InspectForm terminal={terminal} onReload={onReload} /> : null}
     </div>
   );
 }
 
 /** 검수(F13): 모델 체크리스트 항목마다 합격/불합격. 하나라도 불합격이면 서버가 DEFECTIVE로 바꾼다 */
-function InspectForm({ terminal }: { terminal: TerminalDetail }) {
+function InspectForm({ terminal, onReload }: { terminal: TerminalDetail; onReload: () => void }) {
   const client = useQueryClient();
   const items = useQuery({
     queryKey: ['inspection-items', terminal.modelCode],
@@ -154,8 +156,10 @@ function InspectForm({ terminal }: { terminal: TerminalDetail }) {
     onSuccess: async () => {
       setFailed({});
       await client.invalidateQueries({ queryKey: ['terminal', terminal.serialNo] });
+      await client.invalidateQueries({ queryKey: ['terminals'] }); // 상태가 DEFECTIVE 등으로 바뀔 수 있어 목록도
     },
   });
+  if (items.error) return <ErrorBox error={items.error} />;
   if (!items.data) return null;
   return (
     <fieldset className="panel">
@@ -170,7 +174,13 @@ function InspectForm({ terminal }: { terminal: TerminalDetail }) {
           {item.label} 불합격
         </label>
       ))}
-      <ErrorBox error={inspect.error} />
+      <ErrorBox
+        error={inspect.error}
+        onReload={() => {
+          inspect.reset();
+          onReload();
+        }}
+      />
       <WriteButton
         disabled={inspect.isPending}
         onClick={() => inspect.mutate(items.data.map((item) => ({ itemCode: item.code, passed: !failed[item.code] })))}

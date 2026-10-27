@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
 import { api } from '../api/client';
@@ -16,9 +16,13 @@ const FILTERS = ['status', 'modelCode', 'merchantCode', 'q'] as const;
  */
 export function TerminalListPage() {
   const [params, setParams] = useSearchParams();
-  const page = Math.max(1, Number(params.get('page') ?? 1) || 1);
+  const rawPage = Math.floor(Number(params.get('page') ?? 1));
+  const page = Number.isFinite(rawPage) ? Math.max(1, rawPage) : 1; // 소수·0·음수·글자는 정수 1 이상으로
   const filter = Object.fromEntries(FILTERS.map((k) => [k, params.get(k) ?? ''])) as Record<(typeof FILTERS)[number], string>;
   const [draft, setDraft] = useState(filter);
+  // 뒤로/앞으로 가기로 주소의 조건이 바뀌면 입력칸도 그 조건으로 맞춘다(쪽만 바뀔 때는 입력 중인 값을 지키지 않는다 — 조건 키만 본다)
+  const filterKey = JSON.stringify(FILTERS.map((k) => filter[k]));
+  useEffect(() => setDraft(filter), [filterKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const models = useQuery({ queryKey: ['terminal-models'], queryFn: () => api<TerminalModelView[]>('/terminal-models'), staleTime: Infinity });
   const merchants = useQuery({ queryKey: ['merchants'], queryFn: () => api<MerchantView[]>('/merchants'), staleTime: Infinity });
@@ -40,6 +44,14 @@ export function TerminalListPage() {
     setParams(next);
   };
   const totalPages = list.data ? Math.max(1, Math.ceil(list.data.total / SIZE)) : 1;
+  // 마지막 쪽을 넘긴 주소(지워진 뒤 옛 링크 등)는 마지막 쪽으로 옮긴다. 이전 화면 값(placeholder)으로는 판단하지 않는다
+  useEffect(() => {
+    if (list.data && !list.isPlaceholderData && page > totalPages) {
+      const next = new URLSearchParams(params);
+      next.set('page', String(totalPages));
+      setParams(next, { replace: true });
+    }
+  }, [list.data, list.isPlaceholderData, page, totalPages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <section>
@@ -81,11 +93,11 @@ export function TerminalListPage() {
           <table>
             <thead>
               <tr>
-                <th>시리얼</th>
-                <th>모델</th>
-                <th>상태</th>
-                <th>가맹점</th>
-                <th>상태가 된 시각</th>
+                <th scope="col">시리얼</th>
+                <th scope="col">모델</th>
+                <th scope="col">상태</th>
+                <th scope="col">가맹점</th>
+                <th scope="col">상태가 된 시각</th>
               </tr>
             </thead>
             <tbody>
