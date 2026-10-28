@@ -21,10 +21,11 @@ terminal-ops/
 │  ├─ api/               Nest.js 12 — HTTP API와 큐 워커(실행 모드로 분리: RUN_WORKERS, RUN_SCHEDULERS), 로그인·역할(보강 2)
 │  ├─ admin/             React 19 + Vite 8 + TanStack Query 어드민(Vite 프록시 /api → api)
 │  ├─ merchant/          매장(가맹점주) 화면 — 휴대폰 폭, 어드민과 같은 스택·같은 판(Vite 프록시 /api → api, 보강 3)
+│  ├─ field/             현장 작업자 화면 — 휴대폰·PDA 폭, 바코드 스캐너(키보드 웨지) 입력, 점주 앱과 같은 스택·같은 판(Vite 프록시 /api → api, 보강 4)
 │  ├─ partners/          가상 업체 서버(node:http, 포트 4010): 세움전자·번개택배·느림보물류·브릿지VAN·톡톡메신저
 │  └─ device-sim/        단말기 시뮬레이터(하트비트, 펌웨어 업데이트 결과 보고)
 ├─ packages/
-│  └─ contracts/         api·어드민·매장 화면이 함께 보는 HTTP 계약(응답·요청 모양, 상태 값, 오류 코드, 로그인·계정·키 타입). 타입만, 각 앱이 file: 의존
+│  └─ contracts/         api·어드민·매장·현장 화면이 함께 보는 HTTP 계약(응답·요청 모양, 상태 값, 오류 코드, 로그인·계정·키 타입). 타입만, 각 앱이 file: 의존
 ├─ infra/                MySQL 초기화(테스트 DB), 미리보기 env
 ├─ scripts/              기록 색인 생성
 └─ docs/                 기록(아래 "기록")
@@ -38,7 +39,7 @@ Node 24, Docker Desktop(WSL2)이 필요하다. 명령은 Git Bash 기준.
 cp .env.example .env                 # 로컬 개발 전용 값. DEVICE_API_KEY는 자리표시자다 — 임의의 값(16자 이상, 공백 없는 ASCII)으로 바꿔 쓴다
                                      # (보강 2 뒤 .env가 이미 있으면 .env.example의 "# 보강 2" 아래 줄들을 덧붙인다 — DEVICE_API_KEY가 없으면 api가 뜨지 않는다)
 docker compose up -d --wait          # MySQL·Redis, healthcheck가 healthy가 될 때까지 기다린다(첫 실행은 MySQL 초기화에 수십 초)
-for a in api admin merchant partners device-sim; do (cd apps/$a && npm ci); done   # api·admin·merchant는 packages/contracts를 링크한다(따로 설치하지 않는다)
+for a in api admin merchant field partners device-sim; do (cd apps/$a && npm ci); done   # api·admin·merchant·field는 packages/contracts를 링크한다(따로 설치하지 않는다)
 cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB 스키마와 기준 데이터(모델·가맹점·검수 항목)와 시연 계정 7개·시연 외부 업체 키(NODE_ENV=production·SEED_DEMO=0이면 기준 데이터만)
 
 # 터미널 네 개(또는 백그라운드 — 끌 때는 PID로)
@@ -47,12 +48,13 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 (cd apps/api && npm run start:worker)                  # 선택: 워커만 따로 — main api가 RUN_WORKERS=0일 때만. 둘 다 워커면 report 큐 한 번에 하나(decisions/0038) 가정이 깨진다
 (cd apps/admin && npm run dev)                         # :5173 → 브라우저 http://localhost:5173/login
 (cd apps/merchant && npm run dev)                      # :5174 → 휴대폰 크기로 http://localhost:5174/login (가맹점 계정)
+(cd apps/field && npm run dev)                         # :5175 → 휴대폰 크기로 http://localhost:5175/login (현장 작업자 계정 field)
 (cd apps/device-sim && npm run build && node --env-file=../../.env dist/main.js)   # 선택: 단말기 시뮬레이터(:4020) — api와 같은 .env의 DEVICE_API_KEY를 X-Device-Key로 보낸다(api는 .env를 스스로 읽고, 시뮬레이터는 --env-file로)
 ```
 
 - 워커 프로세스를 띄우는 실험(0005·0014)은 먼저 `cd apps/api && npm run build` — `dist/worker.js`를 자식 프로세스로 띄우므로, 빌드하지 않으면 멈추고("먼저 npm run build 하세요"), 소스만 고치고 빌드를 잊으면 옛 워커로 잰다(경고 없음).
 - 테스트: 각 앱 폴더에서 `npm test`. api 테스트는 테스트 DB(`terminal_ops_test`)와 Redis 테스트 접두사(`test-`)만 쓰고, 가상 업체 서버를 테스트 포트(4011)에 직접 띄운다 — api 테스트를 두 개 동시에 돌리지 않는다. 실험은 `EXPERIMENTS=1 npx vitest run test/experiments/<파일> --silent=false`.
-- 타입 검사: vitest는 타입을 보지 않는다. api `npm run typecheck`(또는 `npm run build`), admin·merchant `npm run build`(tsc 포함) — api·화면이 `packages/contracts`와 어긋나면 여기서 실패한다([decisions/0048](docs/decisions/0048-계약은-반환-타입-implements-enum-단언으로-강제한다.md)).
+- 타입 검사: vitest는 타입을 보지 않는다. api `npm run typecheck`(또는 `npm run build`), admin·merchant·field `npm run build`(tsc 포함) — api·화면이 `packages/contracts`와 어긋나면 여기서 실패한다([decisions/0048](docs/decisions/0048-계약은-반환-타입-implements-enum-단언으로-강제한다.md)).
 - 미리보기(화면 확인)는 `infra/preview.env`(주기 작업을 등록하지 않음)를 저장소 `.env` 뒤에 읽는다. 띄우기 전 점검(빌드, 남은 주기 작업 `npm run scheduler:clear`, 같은 접두사의 다른 워커)은 그 파일 주석에 있다.
 - 주기 작업은 Redis에 남는다(BullMQ job scheduler). 지우려면 `cd apps/api && npm run scheduler:clear`(이 접두사의 주기 작업만 — Redis 전체를 비우지 않는다).
 
@@ -65,7 +67,7 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 - **ADMIN**: 계정·역할·외부 업체 키 관리(`/admin/*`)와 읽기. 업무 쓰기는 하지 않는다
 - **OPERATOR**: 운영자 — 어드민의 모든 업무 쓰기(등록·전이·배정·출고·A/S·배포 …)
 - **MONITOR**: 관제·개발자 — 읽기와 관제 작업(이상 찾기·VAN 대조·주간 리포트 실행)
-- **FIELD**: 현장 작업자 — 박스 스캔·검수와 그에 필요한 조회
+- **FIELD**: 현장 작업자 — 박스 스캔·검수와 그에 필요한 조회. 화면은 현장 화면 `apps/field`(:5175, 보강 4 — [decisions/0061](docs/decisions/0061-현장-화면은-별도-앱-apps-field.md)). 어드민의 박스 스캔·검수도 그대로 쓸 수 있다
 - **MERCHANT**: 가맹점주 — `/me/*`로 자기 가맹점의 단말기·A/S만([decisions/0053](docs/decisions/0053-가맹점주-범위는-me-전용-엔드포인트와-서비스-scope.md)). 화면은 매장 화면 `apps/merchant`(:5174, 보강 3 — [decisions/0057](docs/decisions/0057-점주-화면은-별도-앱-apps-merchant.md)). 어드민은 안내와 로그아웃만
 
 시연 계정(`npm run db:seed`가 넣는다). 비밀번호는 표에 적지 않는다 — `apps/api/src/db/seed-accounts.ts`의 로컬 시연 전용 값을 본다.
@@ -111,6 +113,16 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 - 단말기 상세(이번 배정부터의 지난 일), 고장 접수(증상 + 메모), A/S 진행 단계(접수 → 원격 점검 → 교체 출고 → 배송 중 → 설치 확인 → 완료)와 설치 확인
 - 점주에게 보이는 단말기는 배정부터 회수 완료까지다 — 회수 뒤 본사로 돌아간(검수·재고) 단말기는 옛 가맹점에 보이지 않는다([decisions/0059](docs/decisions/0059-점주-화면용-me-보강은-점주용-모양과-보이는-상태로.md)). 점주 문구·단계는 화면이 상태 값에서 만든다([0060](docs/decisions/0060-점주-문구와-진행-단계는-화면이-상태에서-만든다.md)). api 클라이언트·세션 코드는 어드민 사본이다([0058](docs/decisions/0058-화면-공통-코드는-공유-패키지가-아니라-복사로.md))
 
+## 현장 화면(보강 4)
+
+창고·물류 현장 작업자가 휴대폰·PDA로 쓰는 화면이다. `http://localhost:5175/login`에 위 표의 `field` 계정으로 들어간다(다른 계정이면 안내와 로그아웃만).
+
+- 홈: 오늘(KST) 내가 처리한 박스·입고·회수 입고·검수 수(`GET /field/today`, [decisions/0063](docs/decisions/0063-현장-API는-오늘-내-작업-하나만.md))와 큰 버튼 둘
+- 박스 스캔: 발주분 입고(열린 발주 고르기)·회수 입고. 바코드 스캐너(키보드 웨지 — 시리얼 + Enter)나 손 입력·붙여 넣기로 목록에 쌓이고, 중복·형식 오류는 그 줄에 바로 보인다. 보낸 박스는 잠기고, 응답을 못 받으면 같은 박스 번호(scanId)로 다시 보낸다(어드민과 같은 멱등 규칙). 카메라 바코드는 없다([decisions/0064](docs/decisions/0064-현장-입력은-키보드-웨지-카메라는-생략.md))
+- 검수: 검수 대기(새 입고·회수 입고, 오래 기다린 순), 시리얼 스캔으로 바로 찾기, 항목마다 합격/불합격(+ 불합격 메모), 저장 → 합격/불량
+- api 클라이언트·세션 코드는 점주 앱 사본이고 `src/copies.test.ts`가 코드가 같은지 본다([decisions/0062](docs/decisions/0062-세-번째-화면도-복사와-사본-검사-테스트로.md))
+- 시연 팁: 어드민(:5173)·매장(:5174)·현장(:5175)은 localhost에서 쿠키(`sid`) 하나를 함께 쓴다 — 동시에 다른 계정으로 보려면 브라우저 프로필을 나눈다
+
 ## 기능
 
 | ID | 기능 | 코드 |
@@ -132,6 +144,7 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 | 공유 타입(보강 1) | api 응답·요청 모양·상태 값·오류 코드를 한 곳에. api가 어기면 tsc 실패(view 반환 타입, DTO implements, enum ↔ 유니온 단언), 어드민은 그 타입을 import | `packages/contracts/`, `apps/api/src/common/contract-assertions.ts`, `apps/api/test/unit/contract-drift.spec.ts` |
 | 로그인·권한(보강 2) | 서버 세션(Redis)·httpOnly 쿠키, 역할 다섯과 엔드포인트 표(기본 거부, 전수 검사 테스트), 가맹점주 /me 범위, 외부 업체 키·scope, 단말기 키 | `apps/api/src/auth/`, `src/me/`, `src/admin/`, `src/partner-api/`, `apps/admin/src/session.ts`·`components/AuthGate.tsx` |
 | 매장 화면(보강 3) | 점주 홈(오고 있는 단말기·진행 중 A/S·사용 중 단말기 접속·회수), 단말기 상세, 고장 접수, A/S 진행 단계·설치 확인. `/me` 점주용 응답·보이는 상태·내 매장·접수 상세 | `apps/merchant/src/`, `apps/api/src/me/` |
+| 현장 화면(보강 4) | 오늘 내 작업, 박스 스캔(스캐너 입력·중복·형식 표시·scanId 멱등·줄마다 결과), 검수 대기·시리얼 찾기·체크리스트. `GET /field/today` | `apps/field/src/`, `apps/api/src/field/` |
 
 ## 실험 결과
 
@@ -175,19 +188,20 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 
 이 프로젝트의 산출물은 코드와 기록이다(규칙 `CLAUDE.md`, 양식 `docs/README.md`).
 
-- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 60·트러블슈팅 32·실험 17 (`node scripts/docs-index.mjs`로 만든다)
+- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 64·트러블슈팅 32·실험 17 (`node scripts/docs-index.mjs`로 만든다)
 - 개발일지: [`docs/devlog/`](docs/devlog/)(날짜별, 날마다 "N일차 요약"), 설계 스펙 [`docs/specs/`](docs/specs/), 구현 계획 [`docs/plans/`](docs/plans/), 날마다의 최종 리뷰 [`docs/reviews/`](docs/reviews/)
 - 7일 회고: [`docs/retrospective.md`](docs/retrospective.md) — 날별로 만든 것, 잘 된 것·안 된 것, 반복된 실수, 면접에서 말할 거리, 남은 이월과 그 뒤 보강
 - 공부거리: [`docs/study/backlog.md`](docs/study/backlog.md)
 
 ## 테스트
 
-(보강 3 매장 화면 뒤 실제로 돌려 센 값(2026-10-28). api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 2 뒤에는 api 79/549, 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
+(보강 4 현장 화면 뒤 실제로 돌려 센 값(2026-10-28). api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 3 뒤에는 api 80/561·merchant 7/47, 보강 2 뒤에는 api 79/549, 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
 
 | 앱 | 파일 | 테스트 |
 |---|---|---|
-| api(실험 제외) | 80 | 561 |
+| api(실험 제외) | 82 | 568 |
 | admin | 14 | 125 |
 | merchant | 7 | 47 |
+| field | 7 | 57 |
 | partners | 6 | 53 |
 | device-sim | 5 | 46 |
