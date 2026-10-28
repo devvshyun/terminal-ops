@@ -197,3 +197,4 @@
 - [ ] `window.confirm` 대신 화면 안 확인 대화상자(`<dialog>`, `showModal`) — 휴대폰 브라우저·앱 안 웹뷰에서 confirm이 막히거나 모양을 못 바꾸는 경우 (apps/merchant/src/pages/ServiceTicketDetailPage.tsx)
 - [ ] Vite가 `new URL(템플릿 문자열, import.meta.url)`을 자산 import(`?url` glob)로 바꾸는 규칙과 `server.fs.allow` — 테스트에서 다른 앱 파일을 읽으려다 `Denied ID …?url` (apps/field/src/copies.test.ts, decisions/0062)
 - [ ] MikroORM `find(…, { fields: ['results'] })` 부분 로딩 — 부분 엔티티가 identity map에 남을 때 같은 요청에서 다시 읽으면 빠진 필드는? (apps/api/src/field/field.service.ts, decisions/0063)
+- [ ] TypeScript 컴파일러 API — `createScanner`(문맥 없는 토큰화: 정규식·템플릿 안을 코드로 읽음, `reScanSlashToken`·`reScanTemplateToken`)와 `createSourceFile` + `getChildren`(잎 = 토큰, JSDoc은 자식 노드로 붙음) (apps/field/src/copies.test.ts, decisions/0062)
