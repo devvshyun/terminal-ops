@@ -74,10 +74,12 @@ const EXPECTED: Record<string, string> = {
   'POST /firmware-rollouts/:id/resume': 'OPERATOR',
   'POST /firmware-rollouts/:id/abort': 'OPERATOR',
 
-  // 가맹점주 전용(decisions/0053) — 가맹점주는 이 다섯 개와 /auth만 부를 수 있다
+  // 가맹점주 전용(decisions/0053, 보강 3 decisions/0059) — 가맹점주는 이 일곱 개와 /auth만 부를 수 있다
+  'GET /me/merchant': 'MERCHANT',
   'GET /me/terminals': 'MERCHANT',
   'GET /me/terminals/:serialNo': 'MERCHANT',
   'GET /me/service-tickets': 'MERCHANT',
+  'GET /me/service-tickets/:id': 'MERCHANT',
   'POST /me/service-tickets': 'MERCHANT',
   'POST /me/service-tickets/:id/installations': 'MERCHANT',
 

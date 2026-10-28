@@ -34,6 +34,8 @@ export function toMerchantTicketView(t: ServiceTicket, myLoginId: string): Merch
     outboundShipmentId: t.outboundShipment?.id ?? null,
     outboundTrackingNo: t.outboundShipment?.trackingNo ?? null,
     openedByMe: t.openedBy === myLoginId,
+    remoteChecked: t.remoteNote !== null,
+    replacementStatus: t.replacementTerminal?.status ?? null,
     createdAt: t.createdAt.toISOString(),
     closedAt: t.closedAt?.toISOString() ?? null,
   };

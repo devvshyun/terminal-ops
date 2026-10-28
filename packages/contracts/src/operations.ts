@@ -1,5 +1,5 @@
 import type { RowResult } from './common.js';
-import type { PurchaseOrderStatus, RolloutStatus, RowResultCode, ScanKind, ServiceTicketStatus } from './statuses.js';
+import type { PurchaseOrderStatus, RolloutStatus, RowResultCode, ScanKind, ServiceTicketStatus, TerminalStatus } from './statuses.js';
 
 /** 박스 스캔 결과(POST /scans 201 새로 처리 · 200 replayed, GET /scans/:scanId, decisions/0020) */
 export interface ScanView {
@@ -75,6 +75,10 @@ export interface TicketView {
  */
 export interface MerchantTicketView extends Omit<TicketView, 'openedBy' | 'remoteNote'> {
   openedByMe: boolean;
+  /** 본사가 원격 점검을 했나(메모 내용은 주지 않는다 — 진행 단계 표시용, 보강 3 decisions/0059) */
+  remoteChecked: boolean;
+  /** 교체 단말기의 지금 상태(SHIPPED 배송 중 → DELIVERED 설치 확인 대기 → IN_SERVICE). 교체 전이면 null */
+  replacementStatus: TerminalStatus | null;
 }
 
 /** 펌웨어(api toFirmwareView, POST /firmware) */

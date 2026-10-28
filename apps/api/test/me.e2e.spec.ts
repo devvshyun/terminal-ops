@@ -41,7 +41,7 @@ describe('가맹점주 범위 /me (보강 2, decisions/0053)', () => {
   });
 
   it('남의 단말기·재고 단말기 상세는 404(있는지도 알려 주지 않는다)', async () => {
-    expect((await withCookie(t, gangnam).get('/me/terminals/ME-0001')).body).toMatchObject({ serialNo: 'ME-0001', merchantCode: 'GANGNAM-KIMBAP' });
+    expect((await withCookie(t, gangnam).get('/me/terminals/ME-0001')).body).toMatchObject({ serialNo: 'ME-0001', status: 'IN_SERVICE' });
     const other = await withCookie(t, gangnam).get('/me/terminals/ME-0003');
     expect(other.status).toBe(404);
     expect(other.body.message).toBe('단말기 ME-0003이(가) 없습니다.');
