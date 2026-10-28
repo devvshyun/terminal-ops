@@ -195,3 +195,4 @@
 - [ ] MikroORM `em.insert`(속성 기본값 `= new Date()`를 쓰지 않는 바로 INSERT)와 `create` + `flush`의 차이 — 테스트 준비 행에서 `NotNullConstraintViolationException: Field 'received_at' doesn't have a default value` (apps/api/test/me-portal.e2e.spec.ts, 보강 3 계획 사전 검증)
 - [ ] `aria-current="step"`과 `<section aria-labelledby>` — 진행 단계의 "지금"과 영역 이름을 화면 읽기 도구에 알리기, Testing Library `getByRole('region', { name })` (apps/merchant/src/components/StepList.tsx, pages/TerminalPages.test.tsx)
 - [ ] `window.confirm` 대신 화면 안 확인 대화상자(`<dialog>`, `showModal`) — 휴대폰 브라우저·앱 안 웹뷰에서 confirm이 막히거나 모양을 못 바꾸는 경우 (apps/merchant/src/pages/ServiceTicketDetailPage.tsx)
+- [ ] Vite가 `new URL(템플릿 문자열, import.meta.url)`을 자산 import(`?url` glob)로 바꾸는 규칙과 `server.fs.allow` — 테스트에서 다른 앱 파일을 읽으려다 `Denied ID …?url` (apps/field/src/copies.test.ts, decisions/0062)
