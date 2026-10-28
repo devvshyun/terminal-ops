@@ -1,4 +1,4 @@
-import { useRef, useState, type ClipboardEvent, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { CreateScanRequest, ScanKind, ScanView } from '@terminal-ops/contracts';
 import { api, ApiError } from '../api/client';
@@ -26,6 +26,9 @@ export function ScanPage() {
   /** 지금 박스의 scanId(늦게 온 응답이 그새 바뀐 박스의 scanId를 지우지 않게 비교용) */
   const currentScanId = useRef<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const newBox = useRef<HTMLButtonElement>(null);
+  /** 잠긴 박스에 스캐너가 찍으면 켜는 안내(결과가 있으면 안내는 늘 보인다) */
+  const [lockedHint, setLockedHint] = useState(false);
   const changeScanId = (id: string | null) => {
     currentScanId.current = id;
     setScanId(id);
@@ -44,6 +47,16 @@ export function ScanPage() {
 
   const locked = scanId !== null; // 보냈거나 보내는 중인 박스는 고치지 않는다
   const result = scan.data;
+  const sealed = result !== undefined; // 결과를 받은 박스: 다음은 새 박스로
+
+  // 결과가 오면 초점을 새 박스로 — 스캐너 글자가 닫힌 박스에 조용히 버려지지 않게(같은 박스 다시 보내기에 Enter가 닿지 않게도)
+  useEffect(() => {
+    if (sealed) newBox.current?.focus();
+  }, [sealed]);
+  // 고른 발주가 다시 읽은 열린 발주에서 빠졌으면(마감) 비운다. 보낸(잠긴) 박스의 발주는 다시 보내기 때문에 건드리지 않는다
+  useEffect(() => {
+    if (orders.data && !locked && poNo && !orders.data.items.some((p) => p.poNo === poNo)) setPoNo('');
+  }, [orders.data, locked, poNo]);
   const problems = serials.map((_, i) => lineProblem(serials, i));
   const duplicates = problems.filter((p) => p === 'DUPLICATE').length;
   const badFormat = problems.filter((p) => p === 'FORMAT').length;
@@ -62,7 +75,9 @@ export function ScanPage() {
     const text = event.clipboardData.getData('text');
     if (!/[\s,]/.test(text.trim())) return; // 시리얼 하나는 보통 붙여 넣기(그 뒤 Enter)
     event.preventDefault();
-    append(splitSerials(draft + text));
+    const { selectionStart, selectionEnd } = event.currentTarget;
+    const start = selectionStart ?? draft.length;
+    append(splitSerials(draft.slice(0, start) + text + draft.slice(selectionEnd ?? start)));
   };
   const remove = (index: number) => setSerials((list) => list.filter((_, i) => i !== index));
   const send = () => {
@@ -79,7 +94,15 @@ export function ScanPage() {
     setSerials([]);
     setDraft('');
     scan.reset();
+    setLockedHint(false);
     input.current?.focus();
+  };
+  /** 잠긴 입력칸은 폼이 제출되지 않는다(추가 버튼이 꺼져 있다) — Enter를 직접 받아 안내한다 */
+  const keyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' && locked) {
+      event.preventDefault();
+      setLockedHint(true);
+    }
   };
   const succeeded = result?.results.filter((r) => SUCCESS.has(r.result)).length ?? 0;
   const conflict = scan.error instanceof ApiError && scan.error.code === 'VERSION_CONFLICT';
@@ -88,19 +111,28 @@ export function ScanPage() {
     <section>
       <h1>박스 스캔</h1>
       <div className="segmented" role="group" aria-label="스캔 종류">
-        <button type="button" aria-pressed={kind === 'RECEIVE'} disabled={locked} onClick={() => setKind('RECEIVE')}>
+        <button type="button" aria-pressed={kind === 'RECEIVE'} disabled={locked} onClick={() => {
+            setKind('RECEIVE');
+            input.current?.focus();
+          }}>
           발주분 입고
         </button>
-        <button type="button" aria-pressed={kind === 'RETURN_IN'} disabled={locked} onClick={() => setKind('RETURN_IN')}>
+        <button type="button" aria-pressed={kind === 'RETURN_IN'} disabled={locked} onClick={() => {
+            setKind('RETURN_IN');
+            input.current?.focus();
+          }}>
           회수 입고
         </button>
       </div>
       {kind === 'RECEIVE' ? (
         <label>
           발주
-          <select value={poNo} disabled={locked} onChange={(e) => setPoNo(e.target.value)}>
+          <select value={poNo} disabled={locked} onChange={(e) => {
+              setPoNo(e.target.value);
+              input.current?.focus(); // 스캐너 글자가 select에 가면 type-ahead로 발주가 바뀐다
+            }}>
             <option value="">발주 선택</option>
-            {orders.data?.map((p) => (
+            {orders.data?.items.map((p) => (
               <option key={p.poNo} value={p.poNo}>
                 {p.poNo} {p.modelCode} {p.quantity}대
               </option>
@@ -109,6 +141,7 @@ export function ScanPage() {
         </label>
       ) : null}
       <ErrorBox error={orders.error} />
+      {kind === 'RECEIVE' && orders.data?.truncated ? <p className="muted">열린 발주가 많아 최근 발주만 보입니다(상태별 최근 100개). 없는 발주는 어드민에서 확인하세요.</p> : null}
 
       <form className="scan-input" onSubmit={add}>
         <label>
@@ -124,6 +157,7 @@ export function ScanPage() {
             enterKeyHint="enter"
             onChange={(e) => setDraft(e.target.value)}
             onPaste={paste}
+            onKeyDown={keyDown}
           />
         </label>
         <button type="submit" disabled={locked || !draft.trim()}>
@@ -171,6 +205,11 @@ export function ScanPage() {
           {result.kind === 'RECEIVE' ? `발주 ${result.poNo} 입고` : '회수 입고'}: 성공 {succeeded} · 거절 {result.results.length - succeeded}
         </div>
       ) : null}
+      {sealed || lockedHint ? (
+        <p className="notice" role="note">
+          새 박스를 눌러야 다음을 찍을 수 있습니다.
+        </p>
+      ) : null}
       {scanId ? (
         <p className="muted small">
           박스 번호 <code aria-label="scanId">{scanId}</code>
@@ -186,7 +225,7 @@ export function ScanPage() {
         >
           {scanId && scan.isError ? '같은 박스 다시 보내기' : '보내기'}
         </button>
-        <button type="button" disabled={scan.isPending} onClick={nextBox}>
+        <button ref={newBox} type="button" disabled={scan.isPending} onClick={nextBox}>
           새 박스
         </button>
       </div>

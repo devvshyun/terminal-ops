@@ -103,6 +103,7 @@ describe('박스 스캔 — 보내기와 멱등 (decisions/0020, 어드민 ScanP
     expect(screen.queryByRole('button', { name: /빼기/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '보내기' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '회수 입고' })).toBeDisabled();
+    await userEvent.click(screen.getByLabelText(/시리얼/));
     await scanBarcode('SN-0003'); // 보낸 뒤 스캐너가 또 찍어도 목록이 바뀌지 않는다
     expect(rows()).toHaveLength(2);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: keys.all });
@@ -208,5 +209,94 @@ describe('박스 스캔 — 보내기와 멱등 (decisions/0020, 어드민 ScanP
     await waitFor(() => expect(posts(calls)).toHaveLength(3));
     const ids = posts(calls).map((c) => bodyOf(c).scanId);
     expect(new Set(ids).size).toBe(3);
+  });
+});
+
+describe('박스 스캔 — 초점과 잠긴 박스 안내 (Task 3 리뷰 반영, decisions/0064 보탬)', () => {
+  it('스캔 종류나 발주를 고르면 초점이 시리얼 입력칸으로 돌아온다 — 스캐너 글자가 발주 select를 바꾸지 못한다', async () => {
+    mockApi(orders);
+    loginAs();
+    renderPage(<ScanPage />);
+    const field = screen.getByLabelText(/시리얼/);
+    await userEvent.click(screen.getByRole('button', { name: '회수 입고' }));
+    expect(field).toHaveFocus();
+    await userEvent.click(screen.getByRole('button', { name: '발주분 입고' }));
+    expect(field).toHaveFocus();
+    await screen.findByRole('option', { name: /SE0003/ });
+    await userEvent.selectOptions(screen.getByLabelText('발주'), 'SE0003');
+    expect(field).toHaveFocus();
+    await scanBarcode('SE0004'); // 클릭 없이 바로 스캐너 — 글자가 select로 가면 type-ahead로 SE0004가 골라진다
+    expect(rows().map((r) => r.querySelector('.serial')?.textContent)).toEqual(['SE0004']);
+    expect(screen.getByLabelText('발주')).toHaveValue('SE0003');
+  });
+
+  it('결과가 오면 "새 박스"에 초점과 안내. 잠긴 입력칸에 스캐너가 찍어도(Enter) 같은 안내이고 목록은 그대로', async () => {
+    mockApi({ ...orders, 'POST /scans': (c) => ({ status: 201, body: result(bodyOf(c), false) }) });
+    loginAs();
+    renderPage(<ScanPage />);
+    await userEvent.click(screen.getByRole('button', { name: '회수 입고' }));
+    await scanBarcode('RT-0001');
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '보내기' }));
+    await screen.findByRole('status');
+    expect(screen.getByRole('button', { name: '새 박스' })).toHaveFocus();
+    expect(screen.getByRole('note')).toHaveTextContent('새 박스를 눌러야 다음을 찍을 수 있습니다');
+    await userEvent.click(screen.getByRole('button', { name: '새 박스' }));
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/시리얼/)).toHaveFocus();
+  });
+
+  it('결과 없이 잠긴 박스(보내다 실패)에 스캐너가 찍으면 안내가 뜨고, 같은 박스 다시 보내기는 눌리지 않는다', async () => {
+    const { calls } = mockApi({ ...orders, 'POST /scans': () => ({ status: 503, body: { statusCode: 503, message: '잠시 뒤' } }) });
+    loginAs();
+    renderPage(<ScanPage />);
+    await userEvent.click(screen.getByRole('button', { name: '회수 입고' }));
+    await scanBarcode('RT-0001');
+    await userEvent.click(screen.getByRole('button', { name: '보내기' }));
+    await screen.findByRole('alert');
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText(/시리얼/));
+    await scanBarcode('RT-0002');
+    expect(screen.getByRole('note')).toHaveTextContent('새 박스를 눌러야 다음을 찍을 수 있습니다');
+    expect(rows()).toHaveLength(1);
+    expect(posts(calls)).toHaveLength(1);
+  });
+
+  it('고른 발주가 다시 읽은 열린 발주에서 빠지면(마감) 다음 박스에서 발주 선택으로 돌아간다', async () => {
+    let open = [...orderRows];
+    mockApi({
+      'GET /purchase-orders': (c: Call) => ({ body: { items: open.filter((p) => p.status === c.query.get('status')), nextBeforeId: null } }),
+      'POST /scans': (c) => {
+        open = open.filter((p) => p.poNo !== 'SE0003'); // 이 박스로 발주가 다 들어와 마감
+        return { status: 201, body: result(bodyOf(c), false) };
+      },
+    });
+    loginAs();
+    renderPage(<ScanPage />);
+    await screen.findByRole('option', { name: /SE0003/ });
+    await userEvent.selectOptions(screen.getByLabelText('발주'), 'SE0003');
+    await scanBarcode('SN-0001');
+    await userEvent.click(screen.getByRole('button', { name: '보내기' }));
+    await screen.findByRole('status');
+    await userEvent.click(screen.getByRole('button', { name: '새 박스' }));
+    await waitFor(() => expect(screen.getByLabelText('발주')).toHaveValue(''));
+  });
+
+  it('열린 발주가 100개를 넘어 잘렸으면(nextBeforeId) 알린다', async () => {
+    mockApi({ 'GET /purchase-orders': (c: Call) => ({ body: { items: c.query.get('status') === 'ORDERED' ? [orderRows[1]] : [], nextBeforeId: c.query.get('status') === 'ORDERED' ? 4 : null } }) });
+    loginAs();
+    renderPage(<ScanPage />);
+    expect(await screen.findByText('열린 발주가 많아 최근 발주만 보입니다(상태별 최근 100개). 없는 발주는 어드민에서 확인하세요.')).toBeInTheDocument();
+  });
+
+  it('붙여 넣기는 입력칸의 커서 자리에 들어간다(앞뒤 글자를 잃지 않는다)', async () => {
+    mockApi(orders);
+    loginAs();
+    renderPage(<ScanPage />);
+    const field = screen.getByLabelText(/시리얼/) as HTMLInputElement;
+    await userEvent.type(field, 'SN-AAAASN-BBBB');
+    field.setSelectionRange(7, 7);
+    await userEvent.paste(' SN-1111 SN-2222 ');
+    expect(rows().map((r) => r.querySelector('.serial')?.textContent)).toEqual(['SN-AAAA', 'SN-1111', 'SN-2222', 'SN-BBBB']);
   });
 });
