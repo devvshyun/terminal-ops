@@ -75,6 +75,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   }
   if (!res.ok) {
     if (res.status === 401 && path !== LOGIN_PATH) setMe(null);
+    // 서버가 contracts 밖의 코드를 주지 않는다는 전제(api는 ErrorCode 유니온 밖의 코드를 컴파일하지 못한다, decisions/0048)
     const code = (body as Partial<ApiErrorBody> | null)?.code;
     throw new ApiError(res.status, typeof code === 'string' ? code : null, messageOf(res.status, body), body);
   }
