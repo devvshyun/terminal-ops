@@ -21,7 +21,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (me.role !== 'MERCHANT') {
     return (
       <div className="page narrow">
-        <p>이 화면은 가맹점(점주) 계정용입니다. 사내 직원 계정은 운영 어드민을 쓰세요.</p>
+        <p>이 화면은 가맹점(점주) 계정용입니다. 사내 직원 계정은 운영 어드민을, 현장 작업자는 현장 화면(:5175)을 쓰세요.</p>
         <LogoutButton />
       </div>
     );

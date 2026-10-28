@@ -1,6 +1,7 @@
 import type { ApiErrorBody, ErrorCode } from '@terminal-ops/contracts';
 import { setMe } from '../session';
 
+// 현장 앱 `apps/field/src/api/client.ts`에 사본이 있다 — 같이 고친다(decisions/0062, 현장 `src/copies.test.ts`가 코드 차이를 본다)
 /**
  * api 호출 한 곳. 어드민 `apps/admin/src/api/client.ts`를 옮겨 온 것이다(공유 패키지로 빼지 않은 이유: decisions/0058) —
  * 오류 모양·401 처리 규칙이 같아야 하므로 고칠 때는 두 파일을 같이 본다. 어드민에만 있던 것(파일 내려받기 주소, version 충돌 판정)은 뺐다.

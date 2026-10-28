@@ -55,6 +55,7 @@ describe('로그인 문과 화면 틀 (보강 3, decisions/0057)', () => {
     });
     renderApp('/');
     expect(await screen.findByText(/가맹점\(점주\) 계정용입니다/)).toBeInTheDocument();
+    expect(screen.getByText(/현장 작업자는 현장 화면\(:5175\)/)).toBeInTheDocument();
     expect(calls.some((c) => c.path.startsWith('/me'))).toBe(false);
     await userEvent.click(screen.getByRole('button', { name: '로그아웃' }));
     expect(await screen.findByRole('heading', { name: '단말온 가맹점' })).toBeInTheDocument();

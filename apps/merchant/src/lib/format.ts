@@ -1,3 +1,4 @@
+// 현장 앱 `apps/field/src/lib/format.ts`에 사본이 있다 — 같이 고친다(decisions/0062, 현장 `src/copies.test.ts`가 코드 차이를 본다)
 /** 한국 시간(KST)은 UTC+9, 일광 절약 시간 없음. api common/kst.ts·어드민 lib/format.ts와 같은 규칙(같은 테스트 값으로 맞춘다, decisions/0058) */
 const KST_OFFSET_MS = 9 * 3_600_000;
 

@@ -1,6 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import { ApiError } from './api/client';
 
+// 현장 앱 `apps/field/src/query-client.ts`에 사본이 있다 — 같이 고친다(decisions/0062, 현장 `src/copies.test.ts`가 코드 차이를 본다)
 /** 조회 재시도 판정: 4xx는 다시 해도 같아서 안 하고, 연결 실패·5xx는 한 번만(어드민과 같은 규칙) */
 export function shouldRetry(count: number, error: unknown): boolean {
   return !(error instanceof ApiError && error.status < 500) && count < 1;
