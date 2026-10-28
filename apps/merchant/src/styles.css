@@ -310,3 +310,27 @@ dl.facts dd {
   margin: 0;
   word-break: break-all;
 }
+
+/* 고르기(라디오): 한 줄 전체를 눌러도 고른다(손가락) */
+label.choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin: 0;
+  font-weight: 400;
+}
+
+label.choice input {
+  display: inline;
+  width: auto;
+  margin: 0;
+}
+
+fieldset {
+  margin: 0 0 12px;
+}
+
+legend {
+  font-weight: 600;
+}

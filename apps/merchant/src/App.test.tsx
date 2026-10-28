@@ -129,7 +129,7 @@ describe('사용자 전환과 로그아웃 (회귀 방지)', () => {
     expect(await screen.findByRole('link', { name: '홈' })).toHaveAttribute('aria-current', 'page');
     first.unmount();
 
-    renderApp('/service-tickets/99');
+    renderApp('/no/such/page');
     expect(await screen.findByText('없는 화면입니다.')).toBeInTheDocument(); // 깊은 주소에서 시작
     await userEvent.click(screen.getByRole('button', { name: '로그아웃' }));
     await userEvent.type(await screen.findByLabelText('아이디'), 'merchant-gangnam');
