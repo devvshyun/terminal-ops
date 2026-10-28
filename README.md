@@ -18,12 +18,12 @@
 terminal-ops/
 ├─ docker-compose.yml    MySQL 8.4, Redis 7.4
 ├─ apps/
-│  ├─ api/               Nest.js 12 — HTTP API와 큐 워커(실행 모드로 분리: RUN_WORKERS, RUN_SCHEDULERS)
+│  ├─ api/               Nest.js 12 — HTTP API와 큐 워커(실행 모드로 분리: RUN_WORKERS, RUN_SCHEDULERS), 로그인·역할(보강 2)
 │  ├─ admin/             React 19 + Vite 8 + TanStack Query 어드민(Vite 프록시 /api → api)
 │  ├─ partners/          가상 업체 서버(node:http, 포트 4010): 세움전자·번개택배·느림보물류·브릿지VAN·톡톡메신저
 │  └─ device-sim/        단말기 시뮬레이터(하트비트, 펌웨어 업데이트 결과 보고)
 ├─ packages/
-│  └─ contracts/         api·어드민이 함께 보는 HTTP 계약(응답·요청 모양, 상태 값, 오류 코드). 타입만, 각 앱이 file: 의존
+│  └─ contracts/         api·어드민이 함께 보는 HTTP 계약(응답·요청 모양, 상태 값, 오류 코드, 로그인·계정·키 타입). 타입만, 각 앱이 file: 의존
 ├─ infra/                MySQL 초기화(테스트 DB), 미리보기 env
 ├─ scripts/              기록 색인 생성
 └─ docs/                 기록(아래 "기록")
@@ -34,16 +34,18 @@ terminal-ops/
 Node 24, Docker Desktop(WSL2)이 필요하다. 명령은 Git Bash 기준.
 
 ```bash
-cp .env.example .env                 # 로컬 개발 전용 값
+cp .env.example .env                 # 로컬 개발 전용 값. DEVICE_API_KEY는 자리표시자다 — 임의의 값(16자 이상, 공백 없는 ASCII)으로 바꿔 쓴다
+                                     # (보강 2 뒤 .env가 이미 있으면 .env.example의 "# 보강 2" 아래 줄들을 덧붙인다 — DEVICE_API_KEY가 없으면 api가 뜨지 않는다)
 docker compose up -d --wait          # MySQL·Redis, healthcheck가 healthy가 될 때까지 기다린다(첫 실행은 MySQL 초기화에 수십 초)
 for a in api admin partners device-sim; do (cd apps/$a && npm ci); done   # api·admin은 packages/contracts를 링크한다(따로 설치하지 않는다)
-cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB 스키마와 기준 데이터(모델·가맹점·검수 항목)
+cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB 스키마와 기준 데이터(모델·가맹점·검수 항목)와 시연 계정 7개·시연 외부 업체 키(NODE_ENV=production·SEED_DEMO=0이면 기준 데이터만)
 
 # 터미널 네 개(또는 백그라운드 — 끌 때는 PID로)
 (cd apps/partners && npm run build && npm start)       # :4010
 (cd apps/api && npm run build && npm start)            # :3000, 워커·주기 작업 포함(.env의 RUN_WORKERS·RUN_SCHEDULERS)
 (cd apps/api && npm run start:worker)                  # 선택: 워커만 따로 — main api가 RUN_WORKERS=0일 때만. 둘 다 워커면 report 큐 한 번에 하나(decisions/0038) 가정이 깨진다
-(cd apps/admin && npm run dev)                         # :5173 → 브라우저 http://localhost:5173
+(cd apps/admin && npm run dev)                         # :5173 → 브라우저 http://localhost:5173/login
+(cd apps/device-sim && npm run build && node --env-file=../../.env dist/main.js)   # 선택: 단말기 시뮬레이터(:4020) — api와 같은 .env의 DEVICE_API_KEY를 X-Device-Key로 보낸다(api는 .env를 스스로 읽고, 시뮬레이터는 --env-file로)
 ```
 
 - 워커 프로세스를 띄우는 실험(0005·0014)은 먼저 `cd apps/api && npm run build` — `dist/worker.js`를 자식 프로세스로 띄우므로, 빌드하지 않으면 멈추고("먼저 npm run build 하세요"), 소스만 고치고 빌드를 잊으면 옛 워커로 잰다(경고 없음).
@@ -51,6 +53,50 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 - 타입 검사: vitest는 타입을 보지 않는다. api `npm run typecheck`(또는 `npm run build`), admin `npm run build`(tsc 포함) — api·어드민이 `packages/contracts`와 어긋나면 여기서 실패한다([decisions/0048](docs/decisions/0048-계약은-반환-타입-implements-enum-단언으로-강제한다.md)).
 - 미리보기(화면 확인)는 `infra/preview.env`(주기 작업을 등록하지 않음)를 저장소 `.env` 뒤에 읽는다. 띄우기 전 점검(빌드, 남은 주기 작업 `npm run scheduler:clear`, 같은 접두사의 다른 워커)은 그 파일 주석에 있다.
 - 주기 작업은 Redis에 남는다(BullMQ job scheduler). 지우려면 `cd apps/api && npm run scheduler:clear`(이 접두사의 주기 작업만 — Redis 전체를 비우지 않는다).
+
+## 로그인과 역할(보강 2)
+
+**여기 나오는 비밀번호·키는 저장소에 공개된 로컬 시연 전용 값이다. 다른 곳에 쓰지 않는다.**
+
+사람은 로그인한다(Redis 서버 세션 + httpOnly·SameSite=Strict 쿠키 `sid`, [decisions/0050](docs/decisions/0050-로그인은-Redis-서버-세션과-httpOnly-쿠키로.md)). 엔드포인트마다 부를 수 있는 역할이 정해져 있고, 규칙이 없는 엔드포인트는 403이다(기본 거부, 표는 [decisions/0052](docs/decisions/0052-역할별-엔드포인트-표와-기본-거부.md)). 이력의 작업자는 로그인 아이디다([decisions/0056](docs/decisions/0056-작업자는-로그인-아이디-X-Operator는-테스트-전용.md)).
+
+- **ADMIN**: 계정·역할·외부 업체 키 관리(`/admin/*`)와 읽기. 업무 쓰기는 하지 않는다
+- **OPERATOR**: 운영자 — 어드민의 모든 업무 쓰기(등록·전이·배정·출고·A/S·배포 …)
+- **MONITOR**: 관제·개발자 — 읽기와 관제 작업(이상 찾기·VAN 대조·주간 리포트 실행)
+- **FIELD**: 현장 작업자 — 박스 스캔·검수와 그에 필요한 조회
+- **MERCHANT**: 가맹점주 — `/me/*`로 자기 가맹점의 단말기·A/S만([decisions/0053](docs/decisions/0053-가맹점주-범위는-me-전용-엔드포인트와-서비스-scope.md)). 어드민 화면은 안내와 로그아웃만(가맹점 화면은 Bundle 3)
+
+시연 계정(`npm run db:seed`가 넣는다). 비밀번호는 표에 적지 않는다 — `apps/api/src/db/seed-accounts.ts`의 로컬 시연 전용 값을 본다.
+
+| 아이디 | 역할 | 가맹점 |
+|---|---|---|
+| `admin` | ADMIN | |
+| `operator` | OPERATOR | |
+| `monitor` | MONITOR | |
+| `field` | FIELD | |
+| `merchant-gangnam` | MERCHANT | GANGNAM-KIMBAP |
+| `merchant-yeoksam` | MERCHANT | YEOKSAM-CAFE |
+| `merchant-pangyo` | MERCHANT | PANGYO-BUNSIK |
+
+어드민은 `http://localhost:5173/login`. curl로는(저장소 루트, api :3000):
+
+```bash
+# 사람: 로그인 → 쿠키 파일 → 호출. 비밀번호는 seed-accounts.ts에서 읽어 넣는다(로그인은 JSON 본문만 — 아니면 415)
+curl -s -c .cookies -H 'Content-Type: application/json' \
+  -d '{"loginId":"operator","password":"<seed-accounts.ts의 operator 비밀번호>"}' http://localhost:3000/auth/login
+curl -s -b .cookies http://localhost:3000/auth/me
+curl -s -b .cookies 'http://localhost:3000/terminals?size=5'
+curl -s -b .cookies -X POST http://localhost:3000/auth/logout; rm .cookies
+
+# 외부 업체(가상): 시연 키(scope 두 개)를 Bearer로(또는 X-Api-Key 헤더)
+curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/seed-accounts.ts)" \
+  http://localhost:3000/partner/v1/merchants/GANGNAM-KIMBAP/terminals
+```
+
+- 외부 업체 키: 발급·폐기는 ADMIN의 `POST /admin/partner-keys`(원문은 그 응답에서 한 번만)·`POST /admin/partner-keys/:id/revoke`. DB에는 접두사와 SHA-256만([decisions/0054](docs/decisions/0054-외부-업체-키는-해시-저장과-scope.md)). 시연 키는 시드에 고정한 값이다.
+- 단말기 키: `.env`의 `DEVICE_API_KEY`(16자 이상). 하트비트·펌웨어 보고는 `X-Device-Key`로 이 값을 보내야 한다(없거나 틀리면 401). device-sim이 같은 env를 읽는다([decisions/0055](docs/decisions/0055-단말기는-공유-단말기-키로.md)).
+- 계정 관리(`/admin/accounts`)·키 관리 화면은 아직 없다(Bundle 7) — API만. 역할·가맹점·비밀번호를 바꾸거나 사용 중지하면 그 계정의 세션이 모두 끊긴다. 마지막 활성 ADMIN은 사용 중지·강등할 수 없다(409 `LAST_ADMIN`).
+- 테스트는 `X-Operator`·`X-Test-Role` 헤더로 사람을 흉내 낸다 — `NODE_ENV=test`이고 `AUTH_TEST_HEADERS=1`일 때만 켜진다(운영 실행에서는 401).
 
 ## 기능
 
@@ -71,6 +117,7 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 | F13 | 검수 체크리스트와 불합격 통계 | `apps/api/src/inspection/` |
 | 어드민 | 처음 화면(운영 현황), 단말기 목록·상세, 박스 스캔, A/S, 펌웨어 배포, 이상·VAN·입고 대조·주간 리포트, 배치 실행 이력 | `apps/admin/src/pages/` |
 | 공유 타입(보강 1) | api 응답·요청 모양·상태 값·오류 코드를 한 곳에. api가 어기면 tsc 실패(view 반환 타입, DTO implements, enum ↔ 유니온 단언), 어드민은 그 타입을 import | `packages/contracts/`, `apps/api/src/common/contract-assertions.ts`, `apps/api/test/unit/contract-drift.spec.ts` |
+| 로그인·권한(보강 2) | 서버 세션(Redis)·httpOnly 쿠키, 역할 다섯과 엔드포인트 표(기본 거부, 전수 검사 테스트), 가맹점주 /me 범위, 외부 업체 키·scope, 단말기 키 | `apps/api/src/auth/`, `src/me/`, `src/admin/`, `src/partner-api/`, `apps/admin/src/session.ts`·`components/AuthGate.tsx` |
 
 ## 실험 결과
 
@@ -94,6 +141,7 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 | [0014](docs/experiments/0014-워커-강제-종료와-알림.md) | 알림을 처리하던 워커를 강제 종료하면 알림이 사라지나 | 알림 300건, 2회. 처리 중 SIGKILL: 유실 0, 중복 수신 5(죽을 때 처리 중이던 job 5 = concurrency 5), 죽임 → 모두 SENT 약 61.4초(대기분은 새 워커가 약 4.0초, 나머지는 stalled 복구 대기로 추정 — BullMQ 기본값 lockDuration·stalledInterval 30초 기준, 따로 재지 않음). job 유실 흉내(`drain`): 워커만으로는 3초 동안 0건, 복구 sweep 300/300 다시 넣은 뒤 약 4.2초에 모두, 중복 0. 죽인 직후 sweep은 살아 있는 job 210개를 건드리지 않음 | 유실 0, 단 at-least-once — 처리 중이던 것은 중복될 수 있어 메신저 멱등키가 거른다(decisions/0016). 큐에서 사라진 job은 복구 sweep이 메운다(decisions/0042) |
 | [0015](docs/experiments/0015-대시보드-캐시-전후.md) | 대시보드 캐시 전후 p50/p95, 동시 50개의 MySQL 쿼리 수 | 단말기 10만·이력 약 100만, 2회. 요청 하나 캐시 없음 p50 169.1·172.5ms / p95 192.9·189.5ms 대 적중 p50 0.4ms(HTTP 2.0·1.9ms). 빈 캐시에 동시 50개: 캐시만이면 SELECT 350(캐시 없음과 같음)·전체 약 1.5초, single-flight면 SELECT 7·169~190ms | 캐시만으로는 캐시가 빈 순간의 동시 미스를 못 줄인다 → TTL 30초 캐시 + 프로세스 안 single-flight(decisions/0044) |
 | [0016](docs/experiments/0016-상태-조건-목록-status-id-인덱스.md) | 상태 조건 목록에 (status, id) 인덱스가 필요한가 | 드문 상태(450·50대)는 기존 `(status, status_changed_at)` 인덱스로 450·50행 + 정렬, 흔한 상태(약 1만·5천 대)는 PK 역순 175·396행에서 멈춤. 인덱스가 있어도 계획이 바뀐 것은 IN_SERVICE 하나, p50은 어느 상태든 1.7~2.9ms로 차이 없음(IN_SERVICE 2.89 → 2.84ms). 쓰기 UPDATE +6.1%·INSERT +4.1%, 인덱스 +1.46MB | 사전 기준(p50 2배 이상 그리고 1ms 이상 감소)에 해당 없음 → 채택하지 않음(decisions/0045) |
+| [0017](docs/experiments/0017-인증-뒤-하트비트-처리량.md) | 단말기 키 검사(인증)를 더한 뒤 하트비트 처리량 | 기본 부하(5,000대·5초·30초) 30,000/30,000·오류 0, p50·p95 차이 없음. 단건 최대(번갈아 3라운드) 5,636 → 5,451/s(−3.3%, 사전 검증 4,023 → 3,824/s −4.9%), p50 +0.1ms. 묶음 100 최대 평균 −5.4%(라운드별 −14.4%·−2.0%·+0.9%, 사전 검증은 차이 없음) | 감소는 기준(10%) 안 — 공유 단말기 키 유지(decisions/0055). 라운드 사이 흔들림(최대 약 20%)이 차이보다 크다 |
 
 ### 설계안 7장 "실험으로 남길 숫자"와의 대응
 
@@ -113,18 +161,18 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 
 이 프로젝트의 산출물은 코드와 기록이다(규칙 `CLAUDE.md`, 양식 `docs/README.md`).
 
-- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 49·트러블슈팅 29·실험 16 (`node scripts/docs-index.mjs`로 만든다)
+- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 56·트러블슈팅 32·실험 17 (`node scripts/docs-index.mjs`로 만든다)
 - 개발일지: [`docs/devlog/`](docs/devlog/)(날짜별, 날마다 "N일차 요약"), 설계 스펙 [`docs/specs/`](docs/specs/), 구현 계획 [`docs/plans/`](docs/plans/), 날마다의 최종 리뷰 [`docs/reviews/`](docs/reviews/)
 - 7일 회고: [`docs/retrospective.md`](docs/retrospective.md) — 날별로 만든 것, 잘 된 것·안 된 것, 반복된 실수, 면접에서 말할 거리, 남은 이월과 그 뒤 보강
 - 공부거리: [`docs/study/backlog.md`](docs/study/backlog.md)
 
 ## 테스트
 
-(보강 1 공유 타입 패키지 뒤 실제로 돌려 센 값. api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다)
+(보강 2 로그인·권한 뒤 실제로 돌려 센 값(2026-10-28). api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
 
 | 앱 | 파일 | 테스트 |
 |---|---|---|
-| api(실험 제외) | 66 | 453 |
-| admin | 12 | 109 |
+| api(실험 제외) | 78 | 544 |
+| admin | 14 | 125 |
 | partners | 6 | 53 |
-| device-sim | 4 | 40 |
+| device-sim | 5 | 45 |

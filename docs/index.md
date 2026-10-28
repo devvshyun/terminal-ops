@@ -61,7 +61,7 @@
 - [0055](decisions/0055-단말기는-공유-단말기-키로.md) 단말기는 공유 단말기 키(X-Device-Key)로 부른다
 - [0056](decisions/0056-작업자는-로그인-아이디-X-Operator는-테스트-전용.md) 작업자는 로그인 아이디, X-Operator는 테스트 전용 인증 길로만 남긴다
 
-## 트러블슈팅 (31)
+## 트러블슈팅 (32)
 
 - [0001](troubleshooting/0001-설치-직후-WSL2-미동작.md) 설치 직후 WSL2·Docker가 동작하지 않음
 - [0002](troubleshooting/0002-em-create-optionalprops-타입오류.md) em.create에서 TS2345 "Property 'version' is missing"
@@ -94,6 +94,7 @@
 - [0029](troubleshooting/0029-swc는-계약의-타입-별칭을-design-type에-Object로-내보낸다.md) swc(vitest)는 타입 별칭(유니온)을 design:type에 Object로 내보낸다 (tsc 빌드는 String)
 - [0030](troubleshooting/0030-다른-브랜치가-쓴-테스트-DB에서-schema-refresh가-merchant를-못-지운다.md) 다른 브랜치가 쓴 테스트 DB에서 schema.refresh가 merchant를 못 지운다
 - [0031](troubleshooting/0031-초-단위-datetime-열은-밀리초를-반올림해-응답과-다시-읽은-값이-다르다.md) 초 단위 datetime 열은 밀리초를 반올림해 응답과 다시 읽은 값이 다르다
+- [0032](troubleshooting/0032-테스트-DB로-마이그레이션을-적용하면-DB-이름의-스냅샷-파일이-생긴다.md) 테스트 DB로 마이그레이션을 적용하면 DB 이름의 스냅샷 파일이 생긴다
 
 ## 실험 (17)
 
