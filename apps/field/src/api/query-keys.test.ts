@@ -11,7 +11,7 @@ const sources = import.meta.glob(['../**/*.tsx', '../**/*.ts', '!../**/*.test.ts
 describe('쿼리 키 팩토리', () => {
   it('모든 키가 keys.all로 시작한다(쓰기 뒤 keys.all 무효화가 닿는다)', () => {
     const startsWith = (key: readonly unknown[], prefix: readonly unknown[]) => prefix.every((p, i) => key[i] === p);
-    for (const key of [keys.today, keys.openOrders]) {
+    for (const key of [keys.today, keys.openOrders, keys.queue, keys.terminal('SN-1'), keys.items('SN-100')]) {
       expect(startsWith(key, keys.all)).toBe(true);
     }
   });

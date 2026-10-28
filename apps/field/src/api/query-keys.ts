@@ -6,4 +6,7 @@ export const keys = {
   all: ['field'] as const,
   today: ['field', 'today'] as const,
   openOrders: ['field', 'open-orders'] as const,
+  queue: ['field', 'queue'] as const,
+  terminal: (serialNo: string) => ['field', 'terminal', serialNo] as const,
+  items: (modelCode: string) => ['field', 'items', modelCode] as const,
 };

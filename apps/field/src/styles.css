@@ -338,3 +338,88 @@ legend {
   gap: 8px;
   margin-top: 12px;
 }
+
+/* 검수(Task 4): 대기 목록, 항목마다 합격/불합격, 결과 */
+ul.queue,
+ul.checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.queue-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-height: 56px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.queue-item .serial {
+  flex: 1;
+  font-family: ui-monospace, Consolas, monospace;
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.queue-item small {
+  flex-basis: 100%;
+}
+
+.serial-title {
+  font-family: ui-monospace, Consolas, monospace;
+  word-break: break-all;
+}
+
+.checklist li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.check-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.check-label {
+  flex: 1 1 120px;
+  font-weight: 600;
+}
+
+.check-row .segmented {
+  flex: 1 1 200px;
+  margin: 0;
+}
+
+.segmented button.fail[aria-pressed='true'] {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.result {
+  margin: 12px 0;
+  padding: 16px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: var(--card);
+  font-size: 18px;
+}
+
+.result.ok {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.result.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
