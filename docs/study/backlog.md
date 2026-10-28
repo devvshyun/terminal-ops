@@ -191,3 +191,7 @@
 - [ ] ioredis `eval` 대 `defineCommand`(EVALSHA, NOSCRIPT면 EVAL로 다시) — 요청마다 스크립트 본문을 보내는 비용 (apps/api/src/auth/session.store.ts, devlog 2026-10-28 보강 2 마감)
 - [ ] type-is `hasBody` — Content-Length: 0도 본문이 있다고 본다, `req.is()`가 null인 경우 (decisions/0050, auth.e2e)
 - [ ] InnoDB `FOR UPDATE`와 인덱스 — 인덱스 없는 조건은 훑은 행을 모두 잠근다, REPEATABLE READ 스냅샷 읽기와 잠금 읽기(현재 값)의 차이 (decisions/0054 보강 2 마감 보탬)
+- [ ] Vite가 `node_modules` 밖으로 링크된 패키지(npm `file:`)를 다루는 방식 — 링크의 실제 경로를 소스로 변환, bare import는 그 파일 위치에서 찾음, `resolve.dedupe`·tsconfig `paths` (decisions/0058)
+- [ ] MikroORM `em.insert`(속성 기본값 `= new Date()`를 쓰지 않는 바로 INSERT)와 `create` + `flush`의 차이 — 테스트 준비 행에서 `NotNullConstraintViolationException: Field 'received_at' doesn't have a default value` (apps/api/test/me-portal.e2e.spec.ts, 보강 3 계획 사전 검증)
+- [ ] `aria-current="step"`과 `<section aria-labelledby>` — 진행 단계의 "지금"과 영역 이름을 화면 읽기 도구에 알리기, Testing Library `getByRole('region', { name })` (apps/merchant/src/components/StepList.tsx, pages/TerminalPages.test.tsx)
+- [ ] `window.confirm` 대신 화면 안 확인 대화상자(`<dialog>`, `showModal`) — 휴대폰 브라우저·앱 안 웹뷰에서 confirm이 막히거나 모양을 못 바꾸는 경우 (apps/merchant/src/pages/ServiceTicketDetailPage.tsx)

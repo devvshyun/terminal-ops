@@ -103,31 +103,53 @@ export class ConnectivityService {
 
   /** 접속 상태 조회: Redis(최신값)가 있으면 그것, 없으면 MySQL 스냅샷 */
   async get(serialNo: string, now = Date.now()): Promise<ConnectivityView> {
-    const em = this.em.fork();
-    const terminal = await em.findOne(Terminal, { serialNo });
+    const terminal = await this.em.fork().findOne(Terminal, { serialNo });
     if (!terminal) throw new NotFoundException(`단말기 ${serialNo}이(가) 없습니다.`);
+    return (await this.getMany([terminal], now)).get(terminal.id)!;
+  }
+
+  /**
+   * 여러 단말기의 접속 상태를 한 번에(가맹점주 단말기 목록, 보강 3 decisions/0059): Redis 파이프라인 한 번(zscore·hget을 단말기마다)으로
+   * 최신값을 읽고, Redis에 없는 것만 MySQL 스냅샷을 한 번(`terminal_id IN (…)`)에 읽는다. 규칙은 get과 같다(get도 이 함수를 쓴다).
+   * @returns 단말기 id → 접속 상태(넘긴 단말기마다 하나씩)
+   */
+  async getMany(terminals: { id: number; serialNo: string }[], now = Date.now()): Promise<Map<number, ConnectivityView>> {
+    const out = new Map<number, ConnectivityView>();
+    if (terminals.length === 0) return out;
     const k = deviceKeys();
-    const [score, firmware] = (await execOrThrow(this.redis.pipeline().zscore(k.lastSeen, serialNo).hget(k.firmware, serialNo))) as [
-      string | null,
-      string | null,
-    ];
-    if (score !== null) {
+    const look = this.redis.pipeline();
+    for (const t of terminals) look.zscore(k.lastSeen, t.serialNo).hget(k.firmware, t.serialNo);
+    const values = (await execOrThrow(look)) as (string | null)[];
+    const missing: { id: number; serialNo: string }[] = [];
+    terminals.forEach((t, i) => {
+      const [score, firmware] = [values[i * 2], values[i * 2 + 1]];
+      if (score === null) {
+        missing.push(t);
+        return;
+      }
       const lastSeen = Number(score);
-      return {
-        serialNo,
+      out.set(t.id, {
+        serialNo: t.serialNo,
         source: 'redis',
         online: lastSeen > now - env.hbOfflineAfterMs,
         lastSeenAt: new Date(lastSeen).toISOString(),
         firmwareVersion: firmware,
-      };
-    }
-    const row = await em.findOne(DeviceConnectivity, { terminalId: terminal.id });
-    if (row) {
+      });
+    });
+    if (missing.length === 0) return out;
+    const rows = await this.em.fork().find(DeviceConnectivity, { terminalId: { $in: missing.map((t) => t.id) } });
+    const rowOf = new Map(rows.map((r) => [r.terminalId, r]));
+    for (const t of missing) {
+      const row = rowOf.get(t.id);
+      if (!row) {
+        out.set(t.id, { serialNo: t.serialNo, source: 'none', online: false, lastSeenAt: null, firmwareVersion: null });
+        continue;
+      }
       // 방어: 판정 job이 online을 못 내린 행(운영 이탈 직후 등)도 lastSeen이 기준보다 오래되면 오프라인으로 보인다
       const online = row.online && row.lastSeenAt.getTime() > now - env.hbOfflineAfterMs;
-      return { serialNo, source: 'snapshot', online, lastSeenAt: row.lastSeenAt.toISOString(), firmwareVersion: row.firmwareVersion };
+      out.set(t.id, { serialNo: t.serialNo, source: 'snapshot', online, lastSeenAt: row.lastSeenAt.toISOString(), firmwareVersion: row.firmwareVersion });
     }
-    return { serialNo, source: 'none', online: false, lastSeenAt: null, firmwareVersion: null };
+    return out;
   }
 
   private async detectLocked(now: number, offlineAfterMs: number): Promise<DetectResult> {

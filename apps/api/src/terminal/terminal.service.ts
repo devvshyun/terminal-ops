@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { EntityManager, LoadStrategy } from '@mikro-orm/mysql';
 import type { RegisterTerminalDto } from './dto/register-terminal.dto.js';
 import type { ListTerminalsQuery } from './dto/list-terminals.query.js';
-import { outOfScope, type MerchantScope } from '../merchant/merchant-scope.js';
+import { MERCHANT_VISIBLE_STATUSES, outOfScope, type MerchantScope } from '../merchant/merchant-scope.js';
 import { TerminalModel } from './terminal-model.entity.js';
 import { Terminal } from './terminal.entity.js';
 import { TerminalStatusHistory } from './terminal-status-history.entity.js';
@@ -37,11 +37,11 @@ export class TerminalService {
    * count도 같은 조인을 탄다. select-in이면 목록은 PK를 거꾸로 읽어 바로 멈추고, 모델·가맹점은 그 20행의 id로 한 번씩 읽는다.
    * 모델·가맹점 코드로 거를 때는 MikroORM이 거르기용 조인만 붙인다.
    * @param strategy 실험 0013이 joined와 비교하려고만 바꾼다(운영 코드는 기본값)
-   * @param scope 가맹점주(`/me`)면 그 가맹점 단말기만 — 가맹점 코드 조건보다 앞선다(decisions/0053)
+   * @param scope 가맹점주(`/me`)면 그 가맹점 단말기 중 점주에게 보이는 상태만 — 가맹점 코드 조건보다 앞선다(decisions/0053·0059)
    */
   async list(query: ListTerminalsQuery, strategy: LoadStrategy = LoadStrategy.SELECT_IN, scope?: MerchantScope) {
     const where = {
-      ...(query.status ? { status: query.status } : {}),
+      ...(query.status ? { status: query.status } : scope ? { status: { $in: [...MERCHANT_VISIBLE_STATUSES] } } : {}),
       ...(query.modelCode ? { model: { code: query.modelCode } } : {}),
       ...(scope ? { merchant: scope.merchantId } : query.merchantCode ? { merchant: { code: query.merchantCode } } : {}),
       ...(query.q ? { serialNo: { $like: `${escapeLike(query.q)}%` } } : {}),
@@ -61,10 +61,11 @@ export class TerminalService {
     return this.em.find(TerminalModel, {}, { orderBy: { code: 'asc' } });
   }
 
-  /** @param scope 가맹점주(`/me`)면 그 가맹점 단말기만 — 아니면 없는 것과 같은 404(decisions/0053) */
+  /** @param scope 가맹점주(`/me`)면 그 가맹점 단말기 중 점주에게 보이는 상태만 — 아니면 없는 것과 같은 404(decisions/0053·0059) */
   async getBySerial(serialNo: string, scope?: MerchantScope): Promise<Terminal> {
     const terminal = await this.em.findOne(Terminal, { serialNo }, { populate: ['model', 'merchant'] });
-    if (!terminal || (scope && terminal.merchant?.id !== scope.merchantId)) throw outOfScope(`단말기 ${serialNo}`);
+    const visible = (t: Terminal) => !scope || (t.merchant?.id === scope.merchantId && MERCHANT_VISIBLE_STATUSES.includes(t.status));
+    if (!terminal || !visible(terminal)) throw outOfScope(`단말기 ${serialNo}`);
     return terminal;
   }
 

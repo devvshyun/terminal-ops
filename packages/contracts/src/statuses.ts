@@ -25,6 +25,9 @@ export type TransitionSource = 'MANUAL' | 'INSPECTION' | 'BATCH' | 'ALLOCATION' 
 /** 택배사(api carrier/carrier.types.ts Carrier) */
 export type Carrier = 'BUNGAE' | 'NEURIMBO';
 
+/** 택배사 배송 이벤트(api carrier/carrier.types.ts CarrierEventCode). 가맹점주 화면의 배송 단계로 나간다(보강 3, decisions/0059) */
+export type CarrierEventCode = 'PICKED_UP' | 'IN_TRANSIT' | 'OUT_FOR_DELIVERY' | 'DELIVERED';
+
 /** 운송장 상태(api ShipmentStatus) */
 export type ShipmentStatus = 'IN_TRANSIT' | 'DELIVERED' | 'SUPERSEDED';
 
