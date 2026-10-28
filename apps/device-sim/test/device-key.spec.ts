@@ -50,4 +50,33 @@ describe('단말기 키 X-Device-Key (api decisions/0055)', () => {
       await sim.close();
     }
   });
+
+  it('GET 응답을 그대로 되돌려 보내도("(설정됨)") 키가 바뀌지 않는다', async () => {
+    const sim = await startSim();
+    try {
+      expect((await sim.post('/__admin/config', { targetUrl: api.url, deviceKey: 'secret-key-0123456789' })).status).toBe(200);
+      const shown = await sim.get('/__admin/config');
+      expect(shown.deviceKey).toBe('(설정됨)');
+      const res = await sim.post('/__admin/config', { ...shown, count: 2 });
+      expect(res.status).toBe(200);
+      expect(sim.fleet.config.deviceKey).toBe('secret-key-0123456789');
+      expect(sim.fleet.config.count).toBe(2);
+    } finally {
+      await sim.close();
+    }
+  });
+
+  it('키는 헤더에 넣을 수 있는 ASCII(공백 없는 0x21~0x7E)만 받는다', async () => {
+    const sim = await startSim();
+    try {
+      for (const bad of ['키-0123456789abcdef', 'key with space 0123', 'key\n0123456789abcdef']) {
+        expect((await sim.post('/__admin/config', { deviceKey: bad })).status).toBe(400);
+      }
+      expect(sim.fleet.config.deviceKey).toBe(defaultConfig().deviceKey);
+      expect((await sim.post('/__admin/config', { deviceKey: 'ok-KEY_0123.456~!' })).status).toBe(200);
+      expect((await sim.post('/__admin/config', { deviceKey: '' })).status).toBe(200);
+    } finally {
+      await sim.close();
+    }
+  });
 });

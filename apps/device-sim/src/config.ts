@@ -59,9 +59,19 @@ export function defaultConfig(): SimConfig {
   };
 }
 
+/** 관리 API가 키 대신 보여 주는 표시. 이 값이 POST로 돌아오면 키를 바꾸지 않는다(withoutMaskedKey) */
+export const MASKED_DEVICE_KEY = '(설정됨)';
+
 /** 관리 API가 보여 주는 설정 — 단말기 키는 있는지만 보인다(`(설정됨)`) */
 export function publicConfig(config: SimConfig): SimConfig {
-  return { ...config, deviceKey: config.deviceKey ? '(설정됨)' : '' };
+  return { ...config, deviceKey: config.deviceKey ? MASKED_DEVICE_KEY : '' };
+}
+
+/** GET 응답을 그대로 되돌려 보낸 경우 — 가린 표시를 키로 저장하지 않게 patch에서 뺀다 */
+export function withoutMaskedKey(patch: Record<string, unknown>): Record<string, unknown> {
+  if (patch.deviceKey !== MASKED_DEVICE_KEY) return patch;
+  const { deviceKey: _masked, ...rest } = patch;
+  return rest;
 }
 
 /** 단말기 시리얼 목록 */
@@ -71,7 +81,7 @@ export function serialsOf(config: SimConfig): string[] {
 }
 
 type Rule =
-  | { type: 'string'; nonEmpty?: boolean }
+  | { type: 'string'; nonEmpty?: boolean; pattern?: RegExp; patternHint?: string }
   | { type: 'url' }
   | { type: 'strings'; max: number }
   | { type: 'int'; min: number; max: number }
@@ -80,7 +90,8 @@ type Rule =
 /** 설정 키마다 형식·범위. 새 설정 키는 여기에 한 줄을 더해야 관리 API가 받는다(알 수 없는 키는 400) */
 export const CONFIG_RULES: Record<keyof SimConfig, Rule> = {
   targetUrl: { type: 'url' },
-  deviceKey: { type: 'string' },
+  // X-Device-Key 헤더에 그대로 넣는다 — 헤더에 넣을 수 있는 ASCII(공백·제어 문자 없는 0x21~0x7E)만. 빈 문자열은 "키 없음"
+  deviceKey: { type: 'string', pattern: /^[\x21-\x7e]*$/, patternHint: '공백 없는 ASCII(0x21~0x7E)' },
   serials: { type: 'strings', max: MAX_DEVICES },
   serialPrefix: { type: 'string', nonEmpty: true },
   serialStart: { type: 'int', min: 0, max: 1_000_000_000 },
@@ -102,6 +113,7 @@ function checkValue(key: string, value: unknown, rule: Rule): string | null {
   switch (rule.type) {
     case 'string':
       if (typeof value !== 'string' || (rule.nonEmpty && value === '')) return `${key}는 ${rule.nonEmpty ? '비어 있지 않은 ' : ''}문자열이어야 합니다.`;
+      if (rule.pattern && !rule.pattern.test(value)) return `${key}는 ${rule.patternHint ?? rule.pattern.source}만 쓸 수 있습니다.`;
       return null;
     case 'url': {
       if (typeof value !== 'string') return `${key}는 http(s) 주소 문자열이어야 합니다.`;

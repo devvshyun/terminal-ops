@@ -68,6 +68,15 @@ export interface TicketView {
   closedAt: string | null;
 }
 
+/**
+ * 가맹점주가 보는 A/S 접수(api toMerchantTicketView, `/me/service-tickets` — decisions/0053).
+ * 직원 로그인 아이디(`openedBy`)와 본사 내부 원격 점검 메모(`remoteNote`)는 주지 않는다.
+ * `openedByMe`: 로그인한 가맹점주 본인이 접수했나(false = 본사 직원 또는 같은 가맹점의 다른 계정).
+ */
+export interface MerchantTicketView extends Omit<TicketView, 'openedBy' | 'remoteNote'> {
+  openedByMe: boolean;
+}
+
 /** 펌웨어(api toFirmwareView, POST /firmware) */
 export interface FirmwareView {
   id: number;

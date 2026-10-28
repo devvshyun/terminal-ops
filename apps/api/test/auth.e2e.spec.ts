@@ -255,6 +255,28 @@ describe('로그인·세션·역할 (보강 2, decisions/0050·0052·0056)', () 
       expect((await withCookie(t, after).get('/auth/me')).status).toBe(200);
     });
 
+    it('옛 세션 지우기가 실패해도(Redis 오류) 로그인은 성공하고 새 쿠키가 나간다 — 경고만 남긴다', async () => {
+      const before = await login(t, 'op1');
+      const destroy = vi.spyOn(t.app.get(SessionStore), 'destroy').mockRejectedValueOnce(new Error('redis down (test)'));
+      try {
+        const res = await withCookie(t, before).post('/auth/login').send({ loginId: 'op1', password: TEST_PASSWORD });
+        expect(res.status).toBe(200);
+        const after = ([] as string[]).concat(res.headers['set-cookie'] ?? [])[0].split(';')[0];
+        expect(after).not.toBe(before);
+        expect(destroy).toHaveBeenCalledTimes(1);
+        expect((await withCookie(t, after).get('/auth/me')).status).toBe(200);
+      } finally {
+        destroy.mockRestore();
+      }
+    });
+
+    it('JSON 헤더에 빈 본문(Content-Length: 0)이면 400 — type-is는 Content-Length가 있으면 본문이 있다고 봐 415 가드를 통과하고, 빈 객체가 검증에서 막힌다', async () => {
+      // 리뷰는 415를 예상했지만 실제는 400(devlog 2026-10-28 보강 2 마감 항목, decisions/0050). 어느 쪽이든 쿠키는 나가지 않는다
+      const res = await t.http(null).post('/auth/login').set('Content-Type', 'application/json');
+      expect(res.status).toBe(400);
+      expect(res.headers['set-cookie']).toBeUndefined();
+    });
+
     it('로그인은 JSON 본문만 받는다 — 폼(urlencoded)·text는 415(다른 사이트 폼이 로그인시키지 못하게)', async () => {
       const form = await t.http(null).post('/auth/login').type('form').send(`loginId=op1&password=${encodeURIComponent(TEST_PASSWORD)}`);
       expect(form.status).toBe(415);

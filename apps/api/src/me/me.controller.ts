@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
-import type { BeforeIdPage, TerminalPage, TerminalView, TicketView } from '@terminal-ops/contracts';
+import type { BeforeIdPage, MerchantTicketView, TerminalPage, TerminalView } from '@terminal-ops/contracts';
 import { Roles } from '../auth/access.js';
 import { CurrentPrincipal, type Principal } from '../auth/principal.js';
 import { Role } from '../auth/role.js';
@@ -7,7 +7,7 @@ import { merchantScopeOf } from '../merchant/merchant-scope.js';
 import { OpenTicketDto } from '../service/dto/service-ticket.dto.js';
 import { ReplacementService } from '../service/replacement.service.js';
 import { ServiceTicketService } from '../service/service-ticket.service.js';
-import { toTicketView } from '../service/service-ticket.views.js';
+import { toMerchantTicketView } from '../service/service-ticket.views.js';
 import { TerminalService } from '../terminal/terminal.service.js';
 import { toTerminalView } from '../terminal/terminal.views.js';
 import { MeTerminalsQuery, MeTicketsQuery } from './me.dto.js';
@@ -40,23 +40,23 @@ export class MeController {
 
   @Get('service-tickets')
   @Roles(Role.MERCHANT)
-  async ticketList(@CurrentPrincipal() p: Principal, @Query() query: MeTicketsQuery): Promise<BeforeIdPage<TicketView>> {
+  async ticketList(@CurrentPrincipal() p: Principal, @Query() query: MeTicketsQuery): Promise<BeforeIdPage<MerchantTicketView>> {
     const { items, nextBeforeId } = await this.tickets.list(query, merchantScopeOf(p));
-    return { items: items.map(toTicketView), nextBeforeId };
+    return { items: items.map((i) => toMerchantTicketView(i, p.loginId)), nextBeforeId };
   }
 
-  /** A/S 접수(내 가맹점의 운영 중 단말기만). openedBy = 가맹점주 로그인 아이디 */
+  /** A/S 접수(내 가맹점의 운영 중 단말기만). 저장되는 openedBy = 가맹점주 로그인 아이디, 응답은 openedByMe(MerchantTicketView) */
   @Post('service-tickets')
   @Roles(Role.MERCHANT)
-  async openTicket(@CurrentPrincipal() p: Principal, @Body() dto: OpenTicketDto): Promise<TicketView> {
-    return toTicketView(await this.tickets.open(dto, p.loginId, merchantScopeOf(p)));
+  async openTicket(@CurrentPrincipal() p: Principal, @Body() dto: OpenTicketDto): Promise<MerchantTicketView> {
+    return toMerchantTicketView(await this.tickets.open(dto, p.loginId, merchantScopeOf(p)), p.loginId);
   }
 
   /** 교체 단말기 설치 확인(내 가맹점 접수만). 이력 actor = 가맹점주 로그인 아이디 */
   @Post('service-tickets/:id/installations')
   @Roles(Role.MERCHANT)
   @HttpCode(200)
-  async install(@CurrentPrincipal() p: Principal, @Param('id', ParseIntPipe) id: number): Promise<TicketView> {
-    return toTicketView(await this.replacements.install(id, p.loginId, merchantScopeOf(p)));
+  async install(@CurrentPrincipal() p: Principal, @Param('id', ParseIntPipe) id: number): Promise<MerchantTicketView> {
+    return toMerchantTicketView(await this.replacements.install(id, p.loginId, merchantScopeOf(p)), p.loginId);
   }
 }

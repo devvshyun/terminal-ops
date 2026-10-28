@@ -19,7 +19,7 @@ import { CARRIER_LABEL, label, TERMINAL_STATUS_LABEL } from '../lib/labels';
 import { ErrorBox } from './ErrorBox';
 import { WriteButton } from './WriteButton';
 import { keys } from '../api/query-keys';
-import { hasRole, OFFICE, useMe } from '../session';
+import { hasRole, useMe } from '../session';
 
 /** expectedVersion은 run()이 붙인다 */
 type Unversioned<T> = Omit<T, 'expectedVersion'>;
@@ -46,7 +46,8 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
   const merchants = useQuery({
     queryKey: keys.merchants,
     queryFn: () => api<MerchantView[]>('/merchants'),
-    enabled: terminal.actions.allocate && canOperate && hasRole(me, OFFICE), // /merchants는 사무실 역할만(서버 403)
+    // 배정 칸을 보는 OPERATOR만 부른다. OPERATOR는 OFFICE(/merchants를 부를 수 있는 사무실 역할)에 들어 있어 canOperate 하나로 충분하다
+    enabled: terminal.actions.allocate && canOperate,
     staleTime: Infinity,
   });
 

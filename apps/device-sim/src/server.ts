@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { defaultConfig, invalidPatchReason, invalidReason, publicConfig, type SimConfig } from './config.js';
+import { defaultConfig, invalidPatchReason, invalidReason, publicConfig, withoutMaskedKey, type SimConfig } from './config.js';
 import { Fleet } from './fleet.js';
 import { BadJsonError, readJson, sendJson } from './http.js';
 
@@ -23,7 +23,7 @@ async function route(fleet: Fleet, serialize: Serialize, req: IncomingMessage, r
   if (method === 'GET' && path === '/__admin/health') return sendJson(res, 200, { status: 'ok' });
   if (method === 'GET' && path === '/__admin/config') return sendJson(res, 200, publicConfig(fleet.config));
   if (method === 'POST' && path === '/__admin/config') {
-    const patch = (await readJson(req)) ?? {};
+    const patch = withoutMaskedKey((await readJson(req)) ?? {});
     const patchReason = invalidPatchReason(patch);
     if (patchReason) return sendJson(res, 400, { error: 'BAD_CONFIG', message: patchReason });
     return serialize(async () => {

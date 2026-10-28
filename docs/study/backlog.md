@@ -188,3 +188,5 @@
 - [ ] API 키 설계 — 접두사 + 해시 저장, 원문 한 번만, scope, 마지막 사용 시각 쓰기 줄이기 (decisions/0054)
 - [ ] `SELECT … FOR UPDATE`로 "마지막 하나" 불변식 지키기 — 잠금 순서(id 순)와 데드락, 잠근 뒤 다시 읽기(refresh) (decisions/0054)
 - [ ] 캐시·세션 무효화는 DB 커밋 뒤에 — 트랜잭션 안에서 무효화하면 읽는 쪽이 옛 행을 새 세대로 캐시한다 (decisions/0050)
+- [ ] ioredis `eval` 대 `defineCommand`(EVALSHA, NOSCRIPT면 EVAL로 다시) — 요청마다 스크립트 본문을 보내는 비용 (apps/api/src/auth/session.store.ts, devlog 2026-10-28 보강 2 마감)
+- [ ] type-is `hasBody` — Content-Length: 0도 본문이 있다고 본다, `req.is()`가 null인 경우 (decisions/0050, auth.e2e)

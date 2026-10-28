@@ -60,10 +60,11 @@ describe('가맹점주 범위 /me (보강 2, decisions/0053)', () => {
     expect((await t.http().get('/me/terminals')).status).toBe(403);
   });
 
-  it('A/S 접수는 내 단말기만 — 남의 단말기는 404이고 접수가 생기지 않는다. openedBy는 가맹점주 아이디', async () => {
+  it('A/S 접수는 내 단말기만 — 남의 단말기는 404이고 접수가 생기지 않는다. 저장된 openedBy는 가맹점주 아이디, 응답은 openedByMe', async () => {
     const mine = await withCookie(t, gangnam).post('/me/service-tickets').send({ serialNo: 'ME-0001', symptom: '카드 인식 불가' });
     expect(mine.status).toBe(201);
-    expect(mine.body).toMatchObject({ serialNo: 'ME-0001', merchantCode: 'GANGNAM-KIMBAP', status: 'OPEN', openedBy: 'owner-gangnam' });
+    expect(mine.body).toMatchObject({ serialNo: 'ME-0001', merchantCode: 'GANGNAM-KIMBAP', status: 'OPEN', openedByMe: true });
+    expect((await t.http().get(`/service-tickets/${mine.body.id}`)).body.openedBy).toBe('owner-gangnam');
     const other = await withCookie(t, gangnam).post('/me/service-tickets').send({ serialNo: 'ME-0003', symptom: '남의 것' });
     expect(other.status).toBe(404);
     expect(await t.orm.em.fork().count(ServiceTicket, { terminal: { serialNo: 'ME-0003' } })).toBe(0);
@@ -91,5 +92,21 @@ describe('가맹점주 범위 /me (보강 2, decisions/0053)', () => {
     expect(done.body.status).toBe('CLOSED');
     const history = (await t.http().get('/terminals/ME-0101/history')).body;
     expect(history.at(-1)).toMatchObject({ toStatus: 'IN_SERVICE', actor: 'owner-gangnam', source: 'SERVICE' });
+  });
+
+  it('/me 접수 응답은 직원 로그인 아이디(openedBy)와 내부 원격 점검 메모(remoteNote)를 주지 않는다(decisions/0053)', async () => {
+    const staff = await t.http().post('/service-tickets').set({ 'X-Operator': 'staff-kim' }).send({ serialNo: 'ME-0002', symptom: '본사 접수' });
+    expect(staff.status).toBe(201);
+    const note = await t.http().post(`/service-tickets/${staff.body.id}/remote-checks`).send({ resolved: false, note: '내부 메모: 기사 배정 보류' });
+    expect(note.status).toBeLessThan(300);
+    const list = await withCookie(t, gangnam).get('/me/service-tickets');
+    const item = list.body.items.find((i: { id: number }) => i.id === staff.body.id);
+    expect(item).toMatchObject({ serialNo: 'ME-0002', openedByMe: false });
+    for (const body of [item, ...list.body.items]) {
+      expect(body).not.toHaveProperty('openedBy');
+      expect(body).not.toHaveProperty('remoteNote');
+    }
+    expect(JSON.stringify(list.body)).not.toContain('staff-kim');
+    expect(JSON.stringify(list.body)).not.toContain('내부 메모');
   });
 });

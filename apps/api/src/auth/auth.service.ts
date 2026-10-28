@@ -91,7 +91,14 @@ export class AuthService implements OnModuleInit {
     };
     const token = await this.sessions.create(principal, gen);
     // 이미 있던 세션은 지운다(같은 브라우저에 세션 두 개를 남기지 않는다, Task 2 리뷰)
-    if (previousToken) await this.sessions.destroy(previousToken);
+    // 지우기가 실패해도(Redis 순간 오류) 로그인은 성공시킨다 — 새 쿠키가 나가야 하고, 옛 세션은 유휴 만료로 사라진다. 경고만 남긴다(토큰은 적지 않는다)
+    if (previousToken) {
+      try {
+        await this.sessions.destroy(previousToken);
+      } catch (err) {
+        new Logger(AuthService.name).warn(`로그인 성공 뒤 옛 세션을 지우지 못했습니다(계정 ${account.id}): ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
     return { token, session: principal };
   }
 
