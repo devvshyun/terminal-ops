@@ -7,3 +7,19 @@ dist/
 .claude/settings.local.json
 # 테스트 DB로 마이그레이션을 적용하면(MYSQL_DATABASE=terminal_ops_test node dist/db/migrate.js up) MikroORM이 DB 이름으로 스냅샷을 하나 더 쓴다 — 기준 스냅샷은 .snapshot-terminal_ops.json 하나(troubleshooting/0032)
 apps/api/src/migrations/.snapshot-terminal_ops_test.json
+# 비밀·로컬 설정이 실수로 올라가지 않게(.env.example만 공유)
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+# 테스트 DB 스냅샷은 DB 이름마다 생긴다 — 기준 스냅샷 하나만 둔다
+apps/api/src/migrations/.snapshot-*_test.json
+# 도구 산출물
+coverage/
+.vite/
+*.tsbuildinfo
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
