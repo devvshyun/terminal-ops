@@ -30,9 +30,9 @@ export function LogoutButton() {
         로그아웃
       </button>
       {error ? (
-        <span className="error" role="alert">
-          로그아웃하지 못했습니다. 다시 시도하세요. ({describeError(error).detail})
-        </span>
+        <div className="error logout-error" role="alert">
+          로그아웃하지 못했습니다. 로그인 상태가 그대로입니다. 다시 시도하세요. ({describeError(error).detail})
+        </div>
       ) : null}
     </>
   );

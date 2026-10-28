@@ -40,6 +40,7 @@ export function mockApi(handlers: Record<string, Handler>) {
     calls.push(call);
     const found = patterns.find((p) => p.method === call.method && p.regex.test(call.path));
     const result = found ? ((await found.handler(call)) ?? {}) : { status: 404, body: { statusCode: 404, message: `가짜 api에 없음: ${call.method} ${call.path}` } };
+    // 주의: 204·205 같은 "본문 없음" 상태에 본문(body)을 주면 Response 생성자가 던진다 — 204는 body를 비워 둔다
     return new Response(result.body === undefined ? null : JSON.stringify(result.body), {
       status: result.status ?? 200,
       headers: { 'Content-Type': 'application/json' },

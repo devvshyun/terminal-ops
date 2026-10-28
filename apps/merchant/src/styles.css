@@ -41,6 +41,7 @@ body {
   z-index: 1;
   display: flex;
   align-items: center;
+  flex-wrap: wrap; /* 로그아웃 오류(.logout-error)가 한 줄을 통째로 쓰게 */
   justify-content: space-between;
   gap: 8px;
   padding: 8px 16px;
@@ -273,6 +274,11 @@ button:disabled {
   border-radius: 8px;
   color: var(--danger);
   background: #fff5f5;
+}
+
+.logout-error {
+  flex-basis: 100%;
+  margin: 0;
 }
 
 .error-detail {
