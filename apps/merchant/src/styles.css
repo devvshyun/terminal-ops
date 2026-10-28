@@ -332,6 +332,7 @@ label.choice input {
 }
 
 fieldset {
+  min-width: 0;
   margin: 0 0 12px;
 }
 

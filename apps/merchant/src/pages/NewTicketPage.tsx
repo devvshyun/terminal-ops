@@ -27,6 +27,8 @@ export function NewTicketPage() {
       await client.invalidateQueries({ queryKey: keys.all });
       navigate(`/service-tickets/${t.id}`, { replace: true });
     },
+    // 실패(사용 중이 아니게 됨 422, 단말기가 사라짐 404)는 대개 단말기 목록이 낡았다는 뜻 — 목록만 다시 읽어 고를 수 있는 단말기를 맞춘다
+    onError: () => client.invalidateQueries({ queryKey: keys.terminals }),
   });
 
   if (terminals.error) return <ErrorBox error={terminals.error} />;

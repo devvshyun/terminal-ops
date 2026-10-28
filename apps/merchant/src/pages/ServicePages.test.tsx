@@ -67,6 +67,22 @@ describe('고장 접수', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('이 단말기는 이미 접수된 A/S가 있습니다.');
   });
 
+  it.each([
+    [422, 'TERMINAL_NOT_IN_SERVICE', '사용 중인 단말기만 고장 접수할 수 있습니다.'],
+    [404, 'NOT_FOUND', '찾는 내용이 없습니다.'],
+  ])('접수가 %i로 실패하면 안내하고 단말기 목록을 다시 읽는다(낡은 화면)', async (status, code, text) => {
+    loginAs();
+    const { calls } = mockApi({
+      'GET /me/terminals': () => ({ body: terminals }),
+      'POST /me/service-tickets': () => ({ status, body: { statusCode: status, code, message: '서버 메시지' } }),
+    });
+    renderNew('/service-tickets/new?serialNo=SN-0001');
+    await userEvent.click(await screen.findByLabelText('전원 안 켜짐'));
+    await userEvent.click(screen.getByRole('button', { name: '접수하기' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(text);
+    await waitFor(() => expect(calls.filter((c) => c.method === 'GET' && c.path === '/me/terminals')).toHaveLength(2));
+  });
+
   it('주소의 시리얼이 사용 중 목록에 없으면 고르지 않은 것으로', async () => {
     loginAs();
     mockApi({ 'GET /me/terminals': () => ({ body: terminals }) });
@@ -135,5 +151,30 @@ describe('A/S 상세와 설치 확인', () => {
     await userEvent.click(await screen.findByRole('button', { name: '설치 확인' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('지금은 설치 확인을 할 수 없는 단계입니다.');
     await waitFor(() => expect(calls.filter((c) => c.method === 'GET' && c.path === '/me/service-tickets/7')).toHaveLength(2));
+  });
+
+  it('주소의 번호가 숫자가 아니면 요청 없이 없는 화면', async () => {
+    loginAs();
+    const { calls } = mockApi({});
+    renderPage(<ServiceTicketDetailPage />, { route: '/service-tickets/abc', path: '/service-tickets/:id' });
+    expect(await screen.findByText('없는 화면입니다.')).toBeInTheDocument();
+    expect(calls.filter((c) => c.path.startsWith('/me/service-tickets'))).toHaveLength(0);
+  });
+
+  it('설치 확인이 실패한 뒤 다시 읽어 상태가 바뀌면 이전 오류 안내를 지운다', async () => {
+    loginAs();
+    let current = replacing('DELIVERED');
+    mockApi({
+      'GET /me/service-tickets/:id': () => ({ body: current }),
+      'POST /me/service-tickets/:id/installations': () => {
+        current = { ...current, status: 'CLOSED', replacementStatus: null, closedAt: '2026-10-28T05:00:00.000Z' }; // 본사가 먼저 끝냈다
+        return { status: 422, body: { statusCode: 422, code: 'TICKET_NOT_REPLACING', message: 'CLOSED 상태' } };
+      },
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderDetail();
+    await userEvent.click(await screen.findByRole('button', { name: '설치 확인' }));
+    expect(await screen.findByText('2026-10-28 14:00:00 KST')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
   });
 });

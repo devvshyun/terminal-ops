@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link, useParams } from 'react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { MerchantTicketView } from '@terminal-ops/contracts';
@@ -18,12 +19,24 @@ import { canConfirmInstall, ticketSteps } from '../lib/steps';
  */
 export function ServiceTicketDetailPage() {
   const id = Number(useParams().id);
+  // 숫자가 아닌 주소(/service-tickets/abc)는 서버에 묻지 않고 없는 화면으로
+  if (!Number.isInteger(id)) return <p>없는 화면입니다.</p>;
+  return <TicketDetail id={id} />;
+}
+
+function TicketDetail({ id }: { id: number }) {
   const client = useQueryClient();
   const ticket = useMyTicket(id);
   const install = useMutation({
     mutationFn: () => api<MerchantTicketView>(`/me/service-tickets/${id}/installations`, { method: 'POST' }),
     onSettled: () => client.invalidateQueries({ queryKey: keys.all }),
   });
+
+  // 실패 뒤 다시 읽어 접수가 바뀌었으면(본사가 먼저 처리) 지나간 오류 안내를 지운다
+  const { reset } = install;
+  useEffect(() => {
+    reset();
+  }, [ticket.data?.status, ticket.data?.replacementStatus, reset]);
 
   if (ticket.error) return <ErrorBox error={ticket.error} />;
   if (!ticket.data) return <p>불러오는 중…</p>;
