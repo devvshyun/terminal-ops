@@ -1,4 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
+import type { PartnerScope } from '@terminal-ops/contracts';
 import { Role } from './role.js';
 
 /**
@@ -6,7 +7,11 @@ import { Role } from './role.js';
  * 핸들러(메서드)에만 단다 — 클래스에 달아 여러 메서드에 퍼지게 하지 않는다(표와 코드가 한 줄씩 맞게).
  * 빠뜨리면 test/unit/access-table.spec.ts가 실패한다.
  */
-export type Access = { kind: 'public' } | { kind: 'roles'; roles: readonly Role[] } | { kind: 'device' };
+export type Access =
+  | { kind: 'public' }
+  | { kind: 'roles'; roles: readonly Role[] }
+  | { kind: 'device' }
+  | { kind: 'partner'; scope: PartnerScope };
 
 export const ACCESS_KEY = 'terminal-ops:access';
 
@@ -18,6 +23,9 @@ export const Roles = (...roles: Role[]) => SetMetadata(ACCESS_KEY, { kind: 'role
 
 /** 단말기(시뮬레이터)가 부르는 API — 단말기 키(decisions/0055) */
 export const DeviceAuth = () => SetMetadata(ACCESS_KEY, { kind: 'device' } satisfies Access);
+
+/** 외부 업체 키(Bearer 또는 X-Api-Key)로, 이 scope가 있는 키만(decisions/0054) */
+export const PartnerAuth = (scope: PartnerScope) => SetMetadata(ACCESS_KEY, { kind: 'partner', scope } satisfies Access);
 
 /** 사내 직원 전부(가맹점주 빼고). 단말기·검수·발주 조회처럼 현장 작업자도 보는 것 */
 export const STAFF = [Role.ADMIN, Role.OPERATOR, Role.MONITOR, Role.FIELD] as const;

@@ -6,6 +6,7 @@
 /** 업무 규칙 충돌(409) — api BusinessError(409, …) */
 export type ConflictCode =
   | 'ANOMALY_SCAN_RUNNING'
+  | 'LAST_ADMIN'
   | 'REPLACEMENT_RESERVED'
   | 'ROLLOUT_ALREADY_ACTIVE'
   | 'SCAN_IN_PROGRESS'
@@ -49,6 +50,7 @@ export type InputErrorCode =
  * 인증·권한(보강 2). 401 UNAUTHENTICATED: 로그인(세션)·키가 없거나 끝남 → 화면은 로그인으로. 403 FORBIDDEN: 로그인했지만 역할·범위 밖.
  * 401 LOGIN_FAILED: 아이디·비밀번호가 틀림(어느 쪽인지 말하지 않는다). 429 LOGIN_LOCKED: 실패가 많아 잠시 막음.
  * 400 MERCHANT_REQUIRED: MERCHANT 계정에 가맹점이 없거나, 다른 역할에 가맹점을 줌
+ * (409 LAST_ADMIN — 마지막 활성 ADMIN을 사용 중지·강등하려 함 — 은 ConflictCode)
  */
 export type AuthErrorCode = 'UNAUTHENTICATED' | 'FORBIDDEN' | 'LOGIN_FAILED' | 'LOGIN_LOCKED' | 'MERCHANT_REQUIRED';
 

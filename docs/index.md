@@ -2,7 +2,7 @@
 
 > 이 파일은 `node scripts/docs-index.mjs`가 만든다. 손으로 고치지 않는다(decisions/0046). 기록을 더한 뒤 다시 만들고, `--check`로 확인한다.
 
-## 결정 기록 (55)
+## 결정 기록 (56)
 
 - [0001](decisions/0001-인증은-작업자-헤더로.md) 인증은 하지 않고, 작업자는 요청 헤더로 기록한다
 - [0002](decisions/0002-esm-vitest-tsc-빌드.md) ESM + Vitest + tsc 빌드로 API를 만든다
@@ -57,10 +57,11 @@
 - [0051](decisions/0051-비밀번호-해시는-node-scrypt-계정-테이블은-user-account.md) 비밀번호 해시는 node:crypto scrypt, 계정 테이블은 user_account
 - [0052](decisions/0052-역할별-엔드포인트-표와-기본-거부.md) 역할별 엔드포인트 표와 기본 거부
 - [0053](decisions/0053-가맹점주-범위는-me-전용-엔드포인트와-서비스-scope.md) 가맹점주 범위는 /me 전용 엔드포인트와 서비스 scope 인자로 강제한다
+- [0054](decisions/0054-외부-업체-키는-해시-저장과-scope.md) 외부 업체 API 키는 해시로 저장하고 scope로 연다
 - [0055](decisions/0055-단말기는-공유-단말기-키로.md) 단말기는 공유 단말기 키(X-Device-Key)로 부른다
 - [0056](decisions/0056-작업자는-로그인-아이디-X-Operator는-테스트-전용.md) 작업자는 로그인 아이디, X-Operator는 테스트 전용 인증 길로만 남긴다
 
-## 트러블슈팅 (30)
+## 트러블슈팅 (31)
 
 - [0001](troubleshooting/0001-설치-직후-WSL2-미동작.md) 설치 직후 WSL2·Docker가 동작하지 않음
 - [0002](troubleshooting/0002-em-create-optionalprops-타입오류.md) em.create에서 TS2345 "Property 'version' is missing"
@@ -92,6 +93,7 @@
 - [0028](troubleshooting/0028-Windows에서-process-kill-SIGKILL로-끈-자식의-exit가-code-1-signal-null.md) Windows에서 process.kill(pid, 'SIGKILL')로 끈 자식의 exit가 code 1·signal null
 - [0029](troubleshooting/0029-swc는-계약의-타입-별칭을-design-type에-Object로-내보낸다.md) swc(vitest)는 타입 별칭(유니온)을 design:type에 Object로 내보낸다 (tsc 빌드는 String)
 - [0030](troubleshooting/0030-다른-브랜치가-쓴-테스트-DB에서-schema-refresh가-merchant를-못-지운다.md) 다른 브랜치가 쓴 테스트 DB에서 schema.refresh가 merchant를 못 지운다
+- [0031](troubleshooting/0031-초-단위-datetime-열은-밀리초를-반올림해-응답과-다시-읽은-값이-다르다.md) 초 단위 datetime 열은 밀리초를 반올림해 응답과 다시 읽은 값이 다르다
 
 ## 실험 (17)
 

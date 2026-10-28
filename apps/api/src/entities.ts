@@ -15,6 +15,7 @@ import { VanReconciliationItem, VanReconciliationRun, VanRegistrationSnapshot } 
 import { Anomaly } from './anomaly/anomaly.entity.js';
 import { WeeklyReport } from './report/weekly-report.entity.js';
 import { UserAccount } from './auth/user-account.entity.js';
+import { PartnerApiKey } from './auth/partner-key.entity.js';
 
 /** 앱·마이그레이션·시드가 함께 쓰는 엔티티 목록. 엔티티를 추가하면 여기에도 추가한다. */
-export const ENTITIES = [TerminalModel, Terminal, TerminalStatusHistory, InspectionItem, Inspection, InspectionResult, Merchant, Shipment, CarrierEvent, SyncRun, OutboxEvent, PurchaseOrder, ScanBatch, ServiceTicket, DeviceConnectivity, Firmware, FirmwareRollout, FirmwareRolloutTarget, VanReconciliationRun, VanRegistrationSnapshot, VanReconciliationItem, Anomaly, WeeklyReport, UserAccount];
+export const ENTITIES = [TerminalModel, Terminal, TerminalStatusHistory, InspectionItem, Inspection, InspectionResult, Merchant, Shipment, CarrierEvent, SyncRun, OutboxEvent, PurchaseOrder, ScanBatch, ServiceTicket, DeviceConnectivity, Firmware, FirmwareRollout, FirmwareRolloutTarget, VanReconciliationRun, VanRegistrationSnapshot, VanReconciliationItem, Anomaly, WeeklyReport, UserAccount, PartnerApiKey];

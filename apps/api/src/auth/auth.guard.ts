@@ -6,6 +6,7 @@ import { env } from '../config/env.js';
 import { ACCESS_KEY, type Access } from './access.js';
 import { readCookie, SESSION_COOKIE } from './cookies.js';
 import type { Principal, RequestWithPrincipal } from './principal.js';
+import { PartnerKeyService } from './partner-key.service.js';
 import { Role } from './role.js';
 import { SessionStore } from './session.store.js';
 
@@ -16,6 +17,14 @@ export const TEST_OPERATOR_HEADER = 'x-operator';
 export const TEST_ROLE_HEADER = 'x-test-role';
 /** 단말기 키 헤더(decisions/0055) */
 export const DEVICE_KEY_HEADER = 'x-device-key';
+/** 외부 업체 키 헤더(Authorization: Bearer 대신 쓸 수 있다, decisions/0054) */
+export const PARTNER_KEY_HEADER = 'x-api-key';
+
+/** `Authorization: Bearer <키>`가 있으면 그것, 없으면 `X-Api-Key` */
+export function partnerKeyOf(authorization: string | undefined, apiKey: string | undefined): string | null {
+  const bearer = authorization?.match(/^Bearer\s+(\S+)$/i)?.[1];
+  return bearer ?? apiKey?.trim() ?? null;
+}
 
 function decodeName(raw: string): string {
   try {
@@ -37,7 +46,8 @@ export function testPrincipal(operator: string | undefined, role: string | undef
 /**
  * 모든 HTTP 요청의 문(APP_GUARD, decisions/0052). 핸들러의 Access 메타데이터대로:
  * 없음 → 403(기본 거부), public → 통과, roles → 세션 쿠키의 사람이 그 역할이어야(없으면 401, 역할 밖이면 403),
- * device → `X-Device-Key`가 DEVICE_API_KEY와 같아야(없거나 틀리면 401, decisions/0055).
+ * device → `X-Device-Key`가 DEVICE_API_KEY와 같아야(없거나 틀리면 401, decisions/0055),
+ * partner → 외부 업체 키가 살아 있어야(401) 그리고 그 scope가 있어야(403, decisions/0054).
  */
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -46,6 +56,7 @@ export class AuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly sessions: SessionStore,
+    private readonly partnerKeys: PartnerKeyService,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -75,6 +86,14 @@ export class AuthGuard implements CanActivate {
           } satisfies ApiErrorBody);
         }
         req.principal = principal;
+        return true;
+      }
+      case 'partner': {
+        const key = await this.partnerKeys.verify(partnerKeyOf(req.header('authorization'), req.header(PARTNER_KEY_HEADER)));
+        if (!key) throw new UnauthorizedException({ statusCode: 401, code: 'UNAUTHENTICATED', message: '외부 업체 키가 없거나, 맞지 않거나, 폐기·만료됐습니다.' } satisfies ApiErrorBody);
+        if (!key.scopes.includes(access.scope)) {
+          throw new ForbiddenException({ statusCode: 403, code: 'FORBIDDEN', message: `이 키에는 ${access.scope} 권한이 없습니다.` } satisfies ApiErrorBody);
+        }
         return true;
       }
     }

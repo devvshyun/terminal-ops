@@ -9,7 +9,7 @@ import { ACCESS_KEY, type Access } from '../../src/auth/access.js';
  * 엔드포인트별 접근 규칙 표(decisions/0052). 앱의 모든 컨트롤러 핸들러를 모듈 메타데이터로 훑어 실제 규칙과 이 표를 맞춘다.
  * - 새 엔드포인트에 @Public/@Roles/@DeviceAuth를 달지 않으면 "규칙 없음"으로 실패한다(가드는 403으로 막는다 — 기본 거부).
  * - 규칙을 바꾸면(역할을 더하거나 빼면) 이 표도 같이 바꿔야 통과한다 — 권한 변경이 리뷰에서 보이게.
- * 값: 'public' | 'device' | 역할을 쉼표로(알파벳 순).
+ * 값: 'public' | 'device' | 'partner:<scope>' | 역할을 쉼표로(알파벳 순).
  */
 const EXPECTED: Record<string, string> = {
   'GET /health': 'public',
@@ -80,6 +80,18 @@ const EXPECTED: Record<string, string> = {
   'GET /me/service-tickets': 'MERCHANT',
   'POST /me/service-tickets': 'MERCHANT',
   'POST /me/service-tickets/:id/installations': 'MERCHANT',
+
+  // 계정·외부 업체 키 관리(decisions/0054)
+  'GET /admin/accounts': 'ADMIN',
+  'POST /admin/accounts': 'ADMIN',
+  'PATCH /admin/accounts/:id': 'ADMIN',
+  'GET /admin/partner-keys': 'ADMIN',
+  'POST /admin/partner-keys': 'ADMIN',
+  'POST /admin/partner-keys/:id/revoke': 'ADMIN',
+
+  // 외부 업체 키(scope별)
+  'GET /partner/v1/terminals/:serialNo': 'partner:terminal-status:read',
+  'GET /partner/v1/merchants/:merchantCode/terminals': 'partner:merchant-terminals:read',
 };
 
 type ModuleLike = Type<unknown> | { module: Type<unknown>; imports?: unknown[]; controllers?: Type<unknown>[] };
@@ -99,6 +111,13 @@ function collectControllers(root: ModuleLike, seen = new Set<unknown>(), out = n
 
 const join = (...parts: string[]) => `/${parts.map((p) => p.replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/')}`;
 
+function describeAccess(access: Access | undefined): string | null {
+  if (!access) return null;
+  if (access.kind === 'roles') return [...access.roles].sort().join(',');
+  if (access.kind === 'partner') return `partner:${access.scope}`;
+  return access.kind;
+}
+
 /** 'GET /terminals/:serialNo' → 규칙 문자열(없으면 null) */
 function routeTable(): Map<string, string | null> {
   const table = new Map<string, string | null>();
@@ -113,7 +132,7 @@ function routeTable(): Map<string, string | null> {
       const path = (Reflect.getMetadata(PATH_METADATA, handler) as string | undefined) ?? '/';
       const key = `${RequestMethod[method]} ${join(base, path)}`;
       const access = Reflect.getMetadata(ACCESS_KEY, handler) as Access | undefined;
-      table.set(key, !access ? null : access.kind === 'roles' ? [...access.roles].sort().join(',') : access.kind);
+      table.set(key, describeAccess(access));
     }
   }
   return table;

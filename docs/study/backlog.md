@@ -184,3 +184,7 @@
 - [ ] MySQL collation(utf8mb4_0900_ai_ci)의 같음 — 악센트·전각·대소문자, PAD/NO PAD, 유니코드 NFKC 정규화와의 차이 (decisions/0050, Task 2 보안 리뷰)
 - [ ] 확인 후 행동(check-then-act) 경합과 세대값(generation counter)으로 무효화하기, Redis Lua 스크립트의 원자성과 클러스터 슬롯(KEYS 선언) (decisions/0050)
 - [ ] libuv 스레드 풀(UV_THREADPOOL_SIZE)과 scrypt·pbkdf2 같은 crypto 비동기 함수 — 해시가 몰리면 무엇이 밀리나 (decisions/0050)
+- [ ] MySQL `datetime`의 소수 초 정밀도(fsp)와 반올림(`TIME_TRUNCATE_FRACTIONAL`), MikroORM `length` (troubleshooting/0031)
+- [ ] API 키 설계 — 접두사 + 해시 저장, 원문 한 번만, scope, 마지막 사용 시각 쓰기 줄이기 (decisions/0054)
+- [ ] `SELECT … FOR UPDATE`로 "마지막 하나" 불변식 지키기 — 잠금 순서(id 순)와 데드락, 잠근 뒤 다시 읽기(refresh) (decisions/0054)
+- [ ] 캐시·세션 무효화는 DB 커밋 뒤에 — 트랜잭션 안에서 무효화하면 읽는 쪽이 옛 행을 새 세대로 캐시한다 (decisions/0050)

@@ -6,6 +6,7 @@
  */
 import type * as C from '@terminal-ops/contracts';
 import type { AnomalyRule } from '../anomaly/anomaly.entity.js';
+import type { PARTNER_SCOPES } from '../auth/partner-key.entity.js';
 import type { Role } from '../auth/role.js';
 import type { Carrier } from '../carrier/carrier.types.js';
 import type { RolloutStatus } from '../firmware/firmware.entities.js';
@@ -43,4 +44,5 @@ export type ContractEnumAssertions = [
   Assert<Same<`${WeeklyReportStatus}`, C.WeeklyReportStatus>>,
   Assert<Same<(typeof SYNC_RUN_OUTCOMES)[number], C.SyncRunOutcome>>,
   Assert<Same<`${Role}`, C.Role>>,
+  Assert<Same<(typeof PARTNER_SCOPES)[number], C.PartnerScope>>,
 ];
