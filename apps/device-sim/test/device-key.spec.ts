@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { defaultConfig, type SimConfig } from '../src/config.js';
+import { defaultConfig, startupConfig, type SimConfig } from '../src/config.js';
 import { Fleet } from '../src/fleet.js';
 import { okHandler, startFakeApi, startSim, type FakeApi } from './helpers.js';
 
@@ -78,5 +78,17 @@ describe('단말기 키 X-Device-Key (api decisions/0055)', () => {
     } finally {
       await sim.close();
     }
+  });
+
+  it('시작할 때 환경변수 DEVICE_API_KEY도 같은 규칙으로 검사한다 — 틀리면 바로 던진다(api 최종 리뷰 Minor 6)', () => {
+    for (const bad of ['키-0123456789abcdef', 'key with space 0123', 'key\n0123456789abcdef']) {
+      vi.stubEnv('DEVICE_API_KEY', bad);
+      expect(() => startupConfig(), JSON.stringify(bad)).toThrow(/DEVICE_API_KEY.*공백 없는 ASCII/s);
+    }
+    vi.stubEnv('DEVICE_API_KEY', 'env-key-0123456789');
+    expect(startupConfig().deviceKey).toBe('env-key-0123456789');
+    // 키 없이 띄우는 것(헤더를 보내지 않음, api가 401)은 지금처럼 허용한다
+    vi.stubEnv('DEVICE_API_KEY', '');
+    expect(startupConfig().deviceKey).toBe('');
   });
 });

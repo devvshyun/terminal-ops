@@ -94,8 +94,9 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 ```
 
 - 외부 업체 키: 발급·폐기는 ADMIN의 `POST /admin/partner-keys`(원문은 그 응답에서 한 번만)·`POST /admin/partner-keys/:id/revoke`. DB에는 접두사와 SHA-256만([decisions/0054](docs/decisions/0054-외부-업체-키는-해시-저장과-scope.md)). 시연 키는 시드에 고정한 값이다.
-- 단말기 키: `.env`의 `DEVICE_API_KEY`(16자 이상). 하트비트·펌웨어 보고는 `X-Device-Key`로 이 값을 보내야 한다(없거나 틀리면 401). device-sim이 같은 env를 읽는다([decisions/0055](docs/decisions/0055-단말기는-공유-단말기-키로.md)).
+- 단말기 키: `.env`의 `DEVICE_API_KEY`(16자 이상, 공백 없는 ASCII). `.env.example`의 자리표시자(`change-me…`)나 규칙에 맞지 않는 값이면 api와 device-sim 모두 시작할 때 멈춘다. 하트비트·펌웨어 보고는 `X-Device-Key`로 이 값을 보내야 한다(없거나 틀리면 401). device-sim이 같은 env를 읽는다([decisions/0055](docs/decisions/0055-단말기는-공유-단말기-키로.md)).
 - 계정 관리(`/admin/accounts`)·키 관리 화면은 아직 없다(Bundle 7) — API만. 역할·가맹점·비밀번호를 바꾸거나 사용 중지하면 그 계정의 세션이 모두 끊긴다. 마지막 활성 ADMIN은 사용 중지·강등할 수 없다(409 `LAST_ADMIN`).
+- 마이그레이션 `down`(`npm run db:migration:down`, 테스트 DB에서만 열려 있다)으로 보강 2의 두 마이그레이션을 되돌리면 `user_account`·`partner_api_key` 표가 지워져 **시연 계정·시연 키도 사라진다**. 개발 DB에서 다른 방법으로 되돌렸다면 다시 `db:migrate` 뒤 `db:seed`로 넣는다.
 - 테스트는 `X-Operator`·`X-Test-Role` 헤더로 사람을 흉내 낸다 — `NODE_ENV=test`이고 `AUTH_TEST_HEADERS=1`일 때만 켜진다(운영 실행에서는 401).
 
 ## 기능
@@ -168,11 +169,11 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 
 ## 테스트
 
-(보강 2 로그인·권한 뒤 실제로 돌려 센 값(2026-10-28). api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
+(보강 2 로그인·권한과 최종 리뷰 반영 뒤 실제로 돌려 센 값(2026-10-28, admin·partners는 이번에 바뀌지 않아 마감 때 값). api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
 
 | 앱 | 파일 | 테스트 |
 |---|---|---|
-| api(실험 제외) | 78 | 544 |
+| api(실험 제외) | 79 | 549 |
 | admin | 14 | 125 |
 | partners | 6 | 53 |
-| device-sim | 5 | 45 |
+| device-sim | 5 | 46 |

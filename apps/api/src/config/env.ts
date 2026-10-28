@@ -4,6 +4,7 @@ import { cronFromEnv } from './env-cron.js';
 import { DAY_MS, intFromEnv } from './env-number.js';
 import { resolveHeartbeatWriteMode } from './heartbeat-write-mode.js';
 import { resolveAuthTestHeaders } from './auth-test-headers.js';
+import { resolveDeviceApiKey } from './device-api-key.js';
 import { checkVanHeartbeatTiming } from '../van/van-limits.js';
 
 // 스크립트·테스트는 apps/api에서 실행한다. 저장소 루트의 .env를 읽는다(이미 있는 환경변수는 덮어쓰지 않는다).
@@ -13,13 +14,6 @@ if (existsSync(envFile)) process.loadEnvFile(envFile);
 function required(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`환경변수 ${name}가 없습니다. 저장소 루트 .env를 확인하세요.`);
-  return value;
-}
-
-/** 비밀 값(키). 없거나 너무 짧으면 시작할 때 던진다 */
-function requiredSecret(name: string, minLength: number): string {
-  const value = required(name);
-  if (value.length < minLength) throw new Error(`환경변수 ${name}는 ${minLength}자 이상이어야 합니다.`);
   return value;
 }
 
@@ -151,8 +145,8 @@ export const env = {
   /** 같은 아이디로 로그인 실패가 이만큼 쌓이면 LOGIN_LOCK_MS 동안 막는다(첫 실패부터 잰다, decisions/0050) */
   loginMaxFailures: intFromEnv('LOGIN_MAX_FAILURES', 5, { min: 1, max: 100 }),
   loginLockMs: intFromEnv('LOGIN_LOCK_MS', 15 * 60_000, MS),
-  /** 단말기(시뮬레이터)가 `X-Device-Key`로 보내는 공유 키. 16자 이상(decisions/0055) */
-  deviceApiKey: requiredSecret('DEVICE_API_KEY', 16),
+  /** 단말기(시뮬레이터)가 `X-Device-Key`로 보내는 공유 키. 16자 이상·공백 없는 ASCII·`.env.example` 자리표시자가 아님(decisions/0055, device-api-key.ts) */
+  deviceApiKey: resolveDeviceApiKey(process.env.DEVICE_API_KEY),
   /** 테스트 전용 인증 헤더(X-Operator·X-Test-Role). NODE_ENV=test가 아니면 켜지지 않고 던진다(decisions/0056) */
   authTestHeaders: resolveAuthTestHeaders(process.env.AUTH_TEST_HEADERS, process.env.NODE_ENV),
   /** SyncRun에 남길 작업 프로세스 이름(워커 2개 실험에서 구분용) */

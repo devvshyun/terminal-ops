@@ -186,7 +186,7 @@
 - [ ] libuv 스레드 풀(UV_THREADPOOL_SIZE)과 scrypt·pbkdf2 같은 crypto 비동기 함수 — 해시가 몰리면 무엇이 밀리나 (decisions/0050)
 - [ ] MySQL `datetime`의 소수 초 정밀도(fsp)와 반올림(`TIME_TRUNCATE_FRACTIONAL`), MikroORM `length` (troubleshooting/0031)
 - [ ] API 키 설계 — 접두사 + 해시 저장, 원문 한 번만, scope, 마지막 사용 시각 쓰기 줄이기 (decisions/0054)
-- [ ] `SELECT … FOR UPDATE`로 "마지막 하나" 불변식 지키기 — 잠금 순서(id 순)와 데드락, 잠근 뒤 다시 읽기(refresh) (decisions/0054)
+- [ ] `SELECT … FOR UPDATE`로 "마지막 하나" 불변식 지키기 — 잠금 순서(id 순)와 데드락, 잠글지를 스냅샷 읽기가 아니라 요청 내용으로 정하기, 대상 행도 잠금 읽기로(최종 리뷰 Minor 4 — refresh는 스냅샷이라 판단에 못 쓴다) (decisions/0054)
 - [ ] 캐시·세션 무효화는 DB 커밋 뒤에 — 트랜잭션 안에서 무효화하면 읽는 쪽이 옛 행을 새 세대로 캐시한다 (decisions/0050)
 - [ ] ioredis `eval` 대 `defineCommand`(EVALSHA, NOSCRIPT면 EVAL로 다시) — 요청마다 스크립트 본문을 보내는 비용 (apps/api/src/auth/session.store.ts, devlog 2026-10-28 보강 2 마감)
 - [ ] type-is `hasBody` — Content-Length: 0도 본문이 있다고 본다, `req.is()`가 null인 경우 (decisions/0050, auth.e2e)

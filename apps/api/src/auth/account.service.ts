@@ -69,20 +69,24 @@ export class AccountService {
   async update(id: number, dto: UpdateAccountRequest): Promise<{ account: AccountView; revokedSessions: number }> {
     const passwordHash = dto.password !== undefined ? await hashPassword(dto.password) : undefined;
     const { account, accessChanged } = await this.em.fork().transactional(async (em) => {
-      const current = await em.findOne(UserAccount, id);
-      if (!current) throw new NotFoundException(`계정 ${id}이(가) 없습니다.`);
-      // ADMIN 계정이면 활성 ADMIN 행을 id 순으로 잠근다(FOR UPDATE) — 둘이 서로를 동시에 내려도 한쪽은 잠금을 기다렸다 바뀐 수를 본다.
-      // 잠근 뒤에 대상 행을 다시 읽어(refresh) 기다리는 동안 바뀐 상태로 판단한다
-      const lockedAdmins =
-        current.role === Role.ADMIN
-          ? await em.find(UserAccount, { role: Role.ADMIN, disabledAt: null }, { orderBy: { id: 'asc' }, lockMode: LockMode.PESSIMISTIC_WRITE, refresh: true })
-          : [];
-      const account = await em.findOneOrFail(UserAccount, id, { populate: ['merchant'], refresh: true });
+      // 이 일반 읽기는 계정이 있는지(404)만 본다. 판단에는 쓰지 않는다 — REPEATABLE READ 스냅샷이라 이 뒤에 커밋된 변경을 못 본다
+      if (!(await em.findOne(UserAccount, id))) throw new NotFoundException(`계정 ${id}이(가) 없습니다.`);
+      // 활성 ADMIN을 줄일 수 있는 요청(사용 중지, ADMIN이 아닌 역할로 바꿈)이면 대상의 지금 역할과 상관없이 활성 ADMIN 행을 모두 id 순으로 잠근다(FOR UPDATE).
+      // 대상의 역할로 잠글지 정하면 안 된다 — 스냅샷에서 OPERATOR였던 대상이 그 사이 ADMIN이 되고 마지막 ADMIN이 자기를 내리면,
+      // 잠그지도 판단하지도 않고 저장해 활성 ADMIN이 0이 됐다(최종 리뷰 Minor 4, admin-last-admin.e2e "세 요청").
+      // 그 밖의 요청(이름·비밀번호·가맹점·사용 재개·ADMIN으로 올림)은 활성 ADMIN을 줄이지 못하므로 잠그지 않는다
+      const mayRemoveAdmin = dto.disabled === true || (dto.role !== undefined && dto.role !== Role.ADMIN);
+      const lockedAdmins = mayRemoveAdmin
+        ? await em.find(UserAccount, { role: Role.ADMIN, disabledAt: null }, { orderBy: { id: 'asc' }, lockMode: LockMode.PESSIMISTIC_WRITE, refresh: true })
+        : [];
+      // 대상 행도 잠금 읽기(FOR UPDATE = 지금 커밋된 값)로 다시 읽는다. ADMIN 목록 다음에 잠가 잠금 순서를 요청마다 같게 둔다
+      const account = await em.findOneOrFail(UserAccount, id, { lockMode: LockMode.PESSIMISTIC_WRITE, refresh: true });
+      await em.populate(account, ['merchant']);
       const role = (dto.role as Role | undefined) ?? account.role;
       const nextDisabled = dto.disabled ?? account.disabledAt !== null;
       // "지금 활성 ADMIN인가·다른 활성 ADMIN이 있나"는 잠근 목록(FOR UPDATE = 지금 커밋된 값)으로만 판단한다.
-      // 일반 읽기(refresh 포함)는 REPEATABLE READ 스냅샷이라 처음 읽은 뒤 커밋된 변경을 못 본다 — 그 값으로 판단하면
-      // 이미 중지된 대상을 "마지막 활성 ADMIN"으로 보고 빈 잠금 목록에서 409를 낼 수 있었다(Task 5 보안 리뷰, admin-last-admin.e2e)
+      // 일반 읽기(refresh 포함)는 스냅샷이라 그 값으로 판단하면 이미 중지된 대상을 "마지막 활성 ADMIN"으로 보고
+      // 빈 잠금 목록에서 409를 낼 수 있었다(Task 5 보안 리뷰, admin-last-admin.e2e)
       const wasActiveAdmin = lockedAdmins.some((a) => a.id === account.id);
       const otherActiveAdmins = lockedAdmins.filter((a) => a.id !== account.id).length;
       if (wasActiveAdmin && (role !== Role.ADMIN || nextDisabled) && otherActiveAdmins === 0) {

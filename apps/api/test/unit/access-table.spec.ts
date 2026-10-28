@@ -132,6 +132,9 @@ function routeTable(): Map<string, string | null> {
       const path = (Reflect.getMetadata(PATH_METADATA, handler) as string | undefined) ?? '/';
       const key = `${RequestMethod[method]} ${join(base, path)}`;
       const access = Reflect.getMetadata(ACCESS_KEY, handler) as Access | undefined;
+      // 표의 키가 `METHOD 경로`라, 두 핸들러가 같은 경로에 붙으면(라우팅 충돌 — Nest는 먼저 등록된 쪽만 탄다)
+      // Map에서 하나로 합쳐져 나머지 핸들러의 규칙을 이 테스트가 못 본다. 그래서 겹치면 바로 실패시킨다(최종 리뷰 Minor 7a)
+      if (table.has(key)) throw new Error(`같은 경로에 핸들러가 둘 있습니다: ${key} (${controller.name}.${name})`);
       table.set(key, describeAccess(access));
     }
   }

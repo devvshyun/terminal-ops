@@ -1,7 +1,10 @@
+import { startupConfig } from './config.js';
+import { Fleet } from './fleet.js';
 import { createSimServer } from './server.js';
 
 const port = Number(process.env.DEVICE_SIM_PORT ?? 4020);
-const { server, fleet } = createSimServer();
+// 환경변수 기본값(DEVICE_API_KEY 포함)을 관리 API와 같은 규칙으로 검사한다 — 틀리면 듣기 전에 던진다
+const { server, fleet } = createSimServer(new Fleet(startupConfig()));
 
 server.listen(port, '127.0.0.1', () => {
   console.log(`device-sim listening on http://127.0.0.1:${port}`);

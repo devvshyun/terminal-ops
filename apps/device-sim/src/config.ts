@@ -59,6 +59,18 @@ export function defaultConfig(): SimConfig {
   };
 }
 
+/**
+ * 시작할 때의 설정(환경변수 기본값). 관리 API와 같은 규칙으로 검사해 틀리면 바로 던진다 —
+ * 예전에는 POST /__admin/config가 설정을 합칠 때만 검사해서, 한글·공백이 든 DEVICE_API_KEY로 떠 있다가
+ * 상관없는 설정을 바꿀 때 400이 나거나 하트비트가 모두 실패한 뒤에야 알았다(api 최종 리뷰 Minor 6)
+ */
+export function startupConfig(): SimConfig {
+  const config = defaultConfig();
+  const reason = invalidReason(config);
+  if (reason) throw new Error(`device-sim 시작 설정이 잘못됐습니다(deviceKey는 환경변수 DEVICE_API_KEY): ${reason}`);
+  return config;
+}
+
 /** 관리 API가 키 대신 보여 주는 표시. 이 값이 POST로 돌아오면 키를 바꾸지 않는다(withoutMaskedKey) */
 export const MASKED_DEVICE_KEY = '(설정됨)';
 
