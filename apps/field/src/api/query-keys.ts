@@ -5,4 +5,5 @@
 export const keys = {
   all: ['field'] as const,
   today: ['field', 'today'] as const,
+  openOrders: ['field', 'open-orders'] as const,
 };

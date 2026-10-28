@@ -4,6 +4,7 @@ import { SessionCacheSync } from './components/SessionCacheSync';
 import { Shell } from './components/Shell';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
+import { ScanPage } from './pages/ScanPage';
 
 /** 화면 경로. /login 말고는 모두 현장 작업자 계정으로 로그인해야 보인다(AuthGate) */
 export function App() {
@@ -20,6 +21,7 @@ export function App() {
           }
         >
           <Route index element={<HomePage />} />
+          <Route path="scan" element={<ScanPage />} />
           <Route path="*" element={<p>없는 화면입니다.</p>} />
         </Route>
       </Routes>
