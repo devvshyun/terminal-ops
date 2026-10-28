@@ -80,8 +80,12 @@ export class AccountService {
       const account = await em.findOneOrFail(UserAccount, id, { populate: ['merchant'], refresh: true });
       const role = (dto.role as Role | undefined) ?? account.role;
       const nextDisabled = dto.disabled ?? account.disabledAt !== null;
-      const wasActiveAdmin = account.role === Role.ADMIN && account.disabledAt === null;
-      if (wasActiveAdmin && (role !== Role.ADMIN || nextDisabled) && lockedAdmins.every((a) => a.id === account.id)) {
+      // "지금 활성 ADMIN인가·다른 활성 ADMIN이 있나"는 잠근 목록(FOR UPDATE = 지금 커밋된 값)으로만 판단한다.
+      // 일반 읽기(refresh 포함)는 REPEATABLE READ 스냅샷이라 처음 읽은 뒤 커밋된 변경을 못 본다 — 그 값으로 판단하면
+      // 이미 중지된 대상을 "마지막 활성 ADMIN"으로 보고 빈 잠금 목록에서 409를 낼 수 있었다(Task 5 보안 리뷰, admin-last-admin.e2e)
+      const wasActiveAdmin = lockedAdmins.some((a) => a.id === account.id);
+      const otherActiveAdmins = lockedAdmins.filter((a) => a.id !== account.id).length;
+      if (wasActiveAdmin && (role !== Role.ADMIN || nextDisabled) && otherActiveAdmins === 0) {
         throw new BusinessError(409, 'LAST_ADMIN', '마지막 활성 ADMIN은 사용 중지하거나 다른 역할로 바꿀 수 없습니다. 다른 ADMIN을 먼저 만드세요.');
       }
       const merchantCode = dto.merchantCode !== undefined ? dto.merchantCode : role === account.role ? account.merchant?.code : undefined;

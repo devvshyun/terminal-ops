@@ -1,13 +1,18 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { EntityManager } from '@mikro-orm/mysql';
-import type { CreatedPartnerKeyView, PartnerKeyView, PartnerScope } from '@terminal-ops/contracts';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { EntityManager, UniqueConstraintViolationException } from '@mikro-orm/mysql';
+import type { ApiErrorBody, CreatedPartnerKeyView, PartnerKeyView, PartnerScope } from '@terminal-ops/contracts';
 import { PartnerApiKey } from './partner-key.entity.js';
 
 /** `pk_` + 소문자·숫자 8자 + `_` + base64url 43자(32바이트) */
 const KEY_PATTERN = /^(pk_[a-z0-9]{8})_[A-Za-z0-9_-]{43}$/;
 /** lastUsedAt을 이보다 자주 쓰지 않는다 */
 const TOUCH_EVERY_MS = 60_000;
+
+/** 새 키 원문. 접두사는 8자(16진 4바이트 = 약 43억 가지)라 겹칠 수 있다 — create가 겹치면 다시 만든다 */
+export const newPartnerKey = () => `pk_${randomBytes(4).toString('hex')}_${randomBytes(32).toString('base64url')}`;
+/** 접두사가 겹쳐(unique 위반) 다시 만드는 횟수 */
+const CREATE_ATTEMPTS = 5;
 
 export const sha256Hex = (value: string) => createHash('sha256').update(value).digest('hex');
 
@@ -30,9 +35,28 @@ export function toPartnerKeyView(k: PartnerApiKey): PartnerKeyView {
 export class PartnerKeyService {
   constructor(private readonly em: EntityManager) {}
 
-  /** 새 키. 원문(key)은 이 응답에만 있다 */
+  /** 키 원문 만들기. 테스트가 접두사 겹침을 일부러 만들 수 있게 필드로 둔다 */
+  generateKey: () => string = newPartnerKey;
+
+  /**
+   * 새 키. 원문(key)은 이 응답에만 있다. 만료 시각은 지금보다 뒤여야 한다(지난 시각이면 400 — 만들자마자 쓸 수 없는 키).
+   * 접두사가 이미 있는 키와 겹치면(unique 위반) 새 원문으로 다시 넣는다(최대 CREATE_ATTEMPTS번) — 409 DUPLICATE를 내보내지 않는다(Task 5 보안 리뷰).
+   * rawKey를 주면(시연 키 시드) 다시 만들지 않는다.
+   */
   async create(input: { name: string; scopes: PartnerScope[]; expiresAt?: Date | null }, actor: string, rawKey?: string): Promise<CreatedPartnerKeyView> {
-    const key = rawKey ?? `pk_${randomBytes(6).toString('hex').slice(0, 8)}_${randomBytes(32).toString('base64url')}`;
+    if (input.expiresAt && input.expiresAt.getTime() <= Date.now()) {
+      throw new BadRequestException({ statusCode: 400, message: 'expiresAt은 지금보다 뒤여야 합니다.' } satisfies ApiErrorBody);
+    }
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await this.insert(input, actor, rawKey ?? this.generateKey());
+      } catch (error) {
+        if (rawKey !== undefined || !(error instanceof UniqueConstraintViolationException) || attempt >= CREATE_ATTEMPTS) throw error;
+      }
+    }
+  }
+
+  private async insert(input: { name: string; scopes: PartnerScope[]; expiresAt?: Date | null }, actor: string, key: string): Promise<CreatedPartnerKeyView> {
     const match = KEY_PATTERN.exec(key);
     if (!match) throw new Error('외부 업체 키 모양이 아닙니다.');
     const em = this.em.fork();

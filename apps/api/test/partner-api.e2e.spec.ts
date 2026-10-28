@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PartnerApiKey } from '../src/auth/partner-key.entity.js';
 import { PartnerKeyService } from '../src/auth/partner-key.service.js';
 import { DEMO_PARTNER_KEY, seedDemoPartnerKey } from '../src/db/seed-accounts.js';
@@ -114,6 +114,34 @@ describe('외부 업체 API 키 (보강 2, decisions/0054)', () => {
       { name: 'x', scopes: ['terminal-status:read'], expiresAt: 'tomorrow' },
     ]) {
       expect((await withCookie(t, admin).post('/admin/partner-keys').send(body)).status, JSON.stringify(body)).toBe(400);
+    }
+  });
+
+  it('만료 시각은 엄격한 ISO 8601이고 지금보다 뒤여야 한다 — 없는 날짜·지난 시각은 400이고 키가 생기지 않는다', async () => {
+    const before = await t.orm.em.fork().count(PartnerApiKey);
+    for (const expiresAt of ['2027-02-30T00:00:00Z', new Date(Date.now() - 60_000).toISOString()]) {
+      const res = await withCookie(t, admin).post('/admin/partner-keys').send({ name: '만료 검사', scopes: ['terminal-status:read'], expiresAt });
+      expect(res.status, expiresAt).toBe(400);
+    }
+    expect(await t.orm.em.fork().count(PartnerApiKey)).toBe(before);
+    const ok = await withCookie(t, admin).post('/admin/partner-keys').send({ name: '만료 검사', scopes: ['terminal-status:read'], expiresAt: new Date(Date.now() + 3_600_000).toISOString() });
+    expect(ok.status).toBe(201);
+  });
+
+  it('새 키의 접두사가 이미 있는 키와 겹치면 새로 만들어 다시 넣는다(409로 내보내지 않는다)', async () => {
+    const service = t.app.get(PartnerKeyService);
+    const taken = (await service.create({ name: '접두사 선점', scopes: ['terminal-status:read'] }, 'tester')).key;
+    const fresh = 'pk_zz000001_' + 'A'.repeat(43);
+    const original = service.generateKey;
+    const generate = vi.fn().mockReturnValueOnce(taken.slice(0, 12) + 'B'.repeat(43)).mockReturnValueOnce(fresh);
+    service.generateKey = generate;
+    try {
+      const created = await service.create({ name: '겹침 뒤 다시', scopes: ['terminal-status:read'] }, 'tester');
+      expect(created.key).toBe(fresh);
+      expect(created.prefix).toBe('pk_zz000001');
+      expect(generate).toHaveBeenCalledTimes(2);
+    } finally {
+      service.generateKey = original;
     }
   });
 });

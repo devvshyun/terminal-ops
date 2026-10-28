@@ -69,6 +69,6 @@ export class CreatePartnerKeyDto implements CreatePartnerKeyRequest {
 
   @IsOptional()
   @ValidateIf((_o, v) => v !== null)
-  @IsDateString()
+  @IsDateString({ strict: true })
   expiresAt?: string | null;
 }

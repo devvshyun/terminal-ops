@@ -23,6 +23,16 @@ export const DEMO_ACCOUNTS: { loginId: string; displayName: string; role: Role; 
 ];
 
 /**
+ * 시연 계정·시연 외부 업체 키를 넣어도 되나(Task 5 보안 리뷰, decisions/0054). 둘 다 저장소에 공개된 고정 값이라
+ * NODE_ENV=production이면 넣지 않는다(켜는 플래그도 두지 않는다 — 운영 DB에 공개 비밀번호가 들어갈 길을 남기지 않는다).
+ * 개발에서도 SEED_DEMO=0이면 기준 데이터만 넣는다.
+ */
+export function demoSeedAllowed(e: Record<string, string | undefined> = process.env): boolean {
+  if (e.NODE_ENV === 'production') return false;
+  return e.SEED_DEMO !== '0';
+}
+
+/**
  * 외부 업체 시연 키(decisions/0054). 원문을 시드에 고정한 **테스트 값**이다 — 시연 때 README의 curl을 그대로 쓰게.
  * 실제 발급(POST /admin/partner-keys)은 원문을 그 응답에서 한 번만 보여 주고 저장하지 않는다.
  */

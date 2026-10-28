@@ -190,3 +190,4 @@
 - [ ] 캐시·세션 무효화는 DB 커밋 뒤에 — 트랜잭션 안에서 무효화하면 읽는 쪽이 옛 행을 새 세대로 캐시한다 (decisions/0050)
 - [ ] ioredis `eval` 대 `defineCommand`(EVALSHA, NOSCRIPT면 EVAL로 다시) — 요청마다 스크립트 본문을 보내는 비용 (apps/api/src/auth/session.store.ts, devlog 2026-10-28 보강 2 마감)
 - [ ] type-is `hasBody` — Content-Length: 0도 본문이 있다고 본다, `req.is()`가 null인 경우 (decisions/0050, auth.e2e)
+- [ ] InnoDB `FOR UPDATE`와 인덱스 — 인덱스 없는 조건은 훑은 행을 모두 잠근다, REPEATABLE READ 스냅샷 읽기와 잠금 읽기(현재 값)의 차이 (decisions/0054 보강 2 마감 보탬)
