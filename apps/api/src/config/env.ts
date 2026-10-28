@@ -16,6 +16,13 @@ function required(name: string): string {
   return value;
 }
 
+/** 비밀 값(키). 없거나 너무 짧으면 시작할 때 던진다 */
+function requiredSecret(name: string, minLength: number): string {
+  const value = required(name);
+  if (value.length < minLength) throw new Error(`환경변수 ${name}는 ${minLength}자 이상이어야 합니다.`);
+  return value;
+}
+
 function flag(name: string, fallback: boolean): boolean {
   const value = process.env[name];
   return value === undefined ? fallback : value === '1' || value === 'true';
@@ -142,6 +149,8 @@ export const env = {
   /** 같은 아이디로 로그인 실패가 이만큼 쌓이면 LOGIN_LOCK_MS 동안 막는다(첫 실패부터 잰다, decisions/0050) */
   loginMaxFailures: intFromEnv('LOGIN_MAX_FAILURES', 5, { min: 1, max: 100 }),
   loginLockMs: intFromEnv('LOGIN_LOCK_MS', 15 * 60_000, MS),
+  /** 단말기(시뮬레이터)가 `X-Device-Key`로 보내는 공유 키. 16자 이상(decisions/0055) */
+  deviceApiKey: requiredSecret('DEVICE_API_KEY', 16),
   /** 테스트 전용 인증 헤더(X-Operator·X-Test-Role). NODE_ENV=test가 아니면 켜지지 않고 던진다(decisions/0056) */
   authTestHeaders: resolveAuthTestHeaders(process.env.AUTH_TEST_HEADERS, process.env.NODE_ENV),
   /** SyncRun에 남길 작업 프로세스 이름(워커 2개 실험에서 구분용) */

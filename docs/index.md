@@ -2,7 +2,7 @@
 
 > 이 파일은 `node scripts/docs-index.mjs`가 만든다. 손으로 고치지 않는다(decisions/0046). 기록을 더한 뒤 다시 만들고, `--check`로 확인한다.
 
-## 결정 기록 (53)
+## 결정 기록 (54)
 
 - [0001](decisions/0001-인증은-작업자-헤더로.md) 인증은 하지 않고, 작업자는 요청 헤더로 기록한다
 - [0002](decisions/0002-esm-vitest-tsc-빌드.md) ESM + Vitest + tsc 빌드로 API를 만든다
@@ -56,6 +56,7 @@
 - [0050](decisions/0050-로그인은-Redis-서버-세션과-httpOnly-쿠키로.md) 로그인은 Redis 서버 세션과 httpOnly 쿠키로 한다
 - [0051](decisions/0051-비밀번호-해시는-node-scrypt-계정-테이블은-user-account.md) 비밀번호 해시는 node:crypto scrypt, 계정 테이블은 user_account
 - [0052](decisions/0052-역할별-엔드포인트-표와-기본-거부.md) 역할별 엔드포인트 표와 기본 거부
+- [0055](decisions/0055-단말기는-공유-단말기-키로.md) 단말기는 공유 단말기 키(X-Device-Key)로 부른다
 - [0056](decisions/0056-작업자는-로그인-아이디-X-Operator는-테스트-전용.md) 작업자는 로그인 아이디, X-Operator는 테스트 전용 인증 길로만 남긴다
 
 ## 트러블슈팅 (30)
@@ -91,7 +92,7 @@
 - [0029](troubleshooting/0029-swc는-계약의-타입-별칭을-design-type에-Object로-내보낸다.md) swc(vitest)는 타입 별칭(유니온)을 design:type에 Object로 내보낸다 (tsc 빌드는 String)
 - [0030](troubleshooting/0030-다른-브랜치가-쓴-테스트-DB에서-schema-refresh가-merchant를-못-지운다.md) 다른 브랜치가 쓴 테스트 DB에서 schema.refresh가 merchant를 못 지운다
 
-## 실험 (16)
+## 실험 (17)
 
 - [0001](experiments/0001-같은-단말기-동시-전이.md) 같은 단말기 동시 전이
 - [0002](experiments/0002-같은-단말기-동시-검수.md) 같은 단말기 동시 검수
@@ -109,3 +110,4 @@
 - [0014](experiments/0014-워커-강제-종료와-알림.md) 워커 강제 종료와 알림(유실·중복), job 유실과 복구 sweep
 - [0015](experiments/0015-대시보드-캐시-전후.md) 대시보드 캐시 전후 — p50/p95, 동시 요청의 MySQL 쿼리 수
 - [0016](experiments/0016-상태-조건-목록-status-id-인덱스.md) 상태 조건 단말기 목록의 (status, id) 인덱스 — 계획, 읽은 행, 시간, 쓰기 비용
+- [0017](experiments/0017-인증-뒤-하트비트-처리량.md) 인증(전역 가드 + 단말기 키) 뒤 하트비트 처리량

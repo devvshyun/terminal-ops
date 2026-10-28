@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { defaultConfig, invalidPatchReason, invalidReason, type SimConfig } from './config.js';
+import { defaultConfig, invalidPatchReason, invalidReason, publicConfig, type SimConfig } from './config.js';
 import { Fleet } from './fleet.js';
 import { BadJsonError, readJson, sendJson } from './http.js';
 
@@ -21,7 +21,7 @@ async function route(fleet: Fleet, serialize: Serialize, req: IncomingMessage, r
   let m: RegExpMatchArray | null;
 
   if (method === 'GET' && path === '/__admin/health') return sendJson(res, 200, { status: 'ok' });
-  if (method === 'GET' && path === '/__admin/config') return sendJson(res, 200, fleet.config);
+  if (method === 'GET' && path === '/__admin/config') return sendJson(res, 200, publicConfig(fleet.config));
   if (method === 'POST' && path === '/__admin/config') {
     const patch = (await readJson(req)) ?? {};
     const patchReason = invalidPatchReason(patch);
@@ -40,7 +40,7 @@ async function route(fleet: Fleet, serialize: Serialize, req: IncomingMessage, r
       } finally {
         if (wasRunning) fleet.start();
       }
-      return sendJson(res, 200, fleet.config);
+      return sendJson(res, 200, publicConfig(fleet.config));
     });
   }
   if (method === 'POST' && path === '/__admin/start') {
@@ -58,7 +58,7 @@ async function route(fleet: Fleet, serialize: Serialize, req: IncomingMessage, r
   if (method === 'POST' && path === '/__admin/reset') {
     return serialize(async () => {
       await fleet.reset(defaultConfig());
-      return sendJson(res, 200, fleet.config);
+      return sendJson(res, 200, publicConfig(fleet.config));
     });
   }
   if (method === 'GET' && path === '/__admin/stats') return sendJson(res, 200, { running: fleet.running, ...fleet.stats.view() });

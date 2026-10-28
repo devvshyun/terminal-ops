@@ -4,6 +4,7 @@ import type { INestApplication } from '@nestjs/common';
 import { MikroORM } from '@mikro-orm/mysql';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module.js';
+import { env } from '../../src/config/env.js';
 import { seedReference } from '../../src/db/seed-reference.js';
 
 /**
@@ -19,7 +20,7 @@ export interface TestApp {
   app: INestApplication;
   orm: MikroORM;
   /**
-   * supertest 에이전트. 기본으로 DEFAULT_IDENTITY 헤더를 붙인다. `http(null)`은 아무 헤더도 붙이지 않는다(로그인 안 한 요청, 쿠키 로그인).
+   * supertest 에이전트. 기본으로 DEFAULT_IDENTITY 헤더와 단말기 키(X-Device-Key)를 붙인다. `http(null)`은 아무 헤더도 붙이지 않는다(로그인 안 한 요청, 쿠키 로그인).
    * 에이전트는 부를 때마다 새로 만든다 — 쿠키가 다음 요청으로 새지 않는다.
    */
   http: (identity?: TestIdentity | null) => ReturnType<typeof request>;
@@ -38,7 +39,8 @@ export async function createTestApp(options: { workers?: boolean } = {}): Promis
   const orm: MikroORM = app.get(MikroORM);
   const http = (identity: TestIdentity | null = DEFAULT_IDENTITY) => {
     const agent = request.agent(app.getHttpServer());
-    if (identity) agent.set(identity);
+    // 사람 헤더와 함께 단말기 키도 붙인다(단말기 API를 부르는 기존 테스트가 그대로 돌게, decisions/0055). 사람 API는 이 헤더를 보지 않는다
+    if (identity) agent.set({ ...identity, 'X-Device-Key': env.deviceApiKey });
     return agent;
   };
   return { app, orm, http };

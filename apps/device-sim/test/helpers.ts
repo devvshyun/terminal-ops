@@ -8,6 +8,8 @@ export interface ReceivedRequest {
   body: Record<string, unknown>;
   /** 요청이 온 소켓(클라이언트 포트). keep-alive면 같은 값이 되풀이된다 */
   remotePort: number;
+  /** 요청 헤더(이름은 소문자) */
+  headers: IncomingMessage['headers'];
 }
 
 type Handler = (req: ReceivedRequest, res: ServerResponse) => Promise<void> | void;
@@ -29,7 +31,7 @@ export async function startFakeApi(handler: Handler = okHandler) {
       inFlight += 1;
       maxInFlight = Math.max(maxInFlight, inFlight);
       try {
-        const r = { path: req.url ?? '', body: (await readJson(req)) ?? {}, remotePort: req.socket.remotePort ?? 0 };
+        const r = { path: req.url ?? '', body: (await readJson(req)) ?? {}, remotePort: req.socket.remotePort ?? 0, headers: req.headers };
         received.push(r);
         await current(r, res);
       } finally {

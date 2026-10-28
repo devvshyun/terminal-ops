@@ -2,6 +2,8 @@
 export interface SimConfig {
   /** 하트비트를 보낼 API 주소(예: http://127.0.0.1:3000) */
   targetUrl: string;
+  /** API의 단말기 키(`X-Device-Key`, api decisions/0055). 기본은 환경변수 DEVICE_API_KEY. 비면 헤더를 보내지 않는다(API가 401) */
+  deviceKey: string;
   /** 단말기 시리얼 목록. 비어 있으면 serialPrefix·serialStart·count로 만든다(`HB-0001` …) */
   serials: string[];
   serialPrefix: string;
@@ -38,6 +40,7 @@ export type SimConfigPatch = Partial<SimConfig>;
 export function defaultConfig(): SimConfig {
   return {
     targetUrl: 'http://127.0.0.1:3000',
+    deviceKey: process.env.DEVICE_API_KEY ?? '',
     serials: [],
     serialPrefix: 'HB',
     serialStart: 1,
@@ -56,6 +59,11 @@ export function defaultConfig(): SimConfig {
   };
 }
 
+/** 관리 API가 보여 주는 설정 — 단말기 키는 있는지만 보인다(`(설정됨)`) */
+export function publicConfig(config: SimConfig): SimConfig {
+  return { ...config, deviceKey: config.deviceKey ? '(설정됨)' : '' };
+}
+
 /** 단말기 시리얼 목록 */
 export function serialsOf(config: SimConfig): string[] {
   if (config.serials.length > 0) return [...config.serials];
@@ -72,6 +80,7 @@ type Rule =
 /** 설정 키마다 형식·범위. 새 설정 키는 여기에 한 줄을 더해야 관리 API가 받는다(알 수 없는 키는 400) */
 export const CONFIG_RULES: Record<keyof SimConfig, Rule> = {
   targetUrl: { type: 'url' },
+  deviceKey: { type: 'string' },
   serials: { type: 'strings', max: MAX_DEVICES },
   serialPrefix: { type: 'string', nonEmpty: true },
   serialStart: { type: 'int', min: 0, max: 1_000_000_000 },
