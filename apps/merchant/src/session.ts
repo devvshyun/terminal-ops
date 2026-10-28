@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { MeView } from '@terminal-ops/contracts';
 
+// 현장 앱 `apps/field/src/session.ts`에 사본이 있다 — 같이 고친다(decisions/0062, 현장 `src/copies.test.ts`가 코드 차이를 본다)
 /**
  * 지금 로그인한 사람(GET /auth/me 결과만, 어드민 session.ts와 같은 규칙 — decisions/0058). 세션 자체는 서버의 httpOnly 쿠키다.
  * - undefined: 아직 모름(AuthGate가 /auth/me를 부른다)
