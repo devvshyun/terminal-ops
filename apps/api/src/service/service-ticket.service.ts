@@ -3,7 +3,7 @@ import { EntityManager, LoadStrategy, LockMode } from '@mikro-orm/mysql';
 import type { RuleViolationCode } from '@terminal-ops/contracts';
 import { BusinessError } from '../common/domain-errors.js';
 import { beforeIdWhere, keysetPage } from '../common/keyset.js';
-import { outOfScope, type MerchantScope } from '../merchant/merchant-scope.js';
+import { MERCHANT_VISIBLE_STATUSES, outOfScope, type MerchantScope } from '../merchant/merchant-scope.js';
 import { Terminal } from '../terminal/terminal.entity.js';
 import { TerminalStatus } from '../terminal/terminal-status.js';
 import type { ListTicketsQuery, OpenTicketDto, RemoteCheckDto } from './dto/service-ticket.dto.js';
@@ -25,7 +25,11 @@ export class ServiceTicketService {
   async open(dto: OpenTicketDto, actor: string, scope?: MerchantScope): Promise<ServiceTicket> {
     const id = await this.em.fork().transactional(async (tx) => {
       const terminal = await tx.findOne(Terminal, { serialNo: dto.serialNo }, { lockMode: LockMode.PESSIMISTIC_WRITE });
-      if (!terminal || (scope && terminal.merchant?.id !== scope.merchantId)) throw outOfScope(`단말기 ${dto.serialNo}`);
+      // 범위 밖 = 없음 / 다른 가맹점 / 점주에게 보이지 않는 상태(회수 뒤 재고로 돌아갔는데 가맹점만 남은 단말기, decisions/0059).
+      // 마지막 경우도 같은 404여야 옛 가맹점이 본사 재고의 현재 상태를 422 메시지로 알아내지 못한다.
+      if (!terminal || (scope && (terminal.merchant?.id !== scope.merchantId || !MERCHANT_VISIBLE_STATUSES.includes(terminal.status)))) {
+        throw outOfScope(`단말기 ${dto.serialNo}`);
+      }
       if (terminal.status !== TerminalStatus.IN_SERVICE || !terminal.merchant) {
         throw new BusinessError(422, 'TERMINAL_NOT_IN_SERVICE', `운영 중(IN_SERVICE)인 단말기만 A/S 접수할 수 있습니다(현재: ${terminal.status}).`);
       }

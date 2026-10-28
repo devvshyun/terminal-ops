@@ -54,3 +54,13 @@ export function merchantEvents(history: TerminalStatusHistory[]): MerchantTermin
     .filter((h) => MERCHANT_VISIBLE_STATUSES.includes(h.toStatus))
     .map((h) => ({ status: h.toStatus, occurredAt: h.occurredAt.toISOString() }));
 }
+
+/**
+ * 접속 요약을 이번 배정(마지막 ALLOCATED) 기준으로 자른다: 마지막 접속이 이번 배정보다 앞이면 앞 주기(옛 가맹점)의 값이라
+ * 마지막 접속·펌웨어를 비우고 오프라인으로 준다. 이번 주기에 하트비트가 아직 없는 단말기와 같은 모양이다.
+ * 배정 이력이 없으면(데이터를 손으로 넣은 경우) 자르지 않는다.
+ */
+export function currentCycleConnectivity(c: ConnectivityView, allocatedAt: Date | undefined): ConnectivityView {
+  if (!allocatedAt || c.lastSeenAt === null || new Date(c.lastSeenAt).getTime() >= allocatedAt.getTime()) return c;
+  return { ...c, online: false, lastSeenAt: null, firmwareVersion: null };
+}

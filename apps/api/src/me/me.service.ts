@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/mysql';
-import type { MerchantShipmentView, MerchantTerminalDetail, MerchantTerminalPage, MerchantTerminalView, MerchantView } from '@terminal-ops/contracts';
+import type { ConnectivityView, MerchantShipmentView, MerchantTerminalDetail, MerchantTerminalPage, MerchantTerminalView, MerchantView } from '@terminal-ops/contracts';
 import { ConnectivityService } from '../device/connectivity.service.js';
 import type { MerchantScope } from '../merchant/merchant-scope.js';
 import { Merchant } from '../merchant/merchant.entity.js';
@@ -11,12 +11,12 @@ import { TerminalStatusHistory } from '../terminal/terminal-status-history.entit
 import { TerminalStatus } from '../terminal/terminal-status.js';
 import { TerminalService } from '../terminal/terminal.service.js';
 import type { MeTerminalsQuery } from './me.dto.js';
-import { merchantEvents, toMerchantShipmentView, toMerchantTerminalView } from './me.views.js';
+import { currentCycleConnectivity, merchantEvents, toMerchantShipmentView, toMerchantTerminalView } from './me.views.js';
 
 /**
  * 가맹점주 화면의 단말기 묶음(보강 3, decisions/0059). 범위(어느 단말기가 보이나)는 TerminalService가 scope로 정하고(0053·0059),
  * 여기서는 그 단말기들에 접속 요약(운영 중만)과 이번 배정의 운송장(배송 중·배송 완료만)을 붙인다.
- * 쿼리 수는 쪽 크기와 상관없다: 목록 2(단말기·count) + 접속 Redis 파이프라인 1·스냅샷 0~1 + 운송장 0~3(운송장·이벤트·교체 접수).
+ * 쿼리 수는 쪽 크기와 상관없다: 목록 2(단말기·count) + 접속 Redis 파이프라인 1·스냅샷 0~1·배정 시각 1 + 운송장 0~3(운송장·이벤트·교체 접수).
  */
 @Injectable()
 export class MeService {
@@ -47,9 +47,22 @@ export class MeService {
   private async views(terminals: Terminal[]): Promise<MerchantTerminalView[]> {
     const live = terminals.filter((t) => t.status === TerminalStatus.IN_SERVICE);
     const moving = terminals.filter((t) => t.status === TerminalStatus.SHIPPED || t.status === TerminalStatus.DELIVERED);
-    const connectivity = await this.connectivity.getMany(live);
+    const connectivity = await this.currentCycleConnectivity(live);
     const shipments = await this.latestShipments(moving);
     return terminals.map((t) => toMerchantTerminalView(t, connectivity.get(t.id) ?? null, shipments.get(t.id) ?? null));
+  }
+
+  /** 접속 요약(운영 중만) — 이번 배정 전의 마지막 접속·펌웨어는 비운다. 배정 시각은 `IN (…)` 한 번으로 읽는다(쿼리 +1) */
+  private async currentCycleConnectivity(live: Terminal[]): Promise<Map<number, ConnectivityView>> {
+    const out = await this.connectivity.getMany(live);
+    if (live.length === 0) return out;
+    const allocations = await this.em
+      .fork()
+      .find(TerminalStatusHistory, { terminal: { $in: live.map((t) => t.id) }, toStatus: TerminalStatus.ALLOCATED }, { orderBy: { id: 'desc' } });
+    const lastAllocatedAt = new Map<number, Date>();
+    for (const h of allocations) if (!lastAllocatedAt.has(h.terminal.id)) lastAllocatedAt.set(h.terminal.id, h.occurredAt);
+    for (const [terminalId, c] of out) out.set(terminalId, currentCycleConnectivity(c, lastAllocatedAt.get(terminalId)));
+    return out;
   }
 
   /**

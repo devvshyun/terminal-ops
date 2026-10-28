@@ -1,5 +1,5 @@
 import type { MerchantTicketView, TicketView } from '@terminal-ops/contracts';
-import type { ServiceTicket } from './service-ticket.entity.js';
+import { ServiceTicketStatus, type ServiceTicket } from './service-ticket.entity.js';
 
 /** terminal, merchant, replacementTerminal, outboundShipment가 populate돼 있어야 한다. */
 export function toTicketView(t: ServiceTicket): TicketView {
@@ -35,7 +35,8 @@ export function toMerchantTicketView(t: ServiceTicket, myLoginId: string): Merch
     outboundTrackingNo: t.outboundShipment?.trackingNo ?? null,
     openedByMe: t.openedBy === myLoginId,
     remoteChecked: t.remoteNote !== null,
-    replacementStatus: t.replacementTerminal?.status ?? null,
+    // 교체 중일 때만: 종결된 뒤의 교체 단말기는 점주에게 "내 단말기"로 따로 보이고, 그 상태 변화(수리·회수 등)를 이 접수에서 알려 줄 이유가 없다(decisions/0059)
+    replacementStatus: t.status === ServiceTicketStatus.REPLACING ? (t.replacementTerminal?.status ?? null) : null,
     createdAt: t.createdAt.toISOString(),
     closedAt: t.closedAt?.toISOString() ?? null,
   };
