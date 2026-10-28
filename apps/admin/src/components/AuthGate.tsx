@@ -7,7 +7,7 @@ import { UserBar } from './UserBar';
 
 /**
  * 로그인해야 보이는 화면들의 문. 처음에는 GET /auth/me로 서버 세션을 확인하고, 로그인 안 했으면(401) 로그인 화면으로 보낸다(돌아올 주소를 함께).
- * 가맹점주는 이 사내 어드민을 쓰지 않는다 — 안내와 로그아웃만(가맹점 화면은 다음 묶음, API는 `/me`).
+ * 가맹점주는 이 사내 어드민을 쓰지 않는다 — 안내와 로그아웃만(점주는 매장 화면 `apps/merchant`, 보강 3 decisions/0057).
  */
 export function AuthGate({ children }: { children: ReactNode }) {
   const { me, error } = useSessionCheck();
@@ -22,7 +22,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (me.role === 'MERCHANT') {
     return (
       <div className="login">
-        <p>가맹점 계정은 사내 운영 어드민을 쓰지 않습니다. 가맹점 화면은 다음 묶음에서 열립니다.</p>
+        <p>가맹점 계정은 사내 운영 어드민을 쓰지 않습니다. 매장 화면(개발 서버 :5174)을 쓰세요.</p>
         <UserBar />
       </div>
     );
