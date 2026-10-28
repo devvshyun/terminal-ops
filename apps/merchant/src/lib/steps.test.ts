@@ -15,6 +15,11 @@ describe('A/S 진행 단계 (decisions/0060)', () => {
     expect(line(ticketSteps({ status: 'REPLACING', remoteChecked: false, replacementStatus: 'DELIVERED' }))).toBe('✓접수 ✓원격 점검 ✓교체 출고 ✓배송 중 ▶설치 확인 ·완료');
   });
 
+  it('교체 중인데 교체 단말기 상태가 없거나(null, api는 교체 중에만 값을 준다) 아직 배정 단계면 교체 출고 차례', () => {
+    expect(line(ticketSteps({ status: 'REPLACING', remoteChecked: true, replacementStatus: null }))).toBe('✓접수 ✓원격 점검 ▶교체 출고 ·배송 중 ·설치 확인 ·완료');
+    expect(line(ticketSteps({ status: 'REPLACING', remoteChecked: true, replacementStatus: 'ALLOCATED' }))).toBe('✓접수 ✓원격 점검 ▶교체 출고 ·배송 중 ·설치 확인 ·완료');
+  });
+
   it('완료와 원격 해결은 모두 지남', () => {
     expect(line(ticketSteps({ status: 'CLOSED', remoteChecked: true, replacementStatus: 'IN_SERVICE' }))).toBe('✓접수 ✓원격 점검 ✓교체 출고 ✓배송 중 ✓설치 확인 ✓완료');
     expect(line(ticketSteps({ status: 'RESOLVED_REMOTELY', remoteChecked: true, replacementStatus: null }))).toBe('✓접수 ✓원격 점검 ✓원격으로 해결');

@@ -2,7 +2,7 @@ import { Link, useParams } from 'react-router';
 import { useMyTerminal, useMyTickets } from '../api/queries';
 import { ErrorBox } from '../components/ErrorBox';
 import { StepList } from '../components/StepList';
-import { ConnectivityLine, StatusBadge } from '../components/TerminalBits';
+import { ConnectivityLine, DeliveredHint, StatusBadge } from '../components/TerminalBits';
 import { formatKst, formatKstShort } from '../lib/format';
 import { CARRIER_LABEL, RETURN_GUIDE, TERMINAL_EVENT_LABEL, TICKET_STATUS_LABEL } from '../lib/labels';
 import { shipmentSteps } from '../lib/steps';
@@ -68,6 +68,7 @@ export function TerminalDetailPage() {
         </section>
       ) : null}
 
+      <DeliveredHint t={t} />
       {RETURN_GUIDE[t.status] ? <p className="notice">{RETURN_GUIDE[t.status]}</p> : null}
 
       {t.status === 'IN_SERVICE' && tickets.data && !hasOpenTicket ? (

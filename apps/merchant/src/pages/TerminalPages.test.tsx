@@ -68,6 +68,29 @@ describe('홈 (보강 3, decisions/0060)', () => {
     expect(calls.find((c) => c.path === '/me/terminals')?.query.get('size')).toBe('100');
   });
 
+  it('단말기는 왔는데 A/S 목록이 아직 오는 중이면 "불러오는 중"', async () => {
+    loginAs();
+    mockApi({
+      'GET /me/terminals': () => ({ body: page([terminal()]) }),
+      'GET /me/service-tickets': () => new Promise(() => {}),
+    });
+    renderPage(<HomePage />);
+    const region = within(await screen.findByRole('region', { name: '진행 중인 A/S' }));
+    expect(region.getByText('불러오는 중…')).toBeInTheDocument();
+    expect(region.queryByText('진행 중인 A/S가 없습니다.')).not.toBeInTheDocument();
+  });
+
+  it('배송 완료된 교체 단말기는 설치 확인 안내, 회수 요청은 새 문구', async () => {
+    loginAs();
+    mockApi({
+      'GET /me/terminals': () => ({ body: page([{ ...shipping, status: 'DELIVERED' }, terminal({ serialNo: 'SN-0009', status: 'RETURN_REQUESTED', connectivity: null })]) }),
+      'GET /me/service-tickets': () => ({ body: keyset([]) }),
+    });
+    renderPage(<HomePage />);
+    expect(await screen.findByText('설치한 뒤 A/S 화면에서 설치 확인을 눌러 주세요.')).toBeInTheDocument();
+    expect(screen.getByText('고장 단말기를 상자에 담아 두세요. 기사님이 방문해 수거합니다.')).toBeInTheDocument();
+  });
+
   it('단말기도 A/S도 없으면 안내만', async () => {
     loginAs();
     mockApi({ 'GET /me/terminals': () => ({ body: page([]) }), 'GET /me/service-tickets': () => ({ body: keyset([]) }) });
@@ -124,6 +147,28 @@ describe('단말기 상세', () => {
     expect(screen.getByRole('link', { name: '#7 교체 단말기' })).toHaveAttribute('href', '/service-tickets/7');
     expect(screen.queryByRole('heading', { name: '연결' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /고장 접수하기/ })).not.toBeInTheDocument();
+  });
+
+  it('배송 완료(DELIVERED)된 교체 단말기: 홈과 같은 설치 안내', async () => {
+    loginAs();
+    mockApi({
+      'GET /me/terminals/:serialNo': () => ({ body: { ...shipping, status: 'DELIVERED', events: [{ status: 'ALLOCATED', occurredAt: '2026-10-28T00:00:00.000Z' }] } }),
+      'GET /me/service-tickets': () => ({ body: keyset([]) }),
+    });
+    renderDetail('SN-0101');
+    expect(await screen.findByText('설치한 뒤 A/S 화면에서 설치 확인을 눌러 주세요.')).toBeInTheDocument();
+  });
+
+  it('회수 중(RETURNING)은 수거 안내, 접속 기록이 없으면 "접속 기록 없음"', async () => {
+    loginAs();
+    mockApi({
+      'GET /me/terminals/:serialNo': () =>
+        ({ body: terminalDetail({ status: 'RETURNING', connectivity: { online: false, lastSeenAt: null, firmwareVersion: null } }) }),
+      'GET /me/service-tickets': () => ({ body: keyset([]) }),
+    });
+    renderDetail();
+    expect(await screen.findByText('기사님이 수거했습니다. 본사에 도착하면 회수 완료로 바뀝니다.')).toBeInTheDocument();
+    expect(screen.getByText('접속 기록 없음')).toBeInTheDocument();
   });
 
   it('남의 단말기·본사로 돌아간 단말기(404)는 "찾는 내용이 없습니다"', async () => {

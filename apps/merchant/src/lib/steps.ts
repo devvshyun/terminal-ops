@@ -26,7 +26,8 @@ export function ticketSteps(t: Pick<MerchantTicketView, 'status' | 'remoteChecke
     case 'CLOSED':
       return fill(TICKET_STEP_LABELS, TICKET_STEP_LABELS.length);
     case 'REPLACING':
-      return fill(TICKET_STEP_LABELS, t.replacementStatus === 'DELIVERED' ? 4 : 3);
+      // 교체 단말기 상태는 교체 중일 때만 오고 아직 배정 단계(ALLOCATED)이거나 비어(null) 있으면 교체 출고 차례
+      return fill(TICKET_STEP_LABELS, t.replacementStatus === 'DELIVERED' ? 4 : t.replacementStatus === 'SHIPPED' ? 3 : 2);
     case 'OPEN':
       return fill(TICKET_STEP_LABELS, t.remoteChecked ? 2 : 1);
   }

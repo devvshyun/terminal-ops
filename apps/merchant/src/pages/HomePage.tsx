@@ -4,7 +4,7 @@ import type { MerchantTerminalView, TerminalStatus } from '@terminal-ops/contrac
 import { useMyTerminals, useMyTickets } from '../api/queries';
 import { ErrorBox } from '../components/ErrorBox';
 import { currentStep } from '../components/StepList';
-import { ConnectivityLine, ShipmentLine, StatusBadge } from '../components/TerminalBits';
+import { ConnectivityLine, DeliveredHint, ShipmentLine, StatusBadge } from '../components/TerminalBits';
 import { RETURN_GUIDE, TICKET_STATUS_LABEL } from '../lib/labels';
 import { ticketSteps } from '../lib/steps';
 
@@ -68,9 +68,7 @@ export function HomePage() {
                   {t.shipment.ticketId ? <div className="muted">A/S #{t.shipment.ticketId} 교체 단말기</div> : null}
                 </div>
               ) : null}
-              {t.status === 'DELIVERED' ? (
-                <div className="muted">{t.shipment?.ticketId ? '설치한 뒤 A/S 화면에서 설치 확인을 눌러 주세요.' : '설치가 끝나면 사용 중으로 바뀝니다.'}</div>
-              ) : null}
+              <DeliveredHint t={t} />
             </TerminalCard>
           ))}
         </section>
@@ -79,6 +77,7 @@ export function HomePage() {
       <section aria-labelledby="h-tickets">
         <h2 id="h-tickets">진행 중인 A/S</h2>
         {tickets.error ? <ErrorBox error={tickets.error} /> : null}
+        {!tickets.data && !tickets.error ? <p className="muted">불러오는 중…</p> : null}
         {tickets.data && openTickets.length === 0 ? <p className="muted">진행 중인 A/S가 없습니다.</p> : null}
         {openTickets.map((t) => (
           <Link key={t.id} className="card" to={`/service-tickets/${t.id}`}>

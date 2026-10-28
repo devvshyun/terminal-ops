@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { api } from './api/client';
 import { getMe } from './session';
+import { terminal } from './test/fixtures';
 import { mockApi, OWNER, renderApp } from './test/render';
 
 /** 홈 화면(HomePage)이 부르는 두 목록의 빈 응답 — 홈이 그려지는 테스트에서 404 오류 상자가 끼어들지 않게 */
@@ -78,18 +79,20 @@ describe('사용자 전환과 로그아웃 (회귀 방지)', () => {
   const UNAUTH = { status: 401, body: { statusCode: 401, code: 'UNAUTHENTICATED', message: '세션이 끝났습니다.' } };
   const OWNER_B = { ...OWNER, loginId: 'merchant-yeoksam', displayName: '역삼카페 점주', merchantCode: 'YEOKSAM-CAFE' };
 
-  it('점주 A의 매장 이름(staleTime 무한)이 세션 401 뒤 점주 B 로그인에서 B 것으로 바뀐다', async () => {
+  it('점주 A의 매장 이름(staleTime 무한)과 단말기 목록이 세션 401 뒤 점주 B 로그인에서 B 것으로 바뀐다', async () => {
     let loggedIn: 'A' | 'B' = 'A';
     let expired = false;
     mockApi({
       'GET /auth/me': () => ({ body: OWNER }),
       'GET /me/merchant': () => ({ body: loggedIn === 'A' ? STORE : { code: 'YEOKSAM-CAFE', name: '역삼카페', address: '서울 강남구 역삼동' } }),
       ...HOME_EMPTY,
-      'GET /me/terminals': () => (expired ? UNAUTH : { body: { items: [], total: 0, page: 1, size: 100 } }),
+      // 점주마다 다른 단말기 — 캐시가 남으면 B 화면에 A의 단말기가 보인다
+      'GET /me/terminals': () => (expired ? UNAUTH : { body: { items: [terminal({ serialNo: loggedIn === 'A' ? 'SN-A' : 'SN-B' })], total: 1, page: 1, size: 100 } }),
       'POST /auth/login': () => ({ body: OWNER_B }),
     });
     renderApp('/');
     expect(await screen.findByText('강남김밥')).toBeInTheDocument();
+    expect(await screen.findByText('SN-A')).toBeInTheDocument();
 
     // 세션이 끝난 뒤의 401 → 로그인 화면(캐시는 비워짐)
     expired = true;
@@ -101,6 +104,8 @@ describe('사용자 전환과 로그아웃 (회귀 방지)', () => {
     await userEvent.click(screen.getByRole('button', { name: '로그인' }));
     expect(await screen.findByText('역삼카페')).toBeInTheDocument();
     expect(screen.queryByText('강남김밥')).not.toBeInTheDocument();
+    expect(await screen.findByText('SN-B')).toBeInTheDocument();
+    expect(screen.queryByText('SN-A')).not.toBeInTheDocument();
   });
 
   it('로그아웃 요청이 실패(500)하면 안내를 보이고 로그인 상태를 유지한다', async () => {
@@ -129,7 +134,7 @@ describe('사용자 전환과 로그아웃 (회귀 방지)', () => {
     expect(await screen.findByRole('link', { name: '홈' })).toHaveAttribute('aria-current', 'page');
     first.unmount();
 
-    renderApp('/no/such/page');
+    renderApp('/no-such/deep/path');
     expect(await screen.findByText('없는 화면입니다.')).toBeInTheDocument(); // 깊은 주소에서 시작
     await userEvent.click(screen.getByRole('button', { name: '로그아웃' }));
     await userEvent.type(await screen.findByLabelText('아이디'), 'merchant-gangnam');

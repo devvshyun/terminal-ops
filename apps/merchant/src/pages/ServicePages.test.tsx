@@ -96,7 +96,7 @@ describe('A/S 상세와 설치 확인', () => {
     mockApi({ 'GET /me/service-tickets/:id': () => ({ body: ticket({ status: 'REPLACING', remoteChecked: true, replacementSerialNo: 'SN-0101', replacementStatus: null }) }) });
     renderDetail();
     const steps = within(await screen.findByRole('list', { name: 'A/S 진행 단계' })).getAllByRole('listitem');
-    expect(steps.find((s) => s.getAttribute('aria-current') === 'step')).toHaveTextContent('배송 중');
+    expect(steps.find((s) => s.getAttribute('aria-current') === 'step')).toHaveTextContent('교체 출고');
     expect(screen.queryByRole('button', { name: '설치 확인' })).not.toBeInTheDocument();
   });
 

@@ -48,7 +48,7 @@ export const TERMINAL_EVENT_LABEL: Record<TerminalStatus, string> = {
 
 /** 회수 중인 단말기에 붙이는 안내 — 점주가 할 일 */
 export const RETURN_GUIDE: Partial<Record<TerminalStatus, string>> = {
-  RETURN_REQUESTED: '교체 단말기를 설치한 뒤 고장 단말기는 상자에 담아 두세요. 기사님이 방문해 수거합니다.',
+  RETURN_REQUESTED: '고장 단말기를 상자에 담아 두세요. 기사님이 방문해 수거합니다.',
   RETURNING: '기사님이 수거했습니다. 본사에 도착하면 회수 완료로 바뀝니다.',
   RETURNED: '본사에 도착했습니다. 더 하실 일은 없습니다.',
 };
