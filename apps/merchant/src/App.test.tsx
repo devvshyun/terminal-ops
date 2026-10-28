@@ -5,6 +5,12 @@ import { api } from './api/client';
 import { getMe } from './session';
 import { mockApi, OWNER, renderApp } from './test/render';
 
+/** 홈 화면(HomePage)이 부르는 두 목록의 빈 응답 — 홈이 그려지는 테스트에서 404 오류 상자가 끼어들지 않게 */
+const HOME_EMPTY = {
+  'GET /me/terminals': () => ({ body: { items: [], total: 0, page: 1, size: 100 } }),
+  'GET /me/service-tickets': () => ({ body: { items: [], nextBeforeId: null } }),
+};
+
 const STORE = { code: 'GANGNAM-KIMBAP', name: '강남김밥', address: '서울 강남구' };
 
 describe('로그인 문과 화면 틀 (보강 3, decisions/0057)', () => {
@@ -74,20 +80,24 @@ describe('사용자 전환과 로그아웃 (회귀 방지)', () => {
 
   it('점주 A의 매장 이름(staleTime 무한)이 세션 401 뒤 점주 B 로그인에서 B 것으로 바뀐다', async () => {
     let loggedIn: 'A' | 'B' = 'A';
+    let expired = false;
     mockApi({
       'GET /auth/me': () => ({ body: OWNER }),
       'GET /me/merchant': () => ({ body: loggedIn === 'A' ? STORE : { code: 'YEOKSAM-CAFE', name: '역삼카페', address: '서울 강남구 역삼동' } }),
-      'GET /me/terminals': () => UNAUTH,
+      ...HOME_EMPTY,
+      'GET /me/terminals': () => (expired ? UNAUTH : { body: { items: [], total: 0, page: 1, size: 100 } }),
       'POST /auth/login': () => ({ body: OWNER_B }),
     });
     renderApp('/');
     expect(await screen.findByText('강남김밥')).toBeInTheDocument();
 
     // 세션이 끝난 뒤의 401 → 로그인 화면(캐시는 비워짐)
+    expired = true;
     await expect(api('/me/terminals')).rejects.toThrow();
     await userEvent.type(await screen.findByLabelText('아이디'), 'merchant-yeoksam');
     await userEvent.type(screen.getByLabelText('비밀번호'), 'pw');
     loggedIn = 'B';
+    expired = false; // 새 세션
     await userEvent.click(screen.getByRole('button', { name: '로그인' }));
     expect(await screen.findByText('역삼카페')).toBeInTheDocument();
     expect(screen.queryByText('강남김밥')).not.toBeInTheDocument();
@@ -97,6 +107,7 @@ describe('사용자 전환과 로그아웃 (회귀 방지)', () => {
     mockApi({
       'GET /auth/me': () => ({ body: OWNER }),
       'GET /me/merchant': () => ({ body: STORE }),
+      ...HOME_EMPTY,
       'POST /auth/logout': () => ({ status: 500, body: { statusCode: 500, message: '서버 오류' } }),
     });
     renderApp('/');
@@ -110,6 +121,7 @@ describe('사용자 전환과 로그아웃 (회귀 방지)', () => {
     mockApi({
       'GET /auth/me': () => ({ body: OWNER }),
       'GET /me/merchant': () => ({ body: STORE }),
+      ...HOME_EMPTY,
       'POST /auth/logout': () => ({ status: 204 }),
       'POST /auth/login': () => ({ body: OWNER }),
     });
