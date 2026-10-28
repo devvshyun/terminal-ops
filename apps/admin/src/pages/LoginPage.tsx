@@ -4,11 +4,12 @@ import { useMutation } from '@tanstack/react-query';
 import type { LoginRequest, MeView } from '@terminal-ops/contracts';
 import { api } from '../api/client';
 import { ErrorBox } from '../components/ErrorBox';
-import { setMe, useMe } from '../session';
+import { useSessionCheck } from '../hooks/useSessionCheck';
+import { setMe } from '../session';
 
 /** 로그인(api decisions/0050). 성공하면 서버가 httpOnly 세션 쿠키를 주고, 화면은 응답(내 정보)만 기억한다 */
 export function LoginPage() {
-  const me = useMe();
+  const { me, error: checkError } = useSessionCheck();
   const navigate = useNavigate();
   const from = (useLocation().state as { from?: string } | null)?.from ?? '/';
   const [loginId, setLoginId] = useState('');
@@ -22,6 +23,8 @@ export function LoginPage() {
   });
 
   if (me) return <Navigate to={from} replace />;
+  if (me === undefined && !checkError) return <p>로그인 확인 중…</p>;
+  // (확인 요청이 실패했어도 로그인 폼은 연다 — 로그인 요청이 같은 오류를 보여 준다)
 
   const submit = (event: FormEvent) => {
     event.preventDefault();

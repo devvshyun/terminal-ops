@@ -19,6 +19,7 @@ import { CARRIER_LABEL, label, TERMINAL_STATUS_LABEL } from '../lib/labels';
 import { ErrorBox } from './ErrorBox';
 import { WriteButton } from './WriteButton';
 import { keys } from '../api/query-keys';
+import { hasRole, OFFICE, useMe } from '../session';
 
 /** expectedVersion은 run()이 붙인다 */
 type Unversioned<T> = Omit<T, 'expectedVersion'>;
@@ -29,6 +30,10 @@ type Unversioned<T> = Omit<T, 'expectedVersion'>;
  */
 export function TerminalActions({ terminal, onReload }: { terminal: TerminalDetail; onReload: () => void }) {
   const client = useQueryClient();
+  // 서버가 역할마다 허용하는 일만 보인다(api decisions/0052): 전이·배정·취소·출고는 OPERATOR, 검수는 OPERATOR·FIELD
+  const me = useMe();
+  const canOperate = hasRole(me, ['OPERATOR']);
+  const canInspect = hasRole(me, ['OPERATOR', 'FIELD']);
   const path = `/terminals/${encodeURIComponent(terminal.serialNo)}`;
   const [pick, setSelected] = useState<TerminalStatus | null>(null);
   // 다시 불러온 상세에서 고른 전이가 없어졌거나 막혔으면 선택을 푼다
@@ -41,7 +46,7 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
   const merchants = useQuery({
     queryKey: keys.merchants,
     queryFn: () => api<MerchantView[]>('/merchants'),
-    enabled: terminal.actions.allocate,
+    enabled: terminal.actions.allocate && canOperate && hasRole(me, OFFICE), // /merchants는 사무실 역할만(서버 403)
     staleTime: Infinity,
   });
 
@@ -58,8 +63,15 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
   /** 본문에 화면에서 본 version을 붙여 보낸다. 본문 모양은 부르는 곳에서 contracts 요청 타입으로 satisfies */
   const run = (url: string, body: object) => action.mutate({ url, body: { ...body, expectedVersion: terminal.version } });
 
-  const nothing =
-    terminal.allowedTransitions.length === 0 && !Object.values(terminal.actions).some(Boolean);
+  const showTransitions = canOperate && terminal.allowedTransitions.length > 0;
+  const showAllocate = canOperate && terminal.actions.allocate;
+  const showCancel = canOperate && terminal.actions.cancelAllocation;
+  const showShip = canOperate && terminal.actions.ship;
+  const showInspect = canInspect && terminal.actions.inspect;
+  const nothing = !showTransitions && !showAllocate && !showCancel && !showShip && !showInspect;
+
+  // 이 역할이 할 수 있는 일이 하나도 없으면(MONITOR·ADMIN 등) 패널 자체를 보이지 않는다
+  if (!canOperate && !canInspect) return null;
 
   return (
     <div className="panel">
@@ -73,7 +85,7 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
       />
       {nothing ? <p className="muted">지금 상태({label(TERMINAL_STATUS_LABEL, terminal.status)})에서 할 수 있는 변경이 없습니다.</p> : null}
 
-      {terminal.allowedTransitions.length > 0 ? (
+      {showTransitions ? (
         <div>
           <div className="actions">
             {terminal.allowedTransitions.map((t) => (
@@ -111,7 +123,7 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
         </div>
       ) : null}
 
-      {terminal.actions.allocate ? (
+      {showAllocate ? (
         <div className="row">
           <select aria-label="배정 가맹점" value={merchantCode} onChange={(e) => setMerchantCode(e.target.value)}>
             <option value="">가맹점 선택</option>
@@ -127,7 +139,7 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
         </div>
       ) : null}
 
-      {terminal.actions.cancelAllocation ? (
+      {showCancel ? (
         <div className="row">
           <input aria-label="배정 취소 사유" placeholder="배정 취소 사유" value={cancelReason} maxLength={200} onChange={(e) => setCancelReason(e.target.value)} />
           <WriteButton
@@ -139,7 +151,7 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
         </div>
       ) : null}
 
-      {terminal.actions.ship ? (
+      {showShip ? (
         <div className="row">
           <select aria-label="택배사" value={carrier} onChange={(e) => setCarrier(e.target.value as Carrier)}>
             {Object.entries(CARRIER_LABEL).map(([code, name]) => (
@@ -154,7 +166,7 @@ export function TerminalActions({ terminal, onReload }: { terminal: TerminalDeta
         </div>
       ) : null}
 
-      {terminal.actions.inspect ? <InspectForm terminal={terminal} onReload={onReload} /> : null}
+      {showInspect ? <InspectForm terminal={terminal} onReload={onReload} /> : null}
     </div>
   );
 }

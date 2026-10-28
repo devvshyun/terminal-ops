@@ -1,8 +1,7 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
-import type { MeView } from '@terminal-ops/contracts';
-import { api, ApiError } from '../api/client';
-import { setMe, useMe } from '../session';
+import { useSessionCheck } from '../hooks/useSessionCheck';
+import { wasLoggedOutOnPurpose } from '../session';
 import { ErrorBox } from './ErrorBox';
 import { UserBar } from './UserBar';
 
@@ -11,27 +10,15 @@ import { UserBar } from './UserBar';
  * 가맹점주는 이 사내 어드민을 쓰지 않는다 — 안내와 로그아웃만(가맹점 화면은 다음 묶음, API는 `/me`).
  */
 export function AuthGate({ children }: { children: ReactNode }) {
-  const me = useMe();
+  const { me, error } = useSessionCheck();
   const location = useLocation();
-  const [error, setError] = useState<unknown>(null);
-
-  useEffect(() => {
-    if (me !== undefined) return;
-    let cancelled = false;
-    api<MeView>('/auth/me')
-      .then((m) => !cancelled && setMe(m))
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        if (e instanceof ApiError && e.status === 401) setMe(null);
-        else setError(e);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [me]);
 
   if (me === undefined) return error ? <ErrorBox error={error} /> : <p>로그인 확인 중…</p>;
-  if (me === null) return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />;
+  if (me === null) {
+    // 일부러 로그아웃했으면 돌아올 주소 없이(다음 사람이 앞사람의 화면으로 들어가지 않게), 세션이 끝난 거면 그 화면으로 돌아오게
+    const state = wasLoggedOutOnPurpose() ? undefined : { from: `${location.pathname}${location.search}` };
+    return <Navigate to="/login" replace state={state} />;
+  }
   if (me.role === 'MERCHANT') {
     return (
       <div className="login">

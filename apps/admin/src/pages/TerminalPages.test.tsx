@@ -130,8 +130,9 @@ describe('단말기 상세 (F2, decisions/0040)', () => {
   });
   const open = () => renderPage(<TerminalDetailPage />, { route: '/terminals/AS-1', path: '/terminals/:serialNo' });
 
-  it('기본 정보와 타임라인(최근 것부터), 서버가 준 전이만 버튼으로. 로그인 정보가 없으면 바꾸기가 꺼진다', async () => {
+  it('기본 정보와 타임라인(최근 것부터), 서버가 준 전이만 버튼으로. 바꾸기는 사유를 적어야 켜진다', async () => {
     mockApi(common(() => detail({ allowedTransitions: [{ to: 'DELIVERED', blockedReason: null }, { to: 'IN_STOCK', blockedReason: '재검수 필수' }] })));
+    loginAs();
     open();
     expect(await screen.findByText('강남김밥 (GANGNAM-KIMBAP)')).toBeInTheDocument();
     const items = within(await screen.findByRole('list', { name: '상태 타임라인' })).getAllByRole('listitem');
@@ -141,8 +142,9 @@ describe('단말기 상세 (F2, decisions/0040)', () => {
     expect(screen.getByText('재고: 재검수 필수')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '가맹점 배정' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: '→ 배송 완료' }));
+    expect(screen.getByRole('button', { name: '배송 완료(으)로 바꾸기' })).toBeDisabled(); // 사유 전
     await userEvent.type(screen.getByLabelText('변경 사유'), '현장 확인');
-    expect(screen.getByRole('button', { name: '배송 완료(으)로 바꾸기' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '배송 완료(으)로 바꾸기' })).toBeEnabled();
   });
 
   it('전이: 사유와 화면에서 본 version을 보내고, 성공하면 다시 불러온다', async () => {
@@ -244,6 +246,7 @@ describe('단말기 상세 (F2, decisions/0040)', () => {
         ...common(() => inspectable()),
         'GET /inspection-items': () => ({ status: 500, body: { statusCode: 500, message: '검수 항목 읽기 실패' } }),
       });
+      loginAs();
       open();
       expect(await screen.findByRole('alert')).toHaveTextContent('검수 항목 읽기 실패');
     });
@@ -295,6 +298,7 @@ describe('단말기 상세 (F2, decisions/0040)', () => {
     it('다시 불러온 상세에서 고른 전이가 사라졌으면 선택을 풀고, 상세 전체(타임라인 포함)를 다시 읽는다', async () => {
       let transitions: TransitionTarget[] = [{ to: 'DELIVERED', blockedReason: null }];
       const { calls } = mockApi(common(() => detail({ allowedTransitions: transitions })));
+      loginAs();
       open();
       await userEvent.click(await screen.findByRole('button', { name: '→ 배송 완료' }));
       expect(screen.getByLabelText('변경 사유')).toBeInTheDocument();
@@ -314,6 +318,7 @@ describe('단말기 상세 (F2, decisions/0040)', () => {
         'GET /terminals/AS-2/connectivity': () => ({ body: { serialNo: 'AS-2', source: 'none', online: false, lastSeenAt: null, firmwareVersion: null } }),
         'GET /terminals/AS-2/inspections': () => ({ body: [] }),
       });
+      loginAs();
       renderPage(
         <>
           <TerminalDetailPage />

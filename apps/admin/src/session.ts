@@ -16,7 +16,33 @@ export function getMe(): MeState {
   return current;
 }
 
+/** 로그인한 사람이 바뀔 때(로그인·로그아웃·세션 끝남) 부르는 정리 함수. 화면 데이터 캐시를 비우는 곳(SessionCacheSync)이 등록한다 */
+let onUserChange: (() => void) | null = null;
+
+export function registerUserChangeHandler(handler: (() => void) | null): void {
+  onUserChange = handler;
+}
+
+/** 사용자가 일부러 로그아웃해서 로그인 안 한 상태가 됐나(true면 AuthGate가 "돌아올 주소"를 남기지 않는다). 401로 끝난 것과 구분 */
+let endedByLogout = false;
+
+export function wasLoggedOutOnPurpose(): boolean {
+  return endedByLogout;
+}
+
+/** 사용자가 로그아웃했다 — 서버 세션을 끊은 뒤 화면 쪽 로그인 정보를 비운다 */
+export function setLoggedOut(): void {
+  setMe(null);
+  endedByLogout = true;
+}
+
+/**
+ * 내 정보를 바꾼다. 아이디가 달라지면(null = 로그인 안 함 포함) 구독자에게 알리기 *전에* 캐시부터 비운다 —
+ * 앞사람의 응답(예: staleTime Infinity인 /merchants)이 다음 사람에게 보이지 않게. 모름(undefined) → 첫 확인은 비울 것이 없어 건너뛴다.
+ */
 export function setMe(me: MeView | null): void {
+  if (current !== undefined && (current?.loginId ?? null) !== (me?.loginId ?? null)) onUserChange?.();
+  if (me) endedByLogout = false;
   current = me;
   listeners.forEach((listener) => listener());
 }
@@ -41,6 +67,8 @@ export const OFFICE: readonly Role[] = ['ADMIN', 'OPERATOR', 'MONITOR'];
 
 /** 테스트용: 모르는 상태로 되돌린다 */
 export function resetSessionForTest(): void {
-  setMe(null);
   current = undefined;
+  endedByLogout = false;
+  onUserChange = null;
+  listeners.forEach((listener) => listener());
 }
