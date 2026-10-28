@@ -20,6 +20,10 @@ export default defineConfig({
       NODE_ENV: 'test',
       PARTNERS_URL: TEST_PARTNERS_URL,
       RUN_SCHEDULERS: '0',
+      // 테스트 전용 인증 헤더(X-Operator·X-Test-Role, decisions/0056). NODE_ENV=test일 때만 켜진다
+      AUTH_TEST_HEADERS: '1',
+      // 단말기 키(decisions/0055) — 테스트 값. createTestApp의 기본 요청과 startDeviceSim(환경변수 상속)이 이 값을 보낸다
+      DEVICE_API_KEY: 'test-device-key-0123456789',
     },
   },
   // swc가 데코레이터 메타데이터를 만들어야 Nest DI가 동작한다.

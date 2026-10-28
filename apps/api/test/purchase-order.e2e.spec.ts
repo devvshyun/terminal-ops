@@ -69,10 +69,10 @@ describe('발주 (F10)', () => {
     }
   });
 
-  it('수량은 1~5000, 작업자 헤더 필수', async () => {
+  it('수량은 1~5000, 로그인 필수(401)', async () => {
     expect((await t.http().post('/purchase-orders').set(OP).send({ modelCode: 'SN-100', quantity: 0 })).status).toBe(400);
     expect((await t.http().post('/purchase-orders').set(OP).send({ modelCode: 'SN-100', quantity: 5001 })).status).toBe(400);
-    expect((await t.http().post('/purchase-orders').send({ modelCode: 'SN-100', quantity: 1 })).status).toBe(400);
+    expect((await t.http(null).post('/purchase-orders').send({ modelCode: 'SN-100', quantity: 1 })).status).toBe(401);
   });
 
   it('없는 발주번호는 404', async () => {

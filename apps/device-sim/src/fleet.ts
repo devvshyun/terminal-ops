@@ -104,7 +104,7 @@ export class Fleet {
         updating: this.updating.has(serialNo),
       });
     }
-    const client = new ApiClient(config.targetUrl, config.concurrency, config.requestTimeoutMs);
+    const client = new ApiClient(config.targetUrl, config.concurrency, config.requestTimeoutMs, config.deviceKey ? { 'X-Device-Key': config.deviceKey } : {});
     this.client?.close();
     this.client = client;
     this.config = config;

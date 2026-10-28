@@ -7,6 +7,7 @@ import { ErrorBox } from '../components/ErrorBox';
 import { formatKst } from '../lib/format';
 import { label, TERMINAL_STATUS_LABEL, TERMINAL_STATUSES } from '../lib/labels';
 import { keys } from '../api/query-keys';
+import { hasRole, OFFICE, useMe } from '../session';
 
 const SIZE = 20;
 const FILTERS = ['status', 'modelCode', 'merchantCode', 'q'] as const;
@@ -16,6 +17,7 @@ const FILTERS = ['status', 'modelCode', 'merchantCode', 'q'] as const;
  * 페이지는 offset + 전체 수(GET /terminals, decisions/0039·실험 0013).
  */
 export function TerminalListPage() {
+  const canSeeMerchants = hasRole(useMe(), OFFICE); // /merchants는 사무실 역할만(FIELD는 403이라 부르지 않고 선택칸도 뺀다)
   const [params, setParams] = useSearchParams();
   const rawPage = Math.floor(Number(params.get('page') ?? 1));
   const page = Number.isFinite(rawPage) ? Math.max(1, rawPage) : 1; // 소수·0·음수·글자는 정수 1 이상으로
@@ -26,7 +28,7 @@ export function TerminalListPage() {
   useEffect(() => setDraft(filter), [filterKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const models = useQuery({ queryKey: keys.terminalModels, queryFn: () => api<TerminalModelView[]>('/terminal-models'), staleTime: Infinity });
-  const merchants = useQuery({ queryKey: keys.merchants, queryFn: () => api<MerchantView[]>('/merchants'), staleTime: Infinity });
+  const merchants = useQuery({ queryKey: keys.merchants, queryFn: () => api<MerchantView[]>('/merchants'), staleTime: Infinity, enabled: canSeeMerchants });
   const list = useQuery({
     queryKey: keys.terminals.page(filter, page),
     queryFn: () => api<TerminalPage>('/terminals', { query: { ...filter, page, size: SIZE } }),
@@ -74,14 +76,16 @@ export function TerminalListPage() {
             </option>
           ))}
         </select>
-        <select aria-label="가맹점" value={draft.merchantCode} onChange={(e) => setDraft({ ...draft, merchantCode: e.target.value })}>
-          <option value="">가맹점 전체</option>
-          {merchants.data?.map((m) => (
-            <option key={m.code} value={m.code}>
-              {m.name}
-            </option>
-          ))}
-        </select>
+        {canSeeMerchants ? (
+          <select aria-label="가맹점" value={draft.merchantCode} onChange={(e) => setDraft({ ...draft, merchantCode: e.target.value })}>
+            <option value="">가맹점 전체</option>
+            {merchants.data?.map((m) => (
+              <option key={m.code} value={m.code}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <input aria-label="시리얼 앞부분" placeholder="시리얼 앞부분" value={draft.q} onChange={(e) => setDraft({ ...draft, q: e.target.value })} />
         <button type="submit" className="primary">
           검색

@@ -33,7 +33,7 @@
 - **계획 문서가 너무 크다.** 계획마다 수천 줄(Day 4 계획 7,970줄, `wc -l docs/plans/*.md` 합계 40,787줄)이고 사전 검증 결과를 그대로 옮긴다. 정확하지만 읽는 사람(구현 서브에이전트)이 필요한 곳을 찾기 어렵다 — 그래서 Task별 파일로 나눠 넘겼다.
 - **화면 확인이 자동이 아니다.** 브라우저 테스트가 없어 화면 확인은 컨트롤러가 내장 브라우저로 했다(Day 6 최종 리뷰 Minor 9 — 결과 기록이 늦었다). Day 7 대시보드 화면도 같은 방식이다.
 - **알려진 한계를 오래 들고 갔다.** QUEUED outbox 복구(Day 2에 적고 Day 7에 닫음), 1213 매핑(Day 1에 적고 Day 7에 닫음). 이월 목록이 날마다 길어졌다(6일차 요약 "남은 문제"). 테스트 로그의 `MaxListenersExceededWarning`은 Day 1 최종 리뷰 Minor 4부터 마지막 날까지 원인을 확정하지 않은 채 남았다(Day 7에 과거 로그로 Day 1부터 있던 것만 확인, devlog 2026-10-27 "Task 7 리뷰 반영").
-- **운영 배포·인증이 없다.** `X-Operator`는 인증이 아니다([decisions/0001](decisions/0001-인증은-작업자-헤더로.md)). 화면은 Vite 개발 서버 프록시로만 돈다([decisions/0041](decisions/0041-어드민-골격-Vite-프록시-작업자-헤더-도구.md)).
+- **운영 배포·인증이 없다.** `X-Operator`는 인증이 아니다([decisions/0001](decisions/0001-인증은-작업자-헤더로.md)). 화면은 Vite 개발 서버 프록시로만 돈다([decisions/0041](decisions/0041-어드민-골격-Vite-프록시-작업자-헤더-도구.md)). → 인증(로그인·역할)은 보강 2에서 더했다([decisions/0050](decisions/0050-로그인은-Redis-서버-세션과-httpOnly-쿠키로.md), 아래 6장).
 - **실험이 대부분 한 번, 한 PC다.** 0016은 1회, 0014·0015는 2회. 숫자는 이 PC(Windows + Docker Desktop)의 값이고 운영 환경 숫자가 아니다 — 각 실험의 "한계" 절에 적었지만 반복 횟수 자체가 적다.
 
 ## 4. 반복된 실수
@@ -68,7 +68,7 @@
 
 devlog 2026-10-27 "최종 리뷰 반영 정리"의 "Day 7로 넘긴 것"과 [Day 7 스펙](specs/2026-10-27-day7-wrapup.md) 8장에서, Day 7에 닫은 것(쿼리 키 팩토리·무효화, 배포 목록 N+1, 단말기 목록 상한, QUEUED outbox 복구, 1213 매핑, 대시보드 캐시 실험, `(status, id)` 인덱스, README 결과 표, 실험 0013 표현)을 뺀 것.
 
-- 화면 운영 배포(정적 파일 + 역프록시), 로그인·권한, 브라우저 자동 테스트
+- 화면 운영 배포(정적 파일 + 역프록시), 브라우저 자동 테스트(로그인·권한은 보강 2 — 아래)
 - 단말기·엑셀·펌웨어 등록과 배포 생성 화면, 이상 찾기 실행 기록 표
 - 검수 기록 목록 페이지 조건, 주간 리포트 목록 filesort(52행/년이라 둠)
 - 주간 리포트: at-least-once·고아 파일·프로세스가 죽은 뒤 잠금 약 10.6분·4주 밖 미전송 주
@@ -93,3 +93,5 @@ devlog 2026-10-27 "최종 리뷰 반영 정리"의 "Day 7로 넘긴 것"과 [Day
     - `JSON.parse`/`as` 캐스트 자리: `dashboard.service.ts`의 `JSON.parse(raw) as DashboardView`(Redis 캐시가 옛 모양이면 TTL 동안 그대로 나간다), `dashboard.queries.ts`의 `JSON.parse(van.counts)`(any), `AnomalyDetail`에 `Record<string, unknown>` 대입
     - `TerminalListPage.tsx`의 `Object.fromEntries(…) as Record`(선택 정리)
     - drift 테스트가 TS 진단 문구에 기대므로 TS 7(네이티브)로 올릴 때 다시 보기, contracts 의존성이 생기면 각 앱 lock 재생성(decisions/0047)
+- [x] **보강 2: 로그인·권한** — decisions/0001의 "다시 볼 조건"(역할별 권한)이 왔다. Redis 서버 세션·httpOnly 쿠키([0050](decisions/0050-로그인은-Redis-서버-세션과-httpOnly-쿠키로.md)), scrypt([0051](decisions/0051-비밀번호-해시는-node-scrypt-계정-테이블은-user-account.md)), 역할 다섯과 엔드포인트 표·기본 거부·전수 검사 테스트([0052](decisions/0052-역할별-엔드포인트-표와-기본-거부.md)), 가맹점주 `/me` 범위([0053](decisions/0053-가맹점주-범위는-me-전용-엔드포인트와-서비스-scope.md)), 외부 업체 키([0054](decisions/0054-외부-업체-키는-해시-저장과-scope.md)), 단말기 키([0055](decisions/0055-단말기는-공유-단말기-키로.md), 실험 0017), 작업자 = 로그인 아이디·테스트 전용 헤더 길([0056](decisions/0056-작업자는-로그인-아이디-X-Operator는-테스트-전용.md)). 기존 테스트 453개는 다섯 줄만 고쳐 통과. 리뷰에서 더한 것: 실패 제한 정규화·원자화, 세션 세대값, 절대 만료 7일, JSON만 받는 로그인, 마지막 활성 ADMIN 보호(409 `LAST_ADMIN`), `/me` 접수 응답에서 직원 아이디·내부 메모 가림, 운영에서 시연 시드 안 함. 기록: devlog 2026-10-28, [계획](plans/2026-10-28-auth-roles.md)
+  - 보강 2가 남긴 것: CSRF 토큰 없음(SameSite만), HTTPS·IP별 실패 제한 없음, 단말기 키 하나(단말기별 폐기 불가), 외부 업체 호출 로그·한도·키별 가맹점 범위 없음(키 하나로 모든 가맹점을 읽고 404/200으로 코드가 있는지 알 수 있다 — Bundle 7), 계정·키 관리 화면 없음(Bundle 7), 가맹점 화면 없음(Bundle 3), 계정 행을 SQL로 고치면 세션의 역할은 그대로(계정 API를 쓴다), 다른 탭에서 사용자가 바뀌면 어드민 탭이 알아채지 못함(포커스 재확인·BroadcastChannel), 세션 읽기 Lua를 EVALSHA로(선택), `user_account.role` 인덱스 없음(ADMIN `FOR UPDATE`가 표를 훑는다 — 계정이 많아지면)

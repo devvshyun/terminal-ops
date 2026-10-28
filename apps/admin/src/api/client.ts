@@ -1,5 +1,5 @@
 import type { ApiErrorBody, ErrorCode } from '@terminal-ops/contracts';
-import { getOperator } from '../operator';
+import { setMe } from '../session';
 
 /** 개발 서버 프록시가 Nest api로 넘기는 경로 앞부분(vite.config.ts, decisions/0041) */
 export const API_BASE = '/api';
@@ -49,14 +49,15 @@ function messageOf(status: number, body: unknown): string {
   return `HTTP ${status}`;
 }
 
+/** 로그인 요청 자체의 401(LOGIN_FAILED)은 세션이 끝난 것이 아니다 */
+const LOGIN_PATH = '/auth/login';
+
 /**
- * api 호출 한 곳. 작업자 이름이 있으면 모든 요청에 X-Operator(URL 인코딩, decisions/0001·0041)를 붙인다.
- * 2xx가 아니면 ApiError를 던진다 — 화면은 ErrorBox로 code·message를 보여 준다.
+ * api 호출 한 곳. 로그인은 서버 세션 쿠키(httpOnly, 같은 출처라 브라우저가 붙인다 — api decisions/0050)라 여기서 붙이는 인증 헤더는 없다.
+ * 2xx가 아니면 ApiError를 던진다 — 화면은 ErrorBox로 code·message를 보여 준다. 401이면 로그인 정보를 비워 AuthGate가 로그인 화면으로 보낸다.
  */
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
-  const operator = getOperator();
-  if (operator) headers['X-Operator'] = encodeURIComponent(operator);
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
   const res = await fetch(`${API_BASE}${path}${toQueryString(options.query)}`, {
     method: options.method ?? 'GET',
@@ -73,6 +74,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     }
   }
   if (!res.ok) {
+    if (res.status === 401 && path !== LOGIN_PATH) setMe(null);
     // 서버가 contracts 밖의 코드를 주지 않는다는 전제(api는 ErrorCode 유니온 밖의 코드를 컴파일하지 못한다, decisions/0048)
     const code = (body as Partial<ApiErrorBody> | null)?.code;
     throw new ApiError(res.status, typeof code === 'string' ? code : null, messageOf(res.status, body), body);
@@ -80,5 +82,5 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   return body as T;
 }
 
-/** 파일 내려받기 주소(브라우저가 직접 연다 — 헤더가 필요 없는 GET만) */
+/** 파일 내려받기 주소(브라우저가 직접 연다 — 같은 출처라 세션 쿠키가 붙는다) */
 export const downloadUrl = (path: string) => `${API_BASE}${path}`;

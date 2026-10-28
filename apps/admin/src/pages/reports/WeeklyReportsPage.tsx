@@ -71,7 +71,7 @@ export function WeeklyReportsPage() {
           주(월요일){' '}
           <input aria-label="보낼 주" type="date" max={maxWeek} value={weekStart} onChange={(e) => setWeekStart(e.target.value)} />
         </label>
-        <WriteButton className="primary" disabled={weekProblem !== null || send.isPending} onClick={() => send.mutate(weekStart)}>
+        <WriteButton className="primary" roles={['OPERATOR', 'MONITOR']} disabled={weekProblem !== null || send.isPending} onClick={() => send.mutate(weekStart)}>
           보내기
         </WriteButton>
         {weekProblem ? <span className="bad">{weekProblem}</span> : null}
@@ -129,7 +129,7 @@ export function WeeklyReportsPage() {
                 </td>
                 <td>
                   {r.status !== 'SENT' && !r.queued ? (
-                    <WriteButton disabled={send.isPending} onClick={() => send.mutate(r.weekStart)}>
+                    <WriteButton roles={['OPERATOR', 'MONITOR']} disabled={send.isPending} onClick={() => send.mutate(r.weekStart)}>
                       다시 보내기
                     </WriteButton>
                   ) : null}

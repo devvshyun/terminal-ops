@@ -10,6 +10,12 @@ const HINT: Partial<Record<ErrorCode, string>> = {
   PARTNER_ERROR: '외부 업체(가상) 응답이 실패했습니다. 잠시 뒤 다시 시도하세요.',
   VAN_RECONCILIATION_RUNNING: '이미 진행 중인 작업이 있습니다. 끝난 뒤 다시 실행하세요.',
   ANOMALY_SCAN_RUNNING: '이미 진행 중인 작업이 있습니다. 끝난 뒤 다시 실행하세요.',
+  FORBIDDEN: '이 작업을 할 권한이 없습니다(역할 확인).',
+  UNAUTHENTICATED: '로그인이 끝났습니다. 다시 로그인하세요.',
+  LOGIN_FAILED: '아이디 또는 비밀번호가 맞지 않습니다.',
+  LOGIN_LOCKED: '로그인 실패가 많아 잠시 막혔습니다. 잠시 뒤 다시 시도하세요.',
+  // 계정 관리 화면은 Bundle 7 — 지금은 API(PATCH /admin/accounts/:id)에서만 나지만, 화면이 생겨도 안내가 비지 않게 미리 둔다
+  LAST_ADMIN: '마지막 활성 ADMIN입니다. 다른 ADMIN 계정을 먼저 만들거나 살린 뒤 바꾸세요.',
 };
 
 export function describeError(error: unknown): { title: string; detail: string; code: ErrorCode | null } {

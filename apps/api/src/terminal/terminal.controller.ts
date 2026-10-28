@@ -1,5 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import type { TerminalPage } from '@terminal-ops/contracts';
+import { Roles, STAFF } from '../auth/access.js';
+import { Role } from '../auth/role.js';
 import { Operator } from '../common/operator.decorator.js';
 import { SingleFileInterceptor } from '../common/upload.interceptor.js';
 import { RegisterTerminalDto } from './dto/register-terminal.dto.js';
@@ -25,6 +27,7 @@ export class TerminalController {
    * fields 0·parts 1: 글자 필드나 두 번째 part가 오면 바로 400 INVALID_FILE(파일 크기 초과는 413 FILE_TOO_LARGE, decisions/0022).
    */
   @Post('imports')
+  @Roles(Role.OPERATOR)
   @UseInterceptors(
     SingleFileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024, files: 1, fields: 0, parts: 1 }, defParamCharset: 'utf8' }),
   )
@@ -33,11 +36,13 @@ export class TerminalController {
   }
 
   @Post()
+  @Roles(Role.OPERATOR)
   async register(@Body() dto: RegisterTerminalDto, @Operator() actor: string) {
     return toTerminalView(await this.terminals.register(dto, actor));
   }
 
   @Get()
+  @Roles(...STAFF)
   async list(@Query() query: ListTerminalsQuery): Promise<TerminalPage> {
     const result = await this.terminals.list(query);
     return { ...result, items: result.items.map(toTerminalView) };
@@ -45,16 +50,19 @@ export class TerminalController {
 
   /** 상세: 기본 정보 + 지금 상태에서 할 수 있는 전이·작업(decisions/0040) */
   @Get(':serialNo')
+  @Roles(...STAFF)
   async get(@Param('serialNo') serialNo: string) {
     return toTerminalDetailView(await this.terminals.getBySerial(serialNo));
   }
 
   @Get(':serialNo/history')
+  @Roles(...STAFF)
   async history(@Param('serialNo') serialNo: string) {
     return (await this.terminals.history(serialNo)).map(toHistoryView);
   }
 
   @Post(':serialNo/transitions')
+  @Roles(Role.OPERATOR)
   @HttpCode(200)
   async transition(@Param('serialNo') serialNo: string, @Body() dto: TransitionDto, @Operator() actor: string) {
     const terminal = await this.transitions.transition({

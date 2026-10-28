@@ -29,6 +29,8 @@ export class ApiClient {
     private readonly baseUrl: string,
     maxSockets: number,
     private readonly timeoutMs: number,
+    /** 요청마다 붙일 헤더(단말기 키 X-Device-Key) */
+    private readonly headers: Record<string, string> = {},
   ) {
     new URL(baseUrl); // 주소가 틀리면 여기서 바로 던진다(설정을 바꾸는 중이면 이전 설정이 남는다)
     this.agent = new Agent({ keepAlive: true, maxSockets, maxFreeSockets: maxSockets });
@@ -47,7 +49,7 @@ export class ApiClient {
         {
           method: 'POST',
           agent: this.agent,
-          headers: { 'Content-Type': 'application/json', 'Content-Length': payload.length },
+          headers: { ...this.headers, 'Content-Type': 'application/json', 'Content-Length': payload.length },
           timeout: this.timeoutMs,
         },
         (res) => {

@@ -5,6 +5,7 @@ import type { Carrier } from '../carrier/carrier.types.js';
 import { BusinessError } from '../common/domain-errors.js';
 import { env } from '../config/env.js';
 import { Merchant } from '../merchant/merchant.entity.js';
+import type { MerchantScope } from '../merchant/merchant-scope.js';
 import { RedisLock } from '../redis/redis-lock.js';
 import { ShipmentService } from '../shipment/shipment.service.js';
 import { Terminal } from '../terminal/terminal.entity.js';
@@ -141,8 +142,9 @@ export class ReplacementService {
    * 잠금 순서는 교체 출고와 같다(단말기 → 접수, decisions/0023). 그래서 접수를 잠그지 않고 먼저 읽어 교체 단말기 id만 알아낸다.
    * REPLACING이 된 뒤에는 교체 단말기가 바뀌지 않으므로, 접수 잠금 뒤 상태만 다시 본다.
    */
-  async install(id: number, actor: string): Promise<ServiceTicket> {
-    const current = await this.tickets.get(id);
+  /** @param scope 가맹점주의 설치 확인(`/me`)이면 그 가맹점 접수만 — 접수의 가맹점은 바뀌지 않으므로 처음 읽을 때 확인한다(decisions/0053) */
+  async install(id: number, actor: string, scope?: MerchantScope): Promise<ServiceTicket> {
+    const current = await this.tickets.get(id, scope);
     if (current.status !== ServiceTicketStatus.REPLACING || !current.replacementTerminal) {
       throw new BusinessError(
         422,

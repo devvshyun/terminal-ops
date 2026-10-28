@@ -7,15 +7,17 @@ import { TerminalActions } from '../components/TerminalActions';
 import { formatKst } from '../lib/format';
 import { label, SOURCE_LABEL, TERMINAL_STATUS_LABEL } from '../lib/labels';
 import { keys } from '../api/query-keys';
+import { hasRole, OFFICE, useMe } from '../session';
 
 /** 단말기 상세(F1·F2·F8·F13): 기본 정보, 할 수 있는 일, 상태 타임라인, 접속 상태, 검수 기록 */
 export function TerminalDetailPage() {
   const serialNo = useParams().serialNo!;
   const client = useQueryClient();
+  const canSeeConnectivity = hasRole(useMe(), OFFICE); // 접속 상태는 사무실 역할만(서버 403, api decisions/0052)
   const base = `/terminals/${encodeURIComponent(serialNo)}`;
   const detail = useQuery({ queryKey: keys.terminal.detail(serialNo), queryFn: () => api<TerminalDetail>(base) });
   const history = useQuery({ queryKey: keys.terminal.history(serialNo), queryFn: () => api<HistoryView[]>(`${base}/history`) });
-  const connectivity = useQuery({ queryKey: keys.terminal.connectivity(serialNo), queryFn: () => api<ConnectivityView>(`${base}/connectivity`) });
+  const connectivity = useQuery({ queryKey: keys.terminal.connectivity(serialNo), queryFn: () => api<ConnectivityView>(`${base}/connectivity`), enabled: canSeeConnectivity });
   const inspections = useQuery({ queryKey: keys.terminal.inspections(serialNo), queryFn: () => api<InspectionRecord[]>(`${base}/inspections`) });
 
   /** 상세·타임라인·접속 상태·검수 기록 모두 다시 읽는다 */
@@ -57,21 +59,23 @@ export function TerminalDetailPage() {
         </>
       ) : null}
 
-      <div className="panel">
-        <h3>접속 상태</h3>
-        <ErrorBox error={connectivity.error} />
-        {connectivity.data ? (
-          connectivity.data.source === 'none' ? (
-            <p className="muted">하트비트 기록이 없습니다.</p>
-          ) : (
-            <p>
-              <strong className={connectivity.data.online ? 'ok' : 'bad'}>{connectivity.data.online ? '온라인' : '오프라인'}</strong> 마지막 하트비트{' '}
-              {formatKst(connectivity.data.lastSeenAt)}, 펌웨어 {connectivity.data.firmwareVersion ?? '-'}{' '}
-              <span className="muted">({connectivity.data.source === 'redis' ? '실시간' : '스냅샷'})</span>
-            </p>
-          )
-        ) : null}
-      </div>
+      {canSeeConnectivity ? (
+        <div className="panel">
+          <h3>접속 상태</h3>
+          <ErrorBox error={connectivity.error} />
+          {connectivity.data ? (
+            connectivity.data.source === 'none' ? (
+              <p className="muted">하트비트 기록이 없습니다.</p>
+            ) : (
+              <p>
+                <strong className={connectivity.data.online ? 'ok' : 'bad'}>{connectivity.data.online ? '온라인' : '오프라인'}</strong> 마지막 하트비트{' '}
+                {formatKst(connectivity.data.lastSeenAt)}, 펌웨어 {connectivity.data.firmwareVersion ?? '-'}{' '}
+                <span className="muted">({connectivity.data.source === 'redis' ? '실시간' : '스냅샷'})</span>
+              </p>
+            )
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="panel">
         <h3>상태 타임라인</h3>

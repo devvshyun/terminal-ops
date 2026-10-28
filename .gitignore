@@ -5,3 +5,5 @@ dist/
 # 이 PC 전용 Claude Code 설정(절대 경로, 개발 DB에 워커를 켜는 미리보기 구성) — 공유용 .claude/settings.json 등은 막지 않는다(decisions/0041)
 .claude/launch.json
 .claude/settings.local.json
+# 테스트 DB로 마이그레이션을 적용하면(MYSQL_DATABASE=terminal_ops_test node dist/db/migrate.js up) MikroORM이 DB 이름으로 스냅샷을 하나 더 쓴다 — 기준 스냅샷은 .snapshot-terminal_ops.json 하나(troubleshooting/0032)
+apps/api/src/migrations/.snapshot-terminal_ops_test.json

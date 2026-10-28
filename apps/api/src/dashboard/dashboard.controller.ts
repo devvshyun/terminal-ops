@@ -1,5 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { IsIn, IsOptional } from 'class-validator';
+import { OFFICE, Roles } from '../auth/access.js';
 import { DashboardService } from './dashboard.service.js';
 
 export class DashboardQuery {
@@ -15,6 +16,7 @@ export class DashboardController {
   constructor(private readonly dashboard: DashboardService) {}
 
   @Get('summary')
+  @Roles(...OFFICE)
   summary(@Query() query: DashboardQuery) {
     return this.dashboard.summary({ refresh: query.refresh === 'true' });
   }

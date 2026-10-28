@@ -2,7 +2,7 @@
 
 > 이 파일은 `node scripts/docs-index.mjs`가 만든다. 손으로 고치지 않는다(decisions/0046). 기록을 더한 뒤 다시 만들고, `--check`로 확인한다.
 
-## 결정 기록 (49)
+## 결정 기록 (56)
 
 - [0001](decisions/0001-인증은-작업자-헤더로.md) 인증은 하지 않고, 작업자는 요청 헤더로 기록한다
 - [0002](decisions/0002-esm-vitest-tsc-빌드.md) ESM + Vitest + tsc 빌드로 API를 만든다
@@ -53,8 +53,15 @@
 - [0047](decisions/0047-공유-타입은-file-의존-타입-전용-TS-소스-패키지로.md) 공유 타입은 각 앱의 file: 의존으로 연결하는 타입 전용 TS 소스 패키지로 둔다
 - [0048](decisions/0048-계약은-반환-타입-implements-enum-단언으로-강제한다.md) 계약은 반환 타입·implements·enum 단언·오류 코드 오버로드로 컴파일 때 강제한다
 - [0049](decisions/0049-계약-범위는-응답-요청-본문-오류-코드까지.md) 계약 범위는 응답·쓰기 요청 본문·오류 코드까지, 쿼리 문자열과 런타임 검증은 넣지 않는다
+- [0050](decisions/0050-로그인은-Redis-서버-세션과-httpOnly-쿠키로.md) 로그인은 Redis 서버 세션과 httpOnly 쿠키로 한다
+- [0051](decisions/0051-비밀번호-해시는-node-scrypt-계정-테이블은-user-account.md) 비밀번호 해시는 node:crypto scrypt, 계정 테이블은 user_account
+- [0052](decisions/0052-역할별-엔드포인트-표와-기본-거부.md) 역할별 엔드포인트 표와 기본 거부
+- [0053](decisions/0053-가맹점주-범위는-me-전용-엔드포인트와-서비스-scope.md) 가맹점주 범위는 /me 전용 엔드포인트와 서비스 scope 인자로 강제한다
+- [0054](decisions/0054-외부-업체-키는-해시-저장과-scope.md) 외부 업체 API 키는 해시로 저장하고 scope로 연다
+- [0055](decisions/0055-단말기는-공유-단말기-키로.md) 단말기는 공유 단말기 키(X-Device-Key)로 부른다
+- [0056](decisions/0056-작업자는-로그인-아이디-X-Operator는-테스트-전용.md) 작업자는 로그인 아이디, X-Operator는 테스트 전용 인증 길로만 남긴다
 
-## 트러블슈팅 (29)
+## 트러블슈팅 (32)
 
 - [0001](troubleshooting/0001-설치-직후-WSL2-미동작.md) 설치 직후 WSL2·Docker가 동작하지 않음
 - [0002](troubleshooting/0002-em-create-optionalprops-타입오류.md) em.create에서 TS2345 "Property 'version' is missing"
@@ -85,8 +92,11 @@
 - [0027](troubleshooting/0027-SENT면-큐를-보지-않자-끝난-job-기다리기가-먼저-끝남.md) SENT면 큐를 보지 않게 하자 "job 끝" 기다리기가 job보다 먼저 끝남
 - [0028](troubleshooting/0028-Windows에서-process-kill-SIGKILL로-끈-자식의-exit가-code-1-signal-null.md) Windows에서 process.kill(pid, 'SIGKILL')로 끈 자식의 exit가 code 1·signal null
 - [0029](troubleshooting/0029-swc는-계약의-타입-별칭을-design-type에-Object로-내보낸다.md) swc(vitest)는 타입 별칭(유니온)을 design:type에 Object로 내보낸다 (tsc 빌드는 String)
+- [0030](troubleshooting/0030-다른-브랜치가-쓴-테스트-DB에서-schema-refresh가-merchant를-못-지운다.md) 다른 브랜치가 쓴 테스트 DB에서 schema.refresh가 merchant를 못 지운다
+- [0031](troubleshooting/0031-초-단위-datetime-열은-밀리초를-반올림해-응답과-다시-읽은-값이-다르다.md) 초 단위 datetime 열은 밀리초를 반올림해 응답과 다시 읽은 값이 다르다
+- [0032](troubleshooting/0032-테스트-DB로-마이그레이션을-적용하면-DB-이름의-스냅샷-파일이-생긴다.md) 테스트 DB로 마이그레이션을 적용하면 DB 이름의 스냅샷 파일이 생긴다
 
-## 실험 (16)
+## 실험 (17)
 
 - [0001](experiments/0001-같은-단말기-동시-전이.md) 같은 단말기 동시 전이
 - [0002](experiments/0002-같은-단말기-동시-검수.md) 같은 단말기 동시 검수
@@ -104,3 +114,4 @@
 - [0014](experiments/0014-워커-강제-종료와-알림.md) 워커 강제 종료와 알림(유실·중복), job 유실과 복구 sweep
 - [0015](experiments/0015-대시보드-캐시-전후.md) 대시보드 캐시 전후 — p50/p95, 동시 요청의 MySQL 쿼리 수
 - [0016](experiments/0016-상태-조건-목록-status-id-인덱스.md) 상태 조건 단말기 목록의 (status, id) 인덱스 — 계획, 읽은 행, 시간, 쓰기 비용
+- [0017](experiments/0017-인증-뒤-하트비트-처리량.md) 인증(전역 가드 + 단말기 키) 뒤 하트비트 처리량

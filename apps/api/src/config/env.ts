@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 import { cronFromEnv } from './env-cron.js';
 import { DAY_MS, intFromEnv } from './env-number.js';
 import { resolveHeartbeatWriteMode } from './heartbeat-write-mode.js';
+import { resolveAuthTestHeaders } from './auth-test-headers.js';
+import { resolveDeviceApiKey } from './device-api-key.js';
 import { checkVanHeartbeatTiming } from '../van/van-limits.js';
 
 // 스크립트·테스트는 apps/api에서 실행한다. 저장소 루트의 .env를 읽는다(이미 있는 환경변수는 덮어쓰지 않는다).
@@ -134,6 +136,19 @@ export const env = {
   vanReconcileCron: cronFromEnv('VAN_RECONCILE_CRON', '0 3 * * *'),
   /** 주간 리포트(F11): 매주 월요일 09:00 KST에 지난주를 보낸다 */
   weeklyReportCron: cronFromEnv('WEEKLY_REPORT_CRON', '0 9 * * 1'),
+  /** 로그인 세션(Redis)이 쓰이지 않고 이만큼 지나면 끝난다. 요청마다 다시 늘린다(decisions/0050). 기본 8시간 */
+  sessionIdleTtlMs: intFromEnv('SESSION_IDLE_TTL_MS', 8 * 60 * 60_000, MS),
+  /** 로그인부터 이만큼 지나면 쓰고 있어도 끝난다(절대 만료, decisions/0050). 기본 7일 */
+  sessionMaxAgeMs: intFromEnv('SESSION_MAX_AGE_MS', 7 * DAY_MS, { min: 60_000, max: 90 * DAY_MS }),
+  /** 세션 쿠키에 Secure를 붙일지. 로컬 http 시연은 0, https 뒤에 둘 때 1(decisions/0050) */
+  sessionCookieSecure: flag('SESSION_COOKIE_SECURE', false),
+  /** 같은 아이디로 로그인 실패가 이만큼 쌓이면 LOGIN_LOCK_MS 동안 막는다(첫 실패부터 잰다, decisions/0050) */
+  loginMaxFailures: intFromEnv('LOGIN_MAX_FAILURES', 5, { min: 1, max: 100 }),
+  loginLockMs: intFromEnv('LOGIN_LOCK_MS', 15 * 60_000, MS),
+  /** 단말기(시뮬레이터)가 `X-Device-Key`로 보내는 공유 키. 16자 이상·공백 없는 ASCII·`.env.example` 자리표시자가 아님(decisions/0055, device-api-key.ts) */
+  deviceApiKey: resolveDeviceApiKey(process.env.DEVICE_API_KEY),
+  /** 테스트 전용 인증 헤더(X-Operator·X-Test-Role). NODE_ENV=test가 아니면 켜지지 않고 던진다(decisions/0056) */
+  authTestHeaders: resolveAuthTestHeaders(process.env.AUTH_TEST_HEADERS, process.env.NODE_ENV),
   /** SyncRun에 남길 작업 프로세스 이름(워커 2개 실험에서 구분용) */
   workerName: process.env.WORKER_NAME ?? `pid-${process.pid}`,
 };

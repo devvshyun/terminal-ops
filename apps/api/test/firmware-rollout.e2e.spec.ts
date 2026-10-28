@@ -44,13 +44,13 @@ describe('펌웨어 등록·단계 배포 시작·멈춤·재개·중단 (F8, de
     await t.app.close();
   });
 
-  it('펌웨어 등록: 201, 같은 (모델, 버전)은 409 DUPLICATE, 없는 모델 404, 작업자 헤더 필수', async () => {
+  it('펌웨어 등록: 201, 같은 (모델, 버전)은 409 DUPLICATE, 없는 모델 404, 로그인 필수(401)', async () => {
     const res = await t.http().post('/firmware').set(OP).send({ modelCode: 'SN-100', version: '2.0.0' });
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ modelCode: 'SN-100', version: '2.0.0', createdBy: 'han' });
     expect((await t.http().post('/firmware').set(OP).send({ modelCode: 'SN-100', version: '2.0.0' })).body.code).toBe('DUPLICATE');
     expect((await t.http().post('/firmware').set(OP).send({ modelCode: 'NONE', version: '2.0.0' })).status).toBe(404);
-    expect((await t.http().post('/firmware').send({ modelCode: 'SN-100', version: '2.0.1' })).status).toBe(400);
+    expect((await t.http(null).post('/firmware').send({ modelCode: 'SN-100', version: '2.0.1' })).status).toBe(401);
     expect((await t.http().post('/firmware').set(OP).send({ modelCode: 'SN-200', version: '2.0.0' })).status).toBe(201);
   });
 

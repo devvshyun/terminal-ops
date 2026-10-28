@@ -37,7 +37,7 @@ export function VanRunsPage() {
         <label>
           <input type="checkbox" checked={acknowledgeDrop} onChange={(e) => setAcknowledgeDrop(e.target.checked)} /> 수집 급감 확인함(이번 실행만 급감 검사 건너뜀)
         </label>
-        <WriteButton className="primary" disabled={start.isPending} onClick={() => start.mutate()}>
+        <WriteButton className="primary" roles={['OPERATOR', 'MONITOR']} disabled={start.isPending} onClick={() => start.mutate()}>
           대조 실행
         </WriteButton>
         <button type="button" onClick={() => void list.refetch()}>
