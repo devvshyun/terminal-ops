@@ -25,6 +25,7 @@
 - **오래 도는 서버·백그라운드 명령을 남긴 채 끝내지 않는다.** 끝나면 `netstat -ano | grep -E ':(3000|3100|4010|4011|4020|4021|5173) .*LISTENING'` 출력이 없고 `tasklist //FI "IMAGENAME eq node.exe" //FO CSV //NH`가 시작 전과 같은 PID만 보여야 한다.
 - **긴 기록·코드 편집은 Write·Edit 도구로 한다**(troubleshooting/0024: Bash heredoc 안의 따옴표·백틱이 깨진다).
 - **비밀번호·키는 모두 테스트 값이다.** 시연 값은 `apps/api/src/db/seed-accounts.ts`와 `.env.example`에 있고 README에 "로컬 시연 전용 값"으로 적는다. devlog·리뷰 보고에 비밀번호·키 원문을 옮겨 적지 않는다(파일 경로로 가리킨다).
+  - (최종 리뷰 Minor 2·7c 뒤 보탬) 시연 비밀번호 원문의 기준은 seed 파일 하나다 — 이 계획의 비밀번호 자리는 `(seed 파일 참고)`로 바꿨다. 이 계획에 적힌 `DEVICE_API_KEY` 값은 **폐기**했다(로컬 `.env`는 무작위 값으로 바꿨고, api는 `.env.example`의 `change-me…` 자리표시자로는 뜨지 않는다).
 - **저장소 `.env`는 커밋하지 않는다**(`.gitignore`). Task 3이 `.env.example`에 더한 줄을 `.env`에도 덧붙여야 api가 뜬다(`DEVICE_API_KEY`가 없으면 시작할 때 던진다 — 마이그레이션 만들기·시드 스크립트도 env를 읽으므로 Task 5의 `db:migration:create`도 마찬가지).
 
 ## 사전 검증으로 확인된 사실 (2026-10-28, 임시 폴더)
@@ -543,13 +544,13 @@ import { Merchant } from '../merchant/merchant.entity.js';
  * 테스트(resetDatabase)는 이 계정을 넣지 않는다 — 해시 7번(약 1초)을 파일마다 쓰지 않게, 필요한 테스트가 직접 만든다.
  */
 export const DEMO_ACCOUNTS: { loginId: string; displayName: string; role: Role; password: string; merchantCode?: string }[] = [
-  { loginId: 'admin', displayName: '관리자(시연)', role: Role.ADMIN, password: 'demo-admin-i85thLR_' },
-  { loginId: 'operator', displayName: '운영자(시연)', role: Role.OPERATOR, password: 'demo-operator-KG0TjBaF' },
-  { loginId: 'monitor', displayName: '관제(시연)', role: Role.MONITOR, password: 'demo-monitor-s0HXGiA0' },
-  { loginId: 'field', displayName: '현장 작업자(시연)', role: Role.FIELD, password: 'demo-field-uWNme8sf' },
-  { loginId: 'merchant-gangnam', displayName: '강남김밥 점주(시연)', role: Role.MERCHANT, password: 'demo-merchant-PhEqKald', merchantCode: 'GANGNAM-KIMBAP' },
-  { loginId: 'merchant-yeoksam', displayName: '역삼카페 점주(시연)', role: Role.MERCHANT, password: 'demo-merchant-PhEqKald', merchantCode: 'YEOKSAM-CAFE' },
-  { loginId: 'merchant-pangyo', displayName: '판교분식 점주(시연)', role: Role.MERCHANT, password: 'demo-merchant-PhEqKald', merchantCode: 'PANGYO-BUNSIK' },
+  { loginId: 'admin', displayName: '관리자(시연)', role: Role.ADMIN, password: '(seed 파일 참고)' },
+  { loginId: 'operator', displayName: '운영자(시연)', role: Role.OPERATOR, password: '(seed 파일 참고)' },
+  { loginId: 'monitor', displayName: '관제(시연)', role: Role.MONITOR, password: '(seed 파일 참고)' },
+  { loginId: 'field', displayName: '현장 작업자(시연)', role: Role.FIELD, password: '(seed 파일 참고)' },
+  { loginId: 'merchant-gangnam', displayName: '강남김밥 점주(시연)', role: Role.MERCHANT, password: '(seed 파일 참고)', merchantCode: 'GANGNAM-KIMBAP' },
+  { loginId: 'merchant-yeoksam', displayName: '역삼카페 점주(시연)', role: Role.MERCHANT, password: '(seed 파일 참고)', merchantCode: 'YEOKSAM-CAFE' },
+  { loginId: 'merchant-pangyo', displayName: '판교분식 점주(시연)', role: Role.MERCHANT, password: '(seed 파일 참고)', merchantCode: 'PANGYO-BUNSIK' },
 ];
 
 /** 시연 계정을 넣는다. 이미 있는 아이디는 건너뛴다(비밀번호·역할을 되돌리지 않는다 — 시연 중 바꾼 값을 지우지 않게). 넣은 수를 돌려준다 */
@@ -4539,7 +4540,7 @@ export class PartnerApiModule {}
  import { Role } from '../auth/role.js';
  import { UserAccount } from '../auth/user-account.entity.js';
 @@ -19,6 +22,30 @@ export const DEMO_ACCOUNTS: { loginId: string; displayName: string; role: Role;
-   { loginId: 'merchant-pangyo', displayName: '판교분식 점주(시연)', role: Role.MERCHANT, password: 'demo-merchant-PhEqKald', merchantCode: 'PANGYO-BUNSIK' },
+   { loginId: 'merchant-pangyo', displayName: '판교분식 점주(시연)', role: Role.MERCHANT, password: '(seed 파일 참고)', merchantCode: 'PANGYO-BUNSIK' },
  ];
  
 +/**
