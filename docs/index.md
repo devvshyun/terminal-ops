@@ -2,7 +2,7 @@
 
 > 이 파일은 `node scripts/docs-index.mjs`가 만든다. 손으로 고치지 않는다(decisions/0046). 기록을 더한 뒤 다시 만들고, `--check`로 확인한다.
 
-## 결정 기록 (56)
+## 결정 기록 (58)
 
 - [0001](decisions/0001-인증은-작업자-헤더로.md) 인증은 하지 않고, 작업자는 요청 헤더로 기록한다
 - [0002](decisions/0002-esm-vitest-tsc-빌드.md) ESM + Vitest + tsc 빌드로 API를 만든다
@@ -60,6 +60,8 @@
 - [0054](decisions/0054-외부-업체-키는-해시-저장과-scope.md) 외부 업체 API 키는 해시로 저장하고 scope로 연다
 - [0055](decisions/0055-단말기는-공유-단말기-키로.md) 단말기는 공유 단말기 키(X-Device-Key)로 부른다
 - [0056](decisions/0056-작업자는-로그인-아이디-X-Operator는-테스트-전용.md) 작업자는 로그인 아이디, X-Operator는 테스트 전용 인증 길로만 남긴다
+- [0057](decisions/0057-점주-화면은-별도-앱-apps-merchant.md) 점주 화면은 어드민 안이 아니라 별도 앱 apps/merchant로 만든다
+- [0058](decisions/0058-화면-공통-코드는-공유-패키지가-아니라-복사로.md) 어드민·점주 화면의 공통 코드는 공유 패키지로 빼지 않고 복사한다
 
 ## 트러블슈팅 (32)
 
