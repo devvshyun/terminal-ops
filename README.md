@@ -42,7 +42,7 @@ docker compose up -d --wait          # MySQL·Redis, healthcheck가 healthy가 �
 for a in api admin merchant field partners device-sim; do (cd apps/$a && npm ci); done   # api·admin·merchant·field는 packages/contracts를 링크한다(따로 설치하지 않는다)
 cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB 스키마와 기준 데이터(모델·가맹점·검수 항목)와 시연 계정 7개·시연 외부 업체 키(NODE_ENV=production·SEED_DEMO=0이면 기준 데이터만)
 
-# 터미널 네 개(또는 백그라운드 — 끌 때는 PID로)
+# 필요한 것만 터미널마다 하나씩(또는 백그라운드 — 끌 때는 PID로)
 (cd apps/partners && npm run build && npm start)       # :4010
 (cd apps/api && npm run build && npm start)            # :3000, 워커·주기 작업 포함(.env의 RUN_WORKERS·RUN_SCHEDULERS)
 (cd apps/api && npm run start:worker)                  # 선택: 워커만 따로 — main api가 RUN_WORKERS=0일 때만. 둘 다 워커면 report 큐 한 번에 하나(decisions/0038) 가정이 깨진다
@@ -202,6 +202,6 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 | api(실험 제외) | 82 | 568 |
 | admin | 14 | 125 |
 | merchant | 7 | 47 |
-| field | 7 | 57 |
+| field | 7 | 60 |
 | partners | 6 | 53 |
 | device-sim | 5 | 46 |
