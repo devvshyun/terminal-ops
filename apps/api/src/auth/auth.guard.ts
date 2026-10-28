@@ -49,7 +49,8 @@ export class AuthGuard implements CanActivate {
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
-    if (ctx.getType() !== 'http') return true;
+    // HTTP가 아닌 실행 문맥(ws·rpc)은 아직 없다. 붙이면 그 문맥의 인증 규칙을 따로 정할 때까지 기본 거부(Task 2 리뷰)
+    if (ctx.getType() !== 'http') return false;
     const access = this.reflector.get<Access | undefined>(ACCESS_KEY, ctx.getHandler());
     const req = ctx.switchToHttp().getRequest<RequestWithPrincipal>();
     if (!access) {

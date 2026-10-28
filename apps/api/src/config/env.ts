@@ -144,6 +144,8 @@ export const env = {
   weeklyReportCron: cronFromEnv('WEEKLY_REPORT_CRON', '0 9 * * 1'),
   /** 로그인 세션(Redis)이 쓰이지 않고 이만큼 지나면 끝난다. 요청마다 다시 늘린다(decisions/0050). 기본 8시간 */
   sessionIdleTtlMs: intFromEnv('SESSION_IDLE_TTL_MS', 8 * 60 * 60_000, MS),
+  /** 로그인부터 이만큼 지나면 쓰고 있어도 끝난다(절대 만료, decisions/0050). 기본 7일 */
+  sessionMaxAgeMs: intFromEnv('SESSION_MAX_AGE_MS', 7 * DAY_MS, { min: 60_000, max: 90 * DAY_MS }),
   /** 세션 쿠키에 Secure를 붙일지. 로컬 http 시연은 0, https 뒤에 둘 때 1(decisions/0050) */
   sessionCookieSecure: flag('SESSION_COOKIE_SECURE', false),
   /** 같은 아이디로 로그인 실패가 이만큼 쌓이면 LOGIN_LOCK_MS 동안 막는다(첫 실패부터 잰다, decisions/0050) */

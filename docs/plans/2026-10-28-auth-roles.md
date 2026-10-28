@@ -78,7 +78,7 @@ terminal-ops/
 │  ├─ src/common/contract-assertions.ts, src/entities.ts                             (Task 1·5)
 │  ├─ src/db/seed-accounts.ts (새), seed.ts                                          (Task 1·5)
 │  ├─ src/migrations/Migration<시각>.ts ×2, .snapshot-terminal_ops.json               (Task 1·5)
-│  ├─ src/**/*.controller.ts 20개                                                   (Task 2) 접근 규칙
+│  ├─ src/**/*.controller.ts 기존 18개                                              (Task 2) 접근 규칙(정정: 처음 '20개'라 적었으나 실제 기존 18개 + 새 auth.controller = 19)
 │  ├─ src/merchant/merchant-scope.ts (새), src/me/ (새)                              (Task 4)
 │  ├─ src/terminal/terminal.service.ts, src/service/*.service.ts, service.module.ts  (Task 4) scope 인자
 │  ├─ src/admin/ (새), src/partner-api/ (새), src/app.module.ts                      (Task 2·4·5)
@@ -721,7 +721,7 @@ Run: `git log -1 --format='%h %ad' --date=format:'%H:%M'` → devlog 제목의 `
 
 **Files:**
 - Create: `apps/api/src/config/auth-test-headers.ts`, `apps/api/src/auth/{access,principal,cookies,session.store,auth.service,auth.controller,auth.guard,auth.module}.ts`, `apps/api/src/auth/dto/login.dto.ts`
-- Modify: `apps/api/src/config/env.ts`, `apps/api/src/common/operator.decorator.ts`(전체 바꿈), `apps/api/src/app.module.ts`, 컨트롤러 20개(아래 Step 8)
+- Modify: `apps/api/src/config/env.ts`, `apps/api/src/common/operator.decorator.ts`(전체 바꿈), `apps/api/src/app.module.ts`, 기존 컨트롤러 18개(아래 Step 8. 정정: 처음 '20개'로 적었다)
 - Modify(테스트 도구): `apps/api/vitest.config.ts`, `apps/api/test/helpers/test-app.ts`; Create `apps/api/test/helpers/auth.ts`
 - Test: Create `apps/api/test/unit/auth-guard.spec.ts`, `apps/api/test/unit/access-table.spec.ts`, `apps/api/test/auth.e2e.spec.ts`; Modify `apps/api/test/{terminal,firmware-rollout,purchase-order,van-collect}.e2e.spec.ts`
 - Docs: `docs/decisions/0050-로그인은-Redis-서버-세션과-httpOnly-쿠키로.md`, `docs/decisions/0052-역할별-엔드포인트-표와-기본-거부.md`, `docs/decisions/0056-작업자는-로그인-아이디-X-Operator는-테스트-전용.md`, `docs/index.md`, `docs/devlog/2026-10-28.md`, `docs/study/backlog.md`
@@ -1790,7 +1790,7 @@ export const Operator = createParamDecorator((_data: unknown, ctx: ExecutionCont
      MerchantModule,
 ```
 
-- [ ] **Step 8: 컨트롤러 20개에 접근 규칙을 단다**
+- [ ] **Step 8: 기존 컨트롤러 18개에 접근 규칙을 단다**(정정: 처음 '20개'로 적었다 — 실제 18개)
 
 규칙은 decisions/0052의 표 그대로다(표 = Step 2의 `access-table.spec.ts` `EXPECTED`). 핸들러마다 하나, 클래스에는 달지 않는다.
 
@@ -2466,7 +2466,7 @@ Expected: `Test Files  71 passed (71)`, `Tests  483 passed (483)`(사전 검증 
 # 0052. 역할별 엔드포인트 표와 기본 거부
 
 - 날짜 / 관련 기능: 2026-10-28 / 보강 2, 모든 HTTP API
-- 상황: 역할 다섯(ADMIN 계정·역할·외부 업체 키 관리 / OPERATOR 운영자, 어드민의 모든 업무 쓰기 / MONITOR 관제·개발자, 읽기 + 관제 작업 / FIELD 현장 작업자, 스캔·검수 / MERCHANT 가맹점주, 자기 가맹점만)이 생긴다. 엔드포인트 59개(보강 2 끝 기준 72개)에 누가 부를 수 있는지 정하고, 새 엔드포인트가 규칙 없이 열리지 않게 해야 한다.
+- 상황: 역할 다섯(ADMIN 계정·역할·외부 업체 키 관리 / OPERATOR 운영자, 어드민의 모든 업무 쓰기 / MONITOR 관제·개발자, 읽기 + 관제 작업 / FIELD 현장 작업자, 스캔·검수 / MERCHANT 가맹점주, 자기 가맹점만)이 생긴다. 엔드포인트 55개(Task 2 끝, `/auth` 3개 포함 — 접근 표 테스트가 센 값. 보강 2 끝 예상 68개. 정정: 처음 '59개(72개)'로 적었다)에 누가 부를 수 있는지 정하고, 새 엔드포인트가 규칙 없이 열리지 않게 해야 한다.
 - 선택지:
   1. 기본 허용 + 막을 곳에만 `@Roles` — 빠뜨린 곳이 조용히 열린다
   2. **기본 거부: 전역 가드(`APP_GUARD`) + 핸들러마다 규칙 하나(`@Public`·`@Roles(...)`·`@DeviceAuth`·`@PartnerAuth(scope)`), 없으면 403** — 빠뜨리면 막힌다(안전한 쪽으로 틀린다)
@@ -2535,7 +2535,7 @@ Expected: `Test Files  71 passed (71)`, `Tests  483 passed (483)`(사전 검증 
 ```markdown
 ## HH:MM Task 2 세션·로그인·전역 가드·역할 표 (커밋 <해시>)
 - 이전 커밋: <Task 1 해시>
-- 한 일: Redis 서버 세션(`sid` httpOnly·SameSite=Strict, 토큰 SHA-256 키, GETEX 유휴 8시간, 계정 색인 SET), `/auth/login·logout·me`, 아이디별 실패 제한(5번/15분 → 429), 전역 가드(규칙 없으면 403), 컨트롤러 20개 접근 규칙, `@Operator()` = 로그인 아이디, 테스트 전용 인증 길(`AUTH_TEST_HEADERS`, NODE_ENV=test만)과 `createTestApp().http(identity | null)`
+- 한 일: Redis 서버 세션(`sid` httpOnly·SameSite=Strict, 토큰 SHA-256 키, GETEX 유휴 8시간, 계정 색인 SET), `/auth/login·logout·me`, 아이디별 실패 제한(5번/15분 → 429), 전역 가드(규칙 없으면 403), 기존 컨트롤러 18개 접근 규칙, `@Operator()` = 로그인 아이디, 테스트 전용 인증 길(`AUTH_TEST_HEADERS`, NODE_ENV=test만)과 `createTestApp().http(identity | null)`
 - 확인: 새 테스트 3파일 22개, 기존 테스트 수정 다섯 줄(400 → 401), api 전체 71/483(Duration …s, Connection is closed 0), 접근 표 빠뜨림 확인 출력(Step 10)
 - 결정: decisions/0050(세션), 0052(역할 표·기본 거부), 0056(작업자·테스트 전략)
 - 막힌 것: …

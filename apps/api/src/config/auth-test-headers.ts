@@ -10,3 +10,8 @@ export function resolveAuthTestHeaders(raw: string | undefined, nodeEnv: string 
   }
   return true;
 }
+
+/** 켜져 있을 때 시작 로그에 남길 경고(Task 2 리뷰). 꺼져 있으면 null */
+export function authTestHeadersWarning(enabled: boolean): string | null {
+  return enabled ? 'AUTH_TEST_HEADERS=1 — X-Operator·X-Test-Role 헤더만으로 로그인한 것처럼 됩니다. 테스트 전용입니다(decisions/0056).' : null;
+}

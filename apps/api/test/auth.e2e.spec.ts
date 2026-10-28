@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import type { Redis } from 'ioredis';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { dummyPasswordHash } from '../src/auth/password.js';
 import { Role } from '../src/auth/role.js';
 import { SessionStore } from '../src/auth/session.store.js';
@@ -157,14 +158,11 @@ describe('로그인·세션·역할 (보강 2, decisions/0050·0052·0056)', () 
     expect(res.status).toBe(401);
     expect(res.body.code).toBe('LOGIN_FAILED');
     const account = await t.orm.em.fork().findOneOrFail(UserAccount, { loginId: 'orphan1' });
-    const token = await t.app.get(SessionStore).create({
-      accountId: account.id,
-      loginId: 'orphan1',
-      displayName: 'orphan1 이름',
-      role: Role.MERCHANT,
-      merchantId: null,
-      merchantCode: null,
-    });
+    const store = t.app.get(SessionStore);
+    const token = await store.create(
+      { accountId: account.id, loginId: 'orphan1', displayName: 'orphan1 이름', role: Role.MERCHANT, merchantId: null, merchantCode: null },
+      await store.generation(account.id),
+    );
     expect((await withCookie(t, `sid=${token}`).get('/auth/me')).status).toBe(401);
   });
 
@@ -173,5 +171,96 @@ describe('로그인·세션·역할 (보강 2, decisions/0050·0052·0056)', () 
     expect((await t.http({ 'X-Operator': 'm1', 'X-Test-Role': 'MERCHANT' }).get('/auth/me')).status).toBe(401);
     expect((await t.http({ 'X-Operator': 'm1', 'X-Test-Role': 'ROOT' }).get('/auth/me')).status).toBe(401);
     expect((await t.http().get('/auth/me')).body).toEqual({ loginId: 'tester', displayName: 'tester', role: 'OPERATOR', merchantCode: null });
+  });
+
+  describe('보안 리뷰 반영(Task 2 리뷰) — 실패 제한·세션 세대값·절대 만료·로그인 요청 모양', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    const sessionKeyOf = (cookie: string) => `${env.queuePrefix}:sess:${createHash('sha256').update(cookie.slice('sid='.length)).digest('hex')}`;
+
+    it('악센트·전각 변형 아이디(collation이 같은 계정으로 보는 것)는 400 — 실패 카운터를 우회하지 못한다. 대소문자 변형은 같은 카운터', async () => {
+      await createAccount(t, 'lock2', 'OPERATOR');
+      for (const variant of ['lóck2', 'ｌｏｃｋ２', 'lock2 ', 'lo ck2']) {
+        const res = await t.http(null).post('/auth/login').send({ loginId: variant, password: 'wrong-wrong' });
+        expect(res.status, variant).toBe(400);
+      }
+      for (const variant of ['Lock2', 'LOCK2', 'lOcK2', 'Lock2', 'lock2'].slice(0, env.loginMaxFailures)) {
+        expect((await t.http(null).post('/auth/login').send({ loginId: variant, password: 'wrong-wrong' })).status, variant).toBe(401);
+      }
+      const locked = await t.http(null).post('/auth/login').send({ loginId: 'lock2', password: TEST_PASSWORD });
+      expect(locked.status).toBe(429);
+    });
+
+    it(`같은 아이디로 동시에 10번 틀려도 비밀번호 검증까지 가는 것은 ${env.loginMaxFailures}번까지(시도를 먼저 예약한다), 나머지는 429`, async () => {
+      await createAccount(t, 'race1', 'OPERATOR');
+      const statuses = await Promise.all(
+        Array.from({ length: 10 }, () => t.http(null).post('/auth/login').send({ loginId: 'race1', password: 'wrong-wrong' }).then((r) => r.status)),
+      );
+      expect(statuses.filter((s) => s === 401).length).toBeLessThanOrEqual(env.loginMaxFailures);
+      expect(statuses.filter((s) => s === 429).length).toBeGreaterThanOrEqual(10 - env.loginMaxFailures);
+      expect(statuses.every((s) => s === 401 || s === 429)).toBe(true);
+    });
+
+    it('로그인 도중(계정을 읽은 뒤·세션을 만들기 전) 그 계정의 세션을 모두 끊으면 새 세션도 무효(세대값)', async () => {
+      await createAccount(t, 'gen1', 'OPERATOR');
+      const store = t.app.get(SessionStore);
+      const realCreate = store.create.bind(store);
+      vi.spyOn(store, 'create').mockImplementationOnce(async (...args: Parameters<SessionStore['create']>) => {
+        await store.destroyAllFor(args[0].accountId);
+        return realCreate(...args);
+      });
+      const cookie = await login(t, 'gen1');
+      expect((await withCookie(t, cookie).get('/auth/me')).status).toBe(401);
+      // 끊긴 뒤 새로 로그인하면 새 세대값으로 쓸 수 있다
+      expect((await withCookie(t, await login(t, 'gen1')).get('/auth/me')).status).toBe(200);
+    });
+
+    it('세션을 모두 끊는 도중(색인을 읽은 뒤·지우기 전) 옛 세대값으로 만든 세션도 무효', async () => {
+      const account = await createAccount(t, 'gen2', 'OPERATOR');
+      const store = t.app.get(SessionStore);
+      const staleGen = await store.generation(account.id);
+      const principal = { accountId: account.id, loginId: 'gen2', displayName: 'gen2 이름', role: Role.OPERATOR, merchantId: null, merchantCode: null };
+      await store.create(principal, staleGen);
+      let late: string | null = null;
+      const realSmembers = redis.smembers.bind(redis) as (key: string) => Promise<string[]>;
+      vi.spyOn(redis, 'smembers').mockImplementationOnce((async (key: string) => {
+        const members = await realSmembers(key);
+        late = await store.create(principal, staleGen);
+        return members;
+      }) as never);
+      await store.destroyAllFor(account.id);
+      expect(late).not.toBeNull();
+      expect((await withCookie(t, `sid=${late}`).get('/auth/me')).status).toBe(401);
+    });
+
+    it('쓰고 있어도 로그인부터 SESSION_MAX_AGE_MS가 지나면 세션이 끝난다(절대 만료)', async () => {
+      const cookie = await login(t, 'op1');
+      const key = sessionKeyOf(cookie);
+      const stored = JSON.parse((await redis.get(key))!) as Record<string, unknown>;
+      expect(typeof stored.createdAt).toBe('number');
+      await redis.set(key, JSON.stringify({ ...stored, createdAt: Date.now() - env.sessionMaxAgeMs - 1_000 }), 'PX', 60_000);
+      expect((await withCookie(t, cookie).get('/auth/me')).status).toBe(401);
+      expect(await redis.exists(key)).toBe(0);
+    });
+
+    it('세션 쿠키를 들고 다시 로그인하면 옛 세션을 지운다', async () => {
+      const before = await login(t, 'op1');
+      const res = await withCookie(t, before).post('/auth/login').send({ loginId: 'op1', password: TEST_PASSWORD });
+      expect(res.status).toBe(200);
+      const after = ([] as string[]).concat(res.headers['set-cookie'] ?? [])[0].split(';')[0];
+      expect(after).not.toBe(before);
+      expect((await withCookie(t, before).get('/auth/me')).status).toBe(401);
+      expect((await withCookie(t, after).get('/auth/me')).status).toBe(200);
+    });
+
+    it('로그인은 JSON 본문만 받는다 — 폼(urlencoded)·text는 415(다른 사이트 폼이 로그인시키지 못하게)', async () => {
+      const form = await t.http(null).post('/auth/login').type('form').send(`loginId=op1&password=${encodeURIComponent(TEST_PASSWORD)}`);
+      expect(form.status).toBe(415);
+      expect(form.headers['set-cookie']).toBeUndefined();
+      const text = await t.http(null).post('/auth/login').set('Content-Type', 'text/plain').send(JSON.stringify({ loginId: 'op1', password: TEST_PASSWORD }));
+      expect(text.status).toBe(415);
+    });
   });
 });

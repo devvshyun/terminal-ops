@@ -181,3 +181,6 @@
 - [ ] MikroORM `schema.refresh()`는 메타데이터에 있는 테이블만 지운다 — 다른 브랜치가 만든 테이블의 FK가 drop을 막는다 (troubleshooting/0030)
 - [ ] 세션 대 JWT — 로그아웃·강제 만료·권한 변경 반영, 거부 목록이 결국 상태를 만드는 이유, 쿠키 SameSite(Lax·Strict·None)와 "같은 사이트"의 범위(localhost 포트) (decisions/0050)
 - [ ] Nest 가드·Reflector·SetMetadata와 APP_GUARD, 모듈 메타데이터를 훑어 라우트 표 만들기 (decisions/0052)
+- [ ] MySQL collation(utf8mb4_0900_ai_ci)의 같음 — 악센트·전각·대소문자, PAD/NO PAD, 유니코드 NFKC 정규화와의 차이 (decisions/0050, Task 2 보안 리뷰)
+- [ ] 확인 후 행동(check-then-act) 경합과 세대값(generation counter)으로 무효화하기, Redis Lua 스크립트의 원자성과 클러스터 슬롯(KEYS 선언) (decisions/0050)
+- [ ] libuv 스레드 풀(UV_THREADPOOL_SIZE)과 scrypt·pbkdf2 같은 crypto 비동기 함수 — 해시가 몰리면 무엇이 밀리나 (decisions/0050)
