@@ -41,6 +41,8 @@ export function ScanPage() {
     onSuccess: () => void client.invalidateQueries({ queryKey: keys.all }),
     onError: (error, body) => {
       // 내용을 고쳐야 하는 오류: 다음 보내기는 새 scanId. 그새 다른 박스로 넘어갔으면 그 박스의 scanId는 건드리지 않는다
+      // 늦게 온 오류는 지금 박스의 scanId일 때만 scanId를 버린다(ref 비교). 새 박스를 시작한 뒤 이전 요청의 오류가 새 박스를 건드리지 않게 하는 방어다 —
+      // 보내는 중에는 "새 박스"가 꺼져 있어 화면으로는 이 순서를 만들 수 없어 테스트하지 않는다(코드로만 지킨다, decisions/0064)
       if (!retryable(error) && currentScanId.current === body.scanId) changeScanId(null);
     },
   });

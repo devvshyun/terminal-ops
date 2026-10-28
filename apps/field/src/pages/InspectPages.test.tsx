@@ -120,7 +120,7 @@ describe('단말기 검수 (보강 4)', () => {
         { itemCode: 'PRINTER', passed: false, note: '용지 걸림' },
       ],
     } satisfies InspectRequest);
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: keys.all });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: keys.queue });
     await userEvent.click(screen.getByRole('link', { name: '다음 단말기' }));
     expect(await screen.findByLabelText('시리얼 스캔으로 찾기')).toHaveFocus(); // 다음 단말기를 바로 스캔
   });
@@ -151,7 +151,7 @@ describe('단말기 검수 (보강 4)', () => {
     });
     loginAs();
     const first = renderApp('/inspections/SN-STOCK');
-    expect(await screen.findByText('검수 대기 단말기가 아닙니다(지금 상태: 재고). 다른 단말기를 스캔하세요.')).toBeInTheDocument();
+    expect(await screen.findByText('검수 대기 단말기가 아닙니다(지금 상태: 재고). 그새 다른 사람이 검수했을 수 있습니다. 다른 단말기를 스캔하세요.')).toBeInTheDocument();
     expect(calls.some((c) => c.path === '/inspection-items')).toBe(false);
     first.unmount();
     renderApp('/inspections/NOPE');
@@ -174,7 +174,61 @@ describe('단말기 검수 (보강 4)', () => {
     renderApp('/inspections/SN-0003');
     await userEvent.click(await screen.findByRole('button', { name: '모두 합격' }));
     await userEvent.click(screen.getByRole('button', { name: '검수 결과 저장' }));
-    expect(await screen.findByText('검수 대기 단말기가 아닙니다(지금 상태: 검수 합격). 다른 단말기를 스캔하세요.')).toBeInTheDocument();
+    expect(await screen.findByText('검수 대기 단말기가 아닙니다(지금 상태: 검수 합격). 그새 다른 사람이 검수했을 수 있습니다. 다른 단말기를 스캔하세요.')).toBeInTheDocument();
     await waitFor(() => expect(calls.filter((c) => c.path === '/terminals/SN-0003')).toHaveLength(2));
+    // 검수 화면(체크리스트)이 사라져도 실패는 남는다 — 저장이 안 된 것을 모르고 지나가지 않게
+    expect(screen.getByRole('alert')).toHaveTextContent('방금 저장하지 못했습니다: 지금 상태에서는 할 수 없습니다. 이미 처리됐는지 확인하세요.');
+    expect(screen.getByRole('alert')).toHaveTextContent('허용되지 않은 전이입니다: INSPECTED → INSPECTED');
+    // 스캐너가 갈 곳: 시리얼 칸에 초점, 다음 단말기를 바로 스캔
+    expect(screen.getByLabelText('시리얼 스캔으로 찾기')).toHaveFocus();
+  });
+
+  it('검수 대기가 아닌 화면과 저장 결과 화면에서 다음 시리얼을 바로 스캔해 그 단말기로 간다', async () => {
+    mockApi({
+      ...today,
+      ...queue({}),
+      'GET /terminals/:serialNo': (c) => ({ body: detail(decodeURIComponent(c.path.split('/').pop() ?? ''), c.path.endsWith('SN-STOCK') ? 'IN_STOCK' : 'RECEIVED') }),
+      'GET /inspection-items': () => ({ body: ITEMS }),
+      'POST /terminals/:serialNo/inspections': () => ({ status: 201, body: { inspectionId: 11, passed: true, failedItems: [], terminal: view('SN-0004', 'INSPECTED', '2026-10-28T03:00:00.000Z') } }),
+    });
+    loginAs();
+    renderApp('/inspections/SN-STOCK');
+    await screen.findByText(/검수 대기 단말기가 아닙니다/);
+    expect(screen.getByLabelText('시리얼 스캔으로 찾기')).toHaveFocus();
+    await userEvent.keyboard('SN-0004{Enter}');
+    await userEvent.click(await screen.findByRole('button', { name: '모두 합격' }));
+    await userEvent.click(screen.getByRole('button', { name: '검수 결과 저장' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('합격 — 검수 완료');
+    expect(screen.getByLabelText('시리얼 스캔으로 찾기')).toHaveFocus();
+    await userEvent.keyboard('SN-0005{Enter}');
+    expect(await screen.findByRole('heading', { name: 'SN-0005' })).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: '전원' })).toBeInTheDocument();
+  });
+
+  it('검수 항목이 없는 모델은 저장할 수 없다고 안내한다', async () => {
+    mockApi({ 'GET /terminals/:serialNo': () => ({ body: detail('SN-0006') }), 'GET /inspection-items': () => ({ body: [] }) });
+    loginAs();
+    renderApp('/inspections/SN-0006');
+    expect(await screen.findByText('이 모델은 검수 항목이 없습니다. 어드민에서 확인하세요.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /검수 결과 저장|남은 항목/ })).not.toBeInTheDocument();
+  });
+
+  it('저장 뒤에는 오늘 요약·검수 대기·그 단말기만 다시 읽는다(검수 항목은 그대로)', async () => {
+    mockApi({
+      ...today,
+      ...queue({}),
+      'GET /terminals/:serialNo': () => ({ body: detail('SN-0007') }),
+      'GET /inspection-items': () => ({ body: ITEMS }),
+      'POST /terminals/:serialNo/inspections': () => ({ status: 201, body: { inspectionId: 12, passed: true, failedItems: [], terminal: view('SN-0007', 'INSPECTED', '2026-10-28T03:00:00.000Z') } }),
+    });
+    loginAs();
+    const { client } = renderApp('/inspections/SN-0007');
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    await userEvent.click(await screen.findByRole('button', { name: '모두 합격' }));
+    await userEvent.click(screen.getByRole('button', { name: '검수 결과 저장' }));
+    await screen.findByRole('status');
+    const called = invalidate.mock.calls.map((c) => c[0]?.queryKey);
+    expect(called).toEqual(expect.arrayContaining([keys.today, keys.queue, keys.terminal('SN-0007')]));
+    expect(called).not.toContainEqual(keys.all);
   });
 });

@@ -5,7 +5,8 @@ import type { InspectionItemView, InspectionResultInput, InspectRequest, Inspect
 import { api } from '../api/client';
 import { useInspectionItems, useTerminal } from '../api/queries';
 import { keys } from '../api/query-keys';
-import { ErrorBox } from '../components/ErrorBox';
+import { describeError, ErrorBox } from '../components/ErrorBox';
+import { SerialFinder } from '../components/SerialFinder';
 import { TERMINAL_STATUS_LABEL } from '../lib/labels';
 
 /** 시리얼이 바뀌면(다음 단말기) 고른 값·메모를 처음으로 — key로 다시 그린다 */
@@ -27,6 +28,9 @@ function Inspect({ serialNo }: { serialNo: string }) {
   /** 저장 결과. 저장 뒤 다시 읽은 단말기는 더 이상 검수 대기가 아니므로(INSPECTED·DEFECTIVE) 결과는 여기 따로 들고 있는다 */
   const [saved, setSaved] = useState<{ result: InspectResult; labels: string[] } | null>(null);
 
+  /** 저장 실패. 실패 뒤 다시 읽은 단말기가 검수 대기가 아니면 체크리스트가 사라지므로(그 안의 mutation 상태도 같이) 여기 따로 든다 */
+  const [saveError, setSaveError] = useState<unknown>(null);
+
   if (saved) return <Saved serialNo={serialNo} {...saved} />;
 
   return (
@@ -38,10 +42,21 @@ function Inspect({ serialNo }: { serialNo: string }) {
       <ErrorBox error={terminal.error} />
       {terminal.data ? <TerminalHead terminal={terminal.data} /> : terminal.isPending ? <p className="muted">불러오는 중…</p> : null}
       {terminal.data && !terminal.data.actions.inspect ? (
-        <p className="notice">검수 대기 단말기가 아닙니다(지금 상태: {TERMINAL_STATUS_LABEL[terminal.data.status]}). 다른 단말기를 스캔하세요.</p>
+        <>
+          {saveError ? <SaveFailed error={saveError} /> : null}
+          <p className="notice">
+            검수 대기 단말기가 아닙니다(지금 상태: {TERMINAL_STATUS_LABEL[terminal.data.status]}). 그새 다른 사람이 검수했을 수 있습니다. 다른 단말기를 스캔하세요.
+          </p>
+          <SerialFinder />
+        </>
       ) : null}
       <ErrorBox error={items.error} />
-      {terminal.data?.actions.inspect && items.data ? <Checklist serialNo={serialNo} items={items.data} onSaved={setSaved} /> : null}
+      {terminal.data?.actions.inspect && items.data && items.data.length === 0 ? (
+        <p className="notice">이 모델은 검수 항목이 없습니다. 어드민에서 확인하세요.</p>
+      ) : null}
+      {terminal.data?.actions.inspect && items.data && items.data.length > 0 ? (
+        <Checklist serialNo={serialNo} items={items.data} onSaved={setSaved} onFailed={setSaveError} />
+      ) : null}
     </section>
   );
 }
@@ -58,10 +73,12 @@ function Checklist({
   serialNo,
   items,
   onSaved,
+  onFailed,
 }: {
   serialNo: string;
   items: InspectionItemView[];
   onSaved: (saved: { result: InspectResult; labels: string[] }) => void;
+  onFailed: (error: unknown) => void;
 }) {
   const client = useQueryClient();
   const [passed, setPassed] = useState<Record<string, boolean>>({});
@@ -70,8 +87,10 @@ function Checklist({
     mutationFn: (results: InspectionResultInput[]) =>
       api<InspectResult>(`/terminals/${encodeURIComponent(serialNo)}/inspections`, { method: 'POST', body: { results } satisfies InspectRequest }),
     onSuccess: (result) => onSaved({ result, labels: items.filter((item) => result.failedItems.includes(item.code)).map((item) => item.label) }),
-    // 성공·실패 모두 다시 읽는다: 성공이면 대기·오늘 요약이 바뀌고, 실패(422 등)는 대개 "그새 다른 사람이 검수했다 = 화면이 낡았다"
-    onSettled: () => void client.invalidateQueries({ queryKey: keys.all }),
+    onError: onFailed,
+    // 다시 읽는 것은 오늘 요약·검수 대기·이 단말기뿐(검수 항목은 그대로). 실패(422 등)도 읽는다: 대개 "그새 다른 사람이 검수했다 = 화면이 낡았다"
+    onSettled: () =>
+      void Promise.all([keys.today, keys.queue, keys.terminal(serialNo)].map((queryKey) => client.invalidateQueries({ queryKey }))),
   });
 
   const done = items.every((item) => passed[item.code] !== undefined);
@@ -122,6 +141,16 @@ function Checklist({
   );
 }
 
+function SaveFailed({ error }: { error: unknown }) {
+  const { title, detail } = describeError(error);
+  return (
+    <div className="error" role="alert">
+      <strong>방금 저장하지 못했습니다: {title}</strong>
+      <small className="error-detail">{detail}</small>
+    </div>
+  );
+}
+
 function Saved({ serialNo, result, labels }: { serialNo: string; result: InspectResult; labels: string[] }) {
   return (
     <section>
@@ -133,6 +162,7 @@ function Saved({ serialNo, result, labels }: { serialNo: string; result: Inspect
       <Link className="big-button" to="/inspections">
         다음 단말기
       </Link>
+      <SerialFinder />
     </section>
   );
 }

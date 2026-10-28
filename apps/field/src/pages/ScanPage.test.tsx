@@ -62,6 +62,19 @@ describe('박스 스캔 — 스캐너 입력 (보강 4, decisions/0064)', () => 
     expect(rows().map((r) => r.querySelector('.serial')?.textContent)).toEqual(['SN-0009', 'SN-0011', 'SN-0012']);
   });
 
+  it('공백 없는 시리얼 하나를 붙여 넣고 Enter를 치면 그 하나가 목록에 쌓인다(붙여 넣기가 입력칸에 글자로 들어가고 Enter가 더한다)', async () => {
+    mockApi(orders);
+    loginAs();
+    renderPage(<ScanPage />);
+    await userEvent.click(screen.getByLabelText(/시리얼/));
+    await userEvent.paste('SN-0020');
+    expect(rows()).toHaveLength(0);
+    expect(screen.getByLabelText(/시리얼/)).toHaveValue('SN-0020');
+    await userEvent.keyboard('{Enter}');
+    expect(rows().map((r) => r.querySelector('.serial')?.textContent)).toEqual(['SN-0020']);
+    expect(screen.getByLabelText(/시리얼/)).toHaveValue('');
+  });
+
   it('501개면 보내기가 꺼지고 안내, 발주분 입고는 발주를 고르기 전까지 꺼진다', async () => {
     mockApi(orders);
     loginAs();

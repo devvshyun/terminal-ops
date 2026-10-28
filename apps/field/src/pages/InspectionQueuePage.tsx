@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { useInspectionQueue } from '../api/queries';
 import { ErrorBox } from '../components/ErrorBox';
+import { SerialFinder } from '../components/SerialFinder';
 import { formatKstShort } from '../lib/format';
 import { QUEUE_KIND_LABEL } from '../lib/labels';
 
@@ -10,35 +10,12 @@ import { QUEUE_KIND_LABEL } from '../lib/labels';
  * 아래: 기다리는 단말기(새 입고·회수 입고, 오래 기다린 것부터). 목록에 없어도 스캔으로 찾을 수 있다(검수할 수 있는지는 서버가 정한다).
  */
 export function InspectionQueuePage() {
-  const navigate = useNavigate();
   const queue = useInspectionQueue();
-  const [draft, setDraft] = useState('');
-  const find = (event: FormEvent) => {
-    event.preventDefault();
-    const serial = draft.trim();
-    if (serial) navigate(`/inspections/${encodeURIComponent(serial)}`);
-  };
   const shown = queue.data?.items.length ?? 0;
   return (
     <section>
       <h1>검수</h1>
-      <form className="scan-input" onSubmit={find}>
-        <label>
-          시리얼 스캔으로 찾기
-          <input
-            autoFocus
-            value={draft}
-            autoComplete="off"
-            autoCapitalize="characters"
-            spellCheck={false}
-            enterKeyHint="go"
-            onChange={(e) => setDraft(e.target.value)}
-          />
-        </label>
-        <button type="submit" disabled={!draft.trim()}>
-          찾기
-        </button>
-      </form>
+      <SerialFinder />
 
       <h2>검수 대기 {queue.data ? `${queue.data.total}대` : ''}</h2>
       <ErrorBox error={queue.error} />

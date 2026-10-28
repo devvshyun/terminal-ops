@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { kstDayOf } from '../src/common/kst.js';
+import { FieldService } from '../src/field/field.service.js';
 import { Inspection } from '../src/inspection/inspection.entities.js';
 import { ScanBatch, ScanKind } from '../src/scan/scan-batch.entity.js';
 import { Terminal } from '../src/terminal/terminal.entity.js';
@@ -14,8 +15,8 @@ const oneFail = SN100.map((itemCode) => ({ itemCode, passed: itemCode !== 'PRINT
 
 /**
  * 현장 작업자 화면용 API(보강 4, decisions/0063). 스캔·검수는 현장 작업자가 실제 로그인(쿠키)으로 기존 API를 부르고,
- * GET /field/today가 그 사람의 오늘(KST) 일만 세는지 본다. 날짜 경계는 단위 테스트(kst-day.spec.ts)가 본다 —
- * 여기서는 "지금"이 속한 날을 쓰므로 KST 자정에 걸쳐 돌면 어긋날 수 있다(드묾).
+ * GET /field/today가 그 사람의 오늘(KST) 일만 세는지 본다. 날짜 경계는 kstDayOf 단위 테스트(kst-day.spec.ts)와, `FieldService.today(actor, now)`에 now를 고정해 부르는 아래 테스트가 본다 —
+ * 나머지 테스트는 "지금"이 속한 날을 쓰므로 KST 자정에 걸쳐 돌면 어긋날 수 있다(드묾).
  */
 describe('현장 작업자 오늘 내 작업 /field/today (보강 4)', () => {
   let t: TestApp;
@@ -90,6 +91,29 @@ describe('현장 작업자 오늘 내 작업 /field/today (보강 4)', () => {
       scans: { boxes: 2, received: 2, returned: 1, rejected: 1 },
       inspections: { total: 2, passed: 1, failed: 1 },
     });
+  });
+
+  it('날짜 경계: now를 고정해 서비스를 직접 부르면 KST 0시 정각부터 그날이고 23:59는 전날이다', async () => {
+    const service = t.app.get(FieldService);
+    const em = t.orm.em.fork();
+    const terminal = await em.findOneOrFail(Terminal, { serialNo: receive.serials[0] });
+    // KST 2031-03-09 23:59 / 2031-03-10 00:00 정확히 / 2031-03-10 23:59 (UTC로는 14:59, 15:00, 다음 날 14:59). 다른 작업자 아이디라 위 테스트와 섞이지 않는다
+    const at = (iso: string) => new Date(iso);
+    const rows = [
+      ['BOX-EDGE-1', '2031-03-09T14:59:00Z'],
+      ['BOX-EDGE-2', '2031-03-09T15:00:00Z'],
+      ['BOX-EDGE-3', '2031-03-10T14:59:00Z'],
+    ] as const;
+    for (const [scanId, iso] of rows) {
+      em.create(ScanBatch, { scanId, kind: ScanKind.RETURN_IN, requestHash: '0'.repeat(64), actor: 'field-edge', results: [{ serialNo: scanId, result: 'RETURNED' }], createdAt: at(iso) });
+      em.create(Inspection, { terminal, passed: iso.endsWith('15:00:00Z'), actor: 'field-edge', inspectedAt: at(iso) });
+    }
+    await em.flush();
+    const day = (iso: string) => service.today('field-edge', at(iso));
+    expect(await day('2031-03-09T14:59:30Z')).toEqual({ date: '2031-03-09', scans: { boxes: 1, received: 0, returned: 1, rejected: 0 }, inspections: { total: 1, passed: 0, failed: 1 } });
+    expect(await day('2031-03-09T15:00:00Z')).toEqual({ date: '2031-03-10', scans: { boxes: 2, received: 0, returned: 2, rejected: 0 }, inspections: { total: 2, passed: 1, failed: 1 } });
+    expect(await day('2031-03-10T14:59:59Z')).toMatchObject({ date: '2031-03-10', scans: { boxes: 2 } });
+    expect(await day('2031-03-10T15:00:00Z')).toEqual({ date: '2031-03-11', scans: { boxes: 0, received: 0, returned: 0, rejected: 0 }, inspections: { total: 0, passed: 0, failed: 0 } });
   });
 
   it('현장 작업자만 부른다 — 운영자·가맹점주 403, 로그인 없음 401', async () => {

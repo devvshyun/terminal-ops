@@ -14,7 +14,10 @@ export interface FieldTodayView {
     received: number;
     /** 회수 입고된 단말기 수(행 결과 RETURNED) */
     returned: number;
-    /** 거절된 행 수(형식·중복·명세 밖·상태 등 — 그 밖의 행 결과) */
+    /**
+     * 저장된 박스의 행 결과 중 거절된 줄 수(형식·중복·명세 밖·상태 등 — CREATED·RETURNED가 아닌 것).
+     * 요청 전체가 거절돼 박스로 저장되지 않은 경우(마감된 발주 PO_CLOSED, 400 형식 오류, 다른 내용의 같은 scanId 등)는 세지 않는다 — 화면 문구는 "거절된 줄".
+     */
     rejected: number;
   };
   inspections: {

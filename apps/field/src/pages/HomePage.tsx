@@ -36,7 +36,7 @@ export function HomePage() {
           </dl>
           <p className="muted">
             검수 합격 {t.inspections.passed} · 불합격 {t.inspections.failed}
-            {t.scans.rejected > 0 ? ` · 스캔 거절 ${t.scans.rejected}행` : ''}
+            {t.scans.rejected > 0 ? ` · 거절된 줄 ${t.scans.rejected}` : ''}
           </p>
         </>
       ) : today.isPending ? (

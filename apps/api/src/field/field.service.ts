@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { EntityManager } from '@mikro-orm/mysql';
+import { EntityManager, raw } from '@mikro-orm/mysql';
 import type { FieldTodayView } from '@terminal-ops/contracts';
 import { kstDayOf } from '../common/kst.js';
 import { Inspection } from '../inspection/inspection.entities.js';
@@ -24,8 +24,11 @@ export class FieldService {
       else if (row.result === 'RETURNED') scans.returned += 1;
       else scans.rejected += 1;
     }
-    const inspectedToday = { actor, inspectedAt: { $gte: day.from, $lt: day.to } };
-    const [total, passed] = await Promise.all([em.count(Inspection, inspectedToday), em.count(Inspection, { ...inspectedToday, passed: true })]);
+    // 합격·불합격을 한 번에: passed별 개수 (GROUP BY passed)
+    const grouped = await em.createQueryBuilder(Inspection, 'i').select(['i.passed', raw('count(*) as n')]).where({ actor, inspectedAt: { $gte: day.from, $lt: day.to } }).groupBy('i.passed').execute<{ passed: number | boolean; n: number | string }[]>();
+    const count = (want: boolean) => grouped.filter((g) => Boolean(g.passed) === want).reduce((sum, g) => sum + Number(g.n), 0);
+    const passed = count(true);
+    const total = passed + count(false);
     return { date: day.date, scans, inspections: { total, passed, failed: total - passed } };
   }
 }

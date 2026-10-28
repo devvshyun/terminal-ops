@@ -47,7 +47,7 @@ describe('로그인 문과 화면 틀 (보강 4, decisions/0061)', () => {
     expect(screen.getByText('40대')).toBeInTheDocument();
     expect(screen.getByText('2대')).toBeInTheDocument();
     expect(screen.getByText('5대')).toBeInTheDocument();
-    expect(screen.getByText(/검수 합격 4 · 불합격 1 · 스캔 거절 1행/)).toBeInTheDocument();
+    expect(screen.getByText(/검수 합격 4 · 불합격 1 · 거절된 줄 1/)).toBeInTheDocument();
     expect(screen.getByText('2026-10-28 (KST 0시부터)')).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: '박스 스캔' }).map((a) => a.getAttribute('href'))).toEqual(['/scan', '/scan']);
   });

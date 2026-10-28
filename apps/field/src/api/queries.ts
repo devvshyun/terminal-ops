@@ -49,7 +49,7 @@ export function useInspectionQueue() {
 
 /** 단말기 한 대(검수할 수 있는지는 서버가 계산한 actions.inspect — decisions/0040) */
 export function useTerminal(serialNo: string) {
-  return useQuery({ queryKey: keys.terminal(serialNo), queryFn: () => api<TerminalDetail>(`/terminals/${encodeURIComponent(serialNo)}`) });
+  return useQuery({ queryKey: keys.terminal(serialNo), queryFn: () => api<TerminalDetail>(`/terminals/${encodeURIComponent(serialNo)}`), staleTime: 0 });
 }
 
 /** 모델별 검수 항목(바뀌는 일이 드물어 staleTime 무한) */

@@ -23,16 +23,35 @@ const COPIES = [
  * 주석·공백·줄바꿈(CRLF 포함)을 뺀 코드 = TypeScript 파서가 읽은 토큰을 차례로 한 줄에 하나씩(리뷰 반영).
  * 처음에는 정규식으로 주석을 지웠는데, 문자열·템플릿·정규식 리터럴 안의 `//`·`/* *\/`까지 지워 그 뒤의 차이를 놓쳤다.
  * `ts.createScanner`만 쓰면 정규식(`/a\/\/x/`)·템플릿(`${a}// x`) 문맥을 몰라 같은 일이 생긴다(직접 돌려 봄) — 문맥은 파서가 안다.
- * 그래서 파일을 파싱해 구문 트리의 잎(토큰)만 모은다. 주석은 토큰 사이의 trivia라 잎에 없다. JSX 글자는 공백을 한 칸으로 줄여 비교한다.
+ * 그래서 파일을 파싱해 구문 트리의 잎(토큰)만 모은다. 주석은 토큰 사이의 trivia라 잎에 없다.
+ * JSX 글자는 React가 JSX 글자를 다루는 규칙(줄마다 앞뒤 공백을 지우고 빈 줄을 버리고 줄을 한 칸으로 잇는다)으로 정리해 비교한다 —
+ * (getText는 앞쪽 공백을 건너뛰어 `{a} {b}`의 공백이 사라지므로 node.text를 쓴다.) 줄바꿈이 든 공백뿐인 글자는 이 규칙에서 빈 문자열이 돼 저절로 빠지고, `{a} {b}`의 같은 줄 공백은 한 칸으로 남는다(리뷰 반영). `containsOnlyTriviaWhiteSpaces`는 같은 줄 공백도 true라 쓰지 않는다(직접 돌려 봄).
+ * ScriptKind는 확장자를 따른다 — `.ts`를 TSX로 읽으면 `<string>x` 단언이 JSX로 읽힌다.
+ * 한계: 토큰만 비교하므로 줄바꿈이 의미를 바꾸는 곳(ASI — `return` 뒤 줄바꿈 등)에서 줄을 나누기만 한 차이는 못 잡는다(decisions/0062).
  */
-export function codeOnly(text: string): string {
-  const file = ts.createSourceFile('copy.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+export function jsxTextValue(text: string): string {
+  const lines = text.split(/\r\n|\n|\r/);
+  const last = lines.length - 1;
+  return lines
+    .map((line, i) => {
+      let l = line.replace(/\t/g, ' ');
+      if (i !== 0) l = l.replace(/^ +/, '');
+      if (i !== last) l = l.replace(/ +$/, '');
+      return l;
+    })
+    .filter((l) => l !== '')
+    .join(' ');
+}
+
+export function codeOnly(text: string, fileName = 'copy.tsx'): string {
+  const kind = fileName.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  const file = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, kind);
   const tokens: string[] = [];
   const visit = (node: ts.Node) => {
     // `/** … */`는 파서가 JSDoc 노드로 붙여 둔다(getChildren에 나온다) — 주석이라 뺀다
     const children = node.getChildren(file).filter((child) => !ts.isJSDoc(child));
     if (children.length > 0) return children.forEach(visit);
-    const token = ts.isJsxText(node) ? node.getText(file).replace(/\s+/g, ' ').trim() : node.getText(file);
+    const token = ts.isJsxText(node) ? jsxTextValue(node.text) : node.getText(file);
     if (token !== '') tokens.push(token);
   };
   visit(file);
@@ -60,7 +79,19 @@ describe('점주 앱 사본 (decisions/0062)', () => {
     expect(codeOnly('const r = /a\\/\\/x/;')).not.toBe(codeOnly('const r = /a\\/\\/y/;'));
   });
 
+  it('JSX 글자는 React 규칙으로 비교한다 — 줄바꿈·들여쓰기 차이는 같고, 같은 줄의 의미 있는 공백은 다르다(리뷰 반영)', () => {
+    expect(codeOnly('const e = <p>\n  안녕   하세요\n  반갑습니다\n</p>;')).toBe(codeOnly('const e = <p>안녕   하세요 반갑습니다</p>;'));
+    expect(codeOnly('const e = <p>{a} {b}</p>;')).not.toBe(codeOnly('const e = <p>{a}{b}</p>;'));
+    expect(codeOnly('const e = <p>{a}\n  {b}</p>;')).toBe(codeOnly('const e = <p>{a}{b}</p>;'));
+    expect(codeOnly('const e = <p>가 나</p>;')).not.toBe(codeOnly('const e = <p>가나</p>;'));
+  });
+
+  it('확장자를 따라 .ts는 TS로 읽는다(<T> 단언이 JSX로 읽히지 않는다)', () => {
+    expect(codeOnly('const a = <string>b;', 'x.ts')).toBe('const\na\n=\n<\nstring\n>\nb\n;');
+    expect(codeOnly('const a = <string>b;', 'x.ts')).not.toBe(codeOnly('const a = <string>c;', 'x.ts'));
+  });
+
   it.each(COPIES)('%s는 점주 앱 것과 코드가 같다', (path) => {
-    expect(codeOnly(read('field', path))).toBe(codeOnly(read('merchant', path)));
+    expect(codeOnly(read('field', path), path)).toBe(codeOnly(read('merchant', path), path));
   });
 });
