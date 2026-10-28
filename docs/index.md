@@ -2,7 +2,7 @@
 
 > 이 파일은 `node scripts/docs-index.mjs`가 만든다. 손으로 고치지 않는다(decisions/0046). 기록을 더한 뒤 다시 만들고, `--check`로 확인한다.
 
-## 결정 기록 (54)
+## 결정 기록 (55)
 
 - [0001](decisions/0001-인증은-작업자-헤더로.md) 인증은 하지 않고, 작업자는 요청 헤더로 기록한다
 - [0002](decisions/0002-esm-vitest-tsc-빌드.md) ESM + Vitest + tsc 빌드로 API를 만든다
@@ -56,6 +56,7 @@
 - [0050](decisions/0050-로그인은-Redis-서버-세션과-httpOnly-쿠키로.md) 로그인은 Redis 서버 세션과 httpOnly 쿠키로 한다
 - [0051](decisions/0051-비밀번호-해시는-node-scrypt-계정-테이블은-user-account.md) 비밀번호 해시는 node:crypto scrypt, 계정 테이블은 user_account
 - [0052](decisions/0052-역할별-엔드포인트-표와-기본-거부.md) 역할별 엔드포인트 표와 기본 거부
+- [0053](decisions/0053-가맹점주-범위는-me-전용-엔드포인트와-서비스-scope.md) 가맹점주 범위는 /me 전용 엔드포인트와 서비스 scope 인자로 강제한다
 - [0055](decisions/0055-단말기는-공유-단말기-키로.md) 단말기는 공유 단말기 키(X-Device-Key)로 부른다
 - [0056](decisions/0056-작업자는-로그인-아이디-X-Operator는-테스트-전용.md) 작업자는 로그인 아이디, X-Operator는 테스트 전용 인증 길로만 남긴다
 

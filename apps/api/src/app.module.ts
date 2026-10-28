@@ -24,6 +24,7 @@ import { DashboardModule } from './dashboard/dashboard.module.js';
 import { WorkersModule } from './workers/workers.module.js';
 import { SchedulerModule } from './scheduler/scheduler.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { MeModule } from './me/me.module.js';
 
 export interface AppOptions {
   /** 큐 job을 처리할지(RUN_WORKERS) */
@@ -54,6 +55,7 @@ export interface AppOptions {
     AnomalyModule,
     ReportModule,
     DashboardModule,
+    MeModule,
   ],
   controllers: [HealthController],
   providers: [

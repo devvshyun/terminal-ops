@@ -3,6 +3,7 @@ import { EntityManager, LoadStrategy, LockMode } from '@mikro-orm/mysql';
 import type { RuleViolationCode } from '@terminal-ops/contracts';
 import { BusinessError } from '../common/domain-errors.js';
 import { beforeIdWhere, keysetPage } from '../common/keyset.js';
+import { outOfScope, type MerchantScope } from '../merchant/merchant-scope.js';
 import { Terminal } from '../terminal/terminal.entity.js';
 import { TerminalStatus } from '../terminal/terminal-status.js';
 import type { ListTicketsQuery, OpenTicketDto, RemoteCheckDto } from './dto/service-ticket.dto.js';
@@ -19,11 +20,12 @@ export class ServiceTicketService {
    * 접수. 단말기 행을 FOR UPDATE로 먼저 잠그고(같은 단말기 접수끼리 줄 세우기) 열린 접수가 없을 때만 만든다.
    * 접수 INSERT의 FK 검사(S 락)보다 단말기 X 락이 먼저라 S→X 데드락이 없다(troubleshooting/0004).
    * 단말기 상태는 바꾸지 않는다(운영 중 그대로).
+   * @param scope 가맹점주 접수(`/me`)면 그 가맹점 단말기만 — 잠근 행의 가맹점으로 확인한다(잠그기 전 확인과 접수 사이에 배정이 바뀌는 틈이 없게, decisions/0053)
    */
-  async open(dto: OpenTicketDto, actor: string): Promise<ServiceTicket> {
+  async open(dto: OpenTicketDto, actor: string, scope?: MerchantScope): Promise<ServiceTicket> {
     const id = await this.em.fork().transactional(async (tx) => {
       const terminal = await tx.findOne(Terminal, { serialNo: dto.serialNo }, { lockMode: LockMode.PESSIMISTIC_WRITE });
-      if (!terminal) throw new NotFoundException(`단말기 ${dto.serialNo}이(가) 없습니다.`);
+      if (!terminal || (scope && terminal.merchant?.id !== scope.merchantId)) throw outOfScope(`단말기 ${dto.serialNo}`);
       if (terminal.status !== TerminalStatus.IN_SERVICE || !terminal.merchant) {
         throw new BusinessError(422, 'TERMINAL_NOT_IN_SERVICE', `운영 중(IN_SERVICE)인 단말기만 A/S 접수할 수 있습니다(현재: ${terminal.status}).`);
       }
@@ -49,23 +51,24 @@ export class ServiceTicketService {
     return this.get(id);
   }
 
-  /** 접수 목록(최근 것부터, id 키셋 — decisions/0039) */
-  async list(q: ListTicketsQuery) {
+  /** 접수 목록(최근 것부터, id 키셋 — decisions/0039). scope가 있으면 그 가맹점 접수만(decisions/0053) */
+  async list(q: ListTicketsQuery, scope?: MerchantScope) {
     const rows = await this.em.fork().find(
       ServiceTicket,
       {
         ...beforeIdWhere(q.beforeId),
         ...(q.status ? { status: q.status } : {}),
         ...(q.serialNo ? { terminal: { serialNo: q.serialNo } } : {}),
+        ...(scope ? { merchant: scope.merchantId } : {}),
       },
       { populate: TICKET_POPULATE, strategy: LoadStrategy.SELECT_IN, orderBy: { id: 'desc' }, limit: q.limit + 1 },
     );
     return keysetPage(rows, q.limit);
   }
 
-  async get(id: number): Promise<ServiceTicket> {
+  async get(id: number, scope?: MerchantScope): Promise<ServiceTicket> {
     const ticket = await this.em.fork().findOne(ServiceTicket, id, { populate: TICKET_POPULATE });
-    if (!ticket) throw new NotFoundException(`A/S 접수 ${id}이(가) 없습니다.`);
+    if (!ticket || (scope && ticket.merchant.id !== scope.merchantId)) throw outOfScope(`A/S 접수 ${id}`);
     return ticket;
   }
 
