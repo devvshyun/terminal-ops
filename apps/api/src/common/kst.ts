@@ -14,6 +14,21 @@ export function kstDate(instant: Date): string {
   return `${k.getUTCFullYear()}-${pad(k.getUTCMonth() + 1)}-${pad(k.getUTCDate())}`;
 }
 
+/** 하루: KST 00:00부터 다음 날 00:00 전까지. from·to는 그 순간의 UTC 시각(DB 비교용, [from, to)) */
+export interface KstDay {
+  /** KST 날짜 'YYYY-MM-DD' */
+  date: string;
+  from: Date;
+  to: Date;
+}
+
+/** instant가 속한 KST 하루(현장 작업자의 "오늘", decisions/0063). getUTC*만 써서 서버 시간대에 기대지 않는다(kst-week.ts와 같은 방식) */
+export function kstDayOf(instant: Date): KstDay {
+  const k = toKstWallClock(instant);
+  const from = new Date(Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate()) - KST_OFFSET_MS);
+  return { date: kstDate(instant), from, to: new Date(from.getTime() + 24 * 3_600_000) };
+}
+
 /**
  * 사람이 읽는 시각 'YYYY-MM-DD HH:mm:ss KST'(밀리초 버림). 알림 문구용 — payload는 UTC ISO 그대로 두고 문구만 바꾼다.
  * 시각으로 읽을 수 없는 값은 받은 그대로 글자로 돌려준다(문구 만들기가 알림 전체를 깨지 않게).

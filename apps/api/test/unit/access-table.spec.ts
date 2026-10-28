@@ -83,6 +83,9 @@ const EXPECTED: Record<string, string> = {
   'POST /me/service-tickets': 'MERCHANT',
   'POST /me/service-tickets/:id/installations': 'MERCHANT',
 
+  // 현장 작업자 화면 전용(보강 4, decisions/0063)
+  'GET /field/today': 'FIELD',
+
   // 계정·외부 업체 키 관리(decisions/0054)
   'GET /admin/accounts': 'ADMIN',
   'POST /admin/accounts': 'ADMIN',
