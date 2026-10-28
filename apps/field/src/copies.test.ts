@@ -17,6 +17,7 @@ const COPIES = [
   'components/LogoutButton.tsx',
   'hooks/useSessionCheck.ts',
   'test/setup.ts',
+  'main.tsx',
 ];
 
 /**
@@ -89,6 +90,15 @@ describe('점주 앱 사본 (decisions/0062)', () => {
   it('확장자를 따라 .ts는 TS로 읽는다(<T> 단언이 JSX로 읽히지 않는다)', () => {
     expect(codeOnly('const a = <string>b;', 'x.ts')).toBe('const\na\n=\n<\nstring\n>\nb\n;');
     expect(codeOnly('const a = <string>b;', 'x.ts')).not.toBe(codeOnly('const a = <string>c;', 'x.ts'));
+  });
+
+  it('머리 주석에 "의 사본(decisions/0062)"이라 적은 현장 파일은 모두 COPIES에 있다(목록에서 빠진 사본 방지)', () => {
+    const sources = import.meta.glob(['./**/*.ts', './**/*.tsx', '!./**/*.test.ts', '!./**/*.test.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+    const files = Object.keys(sources);
+    expect(files.length).toBeGreaterThan(10); // glob이 실제로 소스를 읽었는지
+    const declared = files.filter((f) => sources[f].includes('의 사본(decisions/0062)')).map((f) => f.replace(/^\.\//, ''));
+    expect(declared.length).toBeGreaterThan(0);
+    expect(declared.filter((f) => !COPIES.includes(f))).toEqual([]);
   });
 
   it.each(COPIES)('%s는 점주 앱 것과 코드가 같다', (path) => {

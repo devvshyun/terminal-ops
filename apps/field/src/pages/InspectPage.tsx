@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { InspectionItemView, InspectionResultInput, InspectRequest, InspectResult, TerminalDetail } from '@terminal-ops/contracts';
-import { api } from '../api/client';
+import { api, ApiError } from '../api/client';
 import { useInspectionItems, useTerminal } from '../api/queries';
 import { keys } from '../api/query-keys';
 import { describeError, ErrorBox } from '../components/ErrorBox';
@@ -44,9 +44,7 @@ function Inspect({ serialNo }: { serialNo: string }) {
       {terminal.data && !terminal.data.actions.inspect ? (
         <>
           {saveError ? <SaveFailed error={saveError} /> : null}
-          <p className="notice">
-            검수 대기 단말기가 아닙니다(지금 상태: {TERMINAL_STATUS_LABEL[terminal.data.status]}). 그새 다른 사람이 검수했을 수 있습니다. 다른 단말기를 스캔하세요.
-          </p>
+          <p className="notice">{notReadyMessage(TERMINAL_STATUS_LABEL[terminal.data.status], saveError)}</p>
           <SerialFinder />
         </>
       ) : null}
@@ -59,6 +57,21 @@ function Inspect({ serialNo }: { serialNo: string }) {
       ) : null}
     </section>
   );
+}
+
+/**
+ * 검수 대기가 아닌 단말기 안내. 저장을 시도한 뒤가 아니면(스캔했더니 원래 재고 등) 원인을 추측하지 않는다.
+ * 저장이 실패했다면: 4xx(422 등)는 서버가 거절한 것 = 그새 다른 사람이 검수했을 수 있다. 연결 실패·5xx는 서버가 이미 저장했을 수 있다
+ * (검수 POST에는 scanId 같은 멱등 키가 없다) — 지금 상태가 검수 합격·불량이면 내 저장일 수 있으니 그렇게 알린다(리뷰 반영).
+ */
+function notReadyMessage(statusLabel: string, saveError: unknown): string {
+  const head = `검수 대기 단말기가 아닙니다(지금 상태: ${statusLabel}).`;
+  const tail = '다른 단말기를 스캔하세요.';
+  if (!saveError) return `${head} ${tail}`;
+  const unknown = !(saveError instanceof ApiError) || saveError.status >= 500;
+  return unknown
+    ? `${head} 결과를 받지 못했습니다 — 지금 상태가 검수 합격·불량이면 저장된 것입니다(검수 기록에서 확인). ${tail}`
+    : `${head} 그새 다른 사람이 검수했을 수 있습니다. ${tail}`;
 }
 
 function TerminalHead({ terminal }: { terminal: TerminalDetail }) {

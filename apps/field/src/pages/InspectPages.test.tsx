@@ -151,7 +151,7 @@ describe('단말기 검수 (보강 4)', () => {
     });
     loginAs();
     const first = renderApp('/inspections/SN-STOCK');
-    expect(await screen.findByText('검수 대기 단말기가 아닙니다(지금 상태: 재고). 그새 다른 사람이 검수했을 수 있습니다. 다른 단말기를 스캔하세요.')).toBeInTheDocument();
+    expect(await screen.findByText('검수 대기 단말기가 아닙니다(지금 상태: 재고). 다른 단말기를 스캔하세요.')).toBeInTheDocument();
     expect(calls.some((c) => c.path === '/inspection-items')).toBe(false);
     first.unmount();
     renderApp('/inspections/NOPE');
@@ -181,6 +181,37 @@ describe('단말기 검수 (보강 4)', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('허용되지 않은 전이입니다: INSPECTED → INSPECTED');
     // 스캐너가 갈 곳: 시리얼 칸에 초점, 다음 단말기를 바로 스캔
     expect(screen.getByLabelText('시리얼 스캔으로 찾기')).toHaveFocus();
+  });
+
+  it('저장 결과를 받지 못했으면(연결 실패·5xx) 서버가 저장했을 수 있다고 안내한다 — 그새 다른 사람이 검수했다는 말은 하지 않는다', async () => {
+    const failures: Array<() => { status: number; body: unknown }> = [
+      () => {
+        throw new TypeError('Failed to fetch'); // 연결 실패: 가짜 fetch가 거부된다
+      },
+      () => ({ status: 503, body: { statusCode: 503, message: '잠시 쉬는 중' } }),
+    ];
+    for (const failure of failures) {
+      let state: TerminalStatus = 'RECEIVED';
+      mockApi({
+        ...today,
+        ...queue({}),
+        'GET /terminals/:serialNo': () => ({ body: detail('SN-0005', state) }),
+        'GET /inspection-items': () => ({ body: ITEMS }),
+        'POST /terminals/:serialNo/inspections': () => {
+          state = 'INSPECTED'; // 서버는 저장했는데 응답이 오지 않은 경우
+          return failure();
+        },
+      });
+      loginAs();
+      const view = renderApp('/inspections/SN-0005');
+      await userEvent.click(await screen.findByRole('button', { name: '모두 합격' }));
+      await userEvent.click(screen.getByRole('button', { name: '검수 결과 저장' }));
+      expect(
+        await screen.findByText('검수 대기 단말기가 아닙니다(지금 상태: 검수 합격). 결과를 받지 못했습니다 — 지금 상태가 검수 합격·불량이면 저장된 것입니다(검수 기록에서 확인). 다른 단말기를 스캔하세요.'),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/그새 다른 사람이/)).not.toBeInTheDocument();
+      view.unmount();
+    }
   });
 
   it('검수 대기가 아닌 화면과 저장 결과 화면에서 다음 시리얼을 바로 스캔해 그 단말기로 간다', async () => {
