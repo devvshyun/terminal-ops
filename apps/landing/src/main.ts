@@ -123,10 +123,12 @@ function motion() {
     return () => section.classList.remove('pinned');
   });
 
-  // 세 화면: 겹친 사진이 서로 다른 속도로 움직인다(data-depth가 클수록 빨리)
-  gsap.utils.toArray<HTMLElement>('.shot').forEach((shot) => {
-    const depth = Number(shot.dataset.depth ?? 0);
-    gsap.fromTo(shot, { y: depth * 300 }, { y: -depth * 300, ease: 'none', scrollTrigger: { trigger: '.screens-stage', start: 'top bottom', end: 'bottom top', scrub: true } });
+  // 세 화면: 넓은 화면에서 겹친 사진이 서로 다른 속도로 움직인다(data-depth가 클수록 빨리). 좁은 화면은 흐름 배치라 움직이지 않는다
+  mm.add('(min-width: 1100px)', () => {
+    gsap.utils.toArray<HTMLElement>('.shot').forEach((shot) => {
+      const depth = Number(shot.dataset.depth ?? 0);
+      gsap.fromTo(shot, { y: depth * 300 }, { y: -depth * 300, ease: 'none', scrollTrigger: { trigger: '.screens-stage', start: 'top bottom', end: 'bottom top', scrub: true } });
+    });
   });
 
   // 숫자: 화면에 들어오면 0에서 세어 올라간다(쉼표·소수점 자리는 그대로)

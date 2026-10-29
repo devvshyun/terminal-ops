@@ -282,10 +282,14 @@ a {
   letter-spacing: -0.045em;
 }
 
-/* 넓은 화면에서는 한 줄이 한 덩어리(낱말 중간에서 줄이 바뀌지 않게) */
-@media (min-width: 861px) {
-  .ht-line {
-    white-space: nowrap;
+/* 한 줄이 한 덩어리(낱말 중간에서 줄이 바뀌지 않게) — 글자 크기가 화면 폭을 따라가서 휴대폰에서도 한 줄에 든다 */
+.ht-line {
+  white-space: nowrap;
+}
+
+@media (max-width: 1099px) {
+  .hero-title {
+    font-size: clamp(34px, 9.4vw, 100px);
   }
 }
 
@@ -370,17 +374,48 @@ a {
   }
 }
 
-@media (max-width: 860px) {
+/* 패드·휴대폰: 한 단. 휴대폰 사진은 글 아래 가운데, 작게 */
+@media (max-width: 1099px) {
   .hero {
     grid-template-columns: minmax(0, 1fr);
-    padding-top: 120px;
-    padding-bottom: 72px;
+    padding-top: 130px;
+    padding-bottom: 64px;
+  }
+
+  .hero-in {
+    margin-left: 0;
   }
 
   .hero-phone {
     justify-self: center;
-    max-width: 280px;
-    margin: 16px 0 0;
+    max-width: 260px;
+    margin: 28px 0 0;
+  }
+
+  .hero-phone figcaption {
+    display: none;
+  }
+}
+
+@media (max-width: 599px) {
+  .hero {
+    padding-top: 112px;
+  }
+
+  /* 뒤 시리얼은 위 문구와 겹치지 않게 사진 뒤쪽으로 */
+  .hero-serial {
+    top: auto;
+    bottom: 140px;
+    font-size: 26vw;
+  }
+
+  .hero-lead,
+  .lead {
+    font-size: 16.5px;
+  }
+
+  .hero-phone {
+    max-width: 220px;
   }
 }
 
@@ -532,16 +567,20 @@ a {
   overflow: hidden;
 }
 
+/* 기본(휴대폰·패드): PC 사진 아래로 휴대폰 두 대가 올라와 겹친다. 흐름 배치라 아래 글을 덮지 않는다 */
 .screens-stage {
   position: relative;
   max-width: var(--wide);
-  margin: 72px auto 0;
+  margin: 56px auto 0;
   padding: 0 var(--gutter);
-  height: clamp(460px, 62vw, 820px);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 8%;
+  justify-items: center;
 }
 
 .shot {
-  position: absolute;
+  position: relative;
   margin: 0;
   transition: transform 400ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
@@ -553,14 +592,19 @@ a {
 }
 
 .shot-pc {
-  left: 8%;
-  right: 4%;
-  top: 0;
+  grid-column: 1 / -1;
+  width: 100%;
 }
 
 .shot-field,
 .shot-merchant {
-  width: clamp(130px, 21%, 260px);
+  width: 100%;
+  max-width: 240px;
+  margin-top: -12%;
+}
+
+.shot-merchant {
+  margin-top: -4%;
 }
 
 .shot-field img,
@@ -569,14 +613,41 @@ a {
   border: 6px solid #060b14;
 }
 
-.shot-field {
-  left: 0;
-  top: 28%;
-}
+/* 넓은 화면: 세 장을 한 무대에 겹쳐 놓고 스크롤 속도를 달리한다(main.ts) */
+@media (min-width: 1100px) {
+  .screens-stage {
+    display: block;
+    margin-top: 72px;
+    height: min(62vw, 820px);
+  }
 
-.shot-merchant {
-  right: 0;
-  top: 30%;
+  .shot {
+    position: absolute;
+  }
+
+  .shot-pc {
+    left: 8%;
+    right: 4%;
+    top: 0;
+    width: auto;
+  }
+
+  .shot-field,
+  .shot-merchant {
+    width: clamp(180px, 19%, 250px);
+    max-width: none;
+    margin-top: 0;
+  }
+
+  .shot-field {
+    left: 0;
+    top: 26%;
+  }
+
+  .shot-merchant {
+    right: 0;
+    top: 22%;
+  }
 }
 
 .roles {
@@ -615,29 +686,16 @@ a {
   color: var(--muted);
 }
 
-@media (max-width: 860px) {
+@media (max-width: 1099px) {
+  .roles {
+    margin-top: 48px;
+  }
+}
+
+@media (max-width: 760px) {
   .roles {
     grid-template-columns: minmax(0, 1fr);
     gap: 20px;
-  }
-
-  .screens-stage {
-    height: 118vw;
-  }
-
-  .shot-pc {
-    left: 0;
-    right: 0;
-  }
-
-  .shot-field {
-    top: 42%;
-    width: 42%;
-  }
-
-  .shot-merchant {
-    top: 34%;
-    width: 42%;
   }
 }
 
