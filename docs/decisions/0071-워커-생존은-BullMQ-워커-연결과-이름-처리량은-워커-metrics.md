@@ -12,3 +12,8 @@
   - api 버전은 `APP_VERSION` env(없으면 `dev`) — Docker로 띄울 때(보강 9) 넣는다. 기동 시각은 `process.uptime()`으로 계산한다(그 api 프로세스 것 — 따로 띄운 워커 프로세스의 기동 시각은 보이지 않는다)
 - 결과·대가: CLIENT 명령을 막은 Redis(일부 관리형)에서는 BullMQ가 이름 없는 항목 하나를 줘 "이름 없는 워커 1"로 보인다 — 이 프로젝트의 Docker Redis는 된다. 연결이 살아 있어도 처리기가 멈춘 워커(무한 루프 등)는 산 것으로 보인다(처리량 0·대기 증가로 알아챈다). metrics는 큐마다 Redis 목록 두 개(각 최대 1,440칸)를 더 쓴다. 워커 옵션은 데코레이터 인자라 env를 모듈을 읽을 때 한 번 읽는다(테스트는 파일마다 새로 읽는다).
 - 다시 볼 조건: 관리형 Redis로 옮기거나, 멈춘 워커를 자동으로 알아채야 하면 2(하트비트 + 처리 진행 시각). 처리량 그래프가 필요하면 metrics data를 그대로 내려준다.
+- Task 1 리뷰 반영(2026-10-29):
+  - **Redis가 느리거나 죽으면 관제 읽기가 몇 분 매달렸다** — BullMQ Queue 연결은 ioredis 기본값(`maxRetriesPerRequest` 20, 오프라인 큐)이라 명령이 다시 연결을 기다린다(앱 공용 연결은 `maxRetriesPerRequest: 1`이지만 BullMQ 연결은 따로다). 관제 읽기의 BullMQ 호출과 ping을 `withTimeout`(`src/ops/with-timeout.ts`, 2000ms, `OPS_REDIS_TIMEOUT_MS`)으로 감쌌다: 큐 요약·주기 작업·실패 job 목록은 제한에 걸리면 503(본문 code 없음 — 새 오류 코드를 만들지 않았다, 화면은 메시지와 다음 자동 새로고침), 프로세스 상태는 503을 내지 않고 redis `ok:false`(`TIMEOUT`)·워커 빈 목록으로 답한다(MySQL 상태는 그대로 보이게).
+  - 대가: 제한에 걸린 BullMQ 명령은 취소되지 않는다 — 오프라인 큐에 남아 다시 연결되면 실행되거나 재시도 끝에 실패한다(결과는 버린다). Redis가 죽은 동안 프로세스 상태의 워커 빈 목록은 "워커 없음"이 아니라 "못 읽음"이다 — redis `ok:false`와 함께 읽는다. 다시 시도·지우기·복구 sweep(쓰기)에는 걸지 않았다 — 제한 뒤에 작업이 끝나면 감사 기록 없이 바뀐다(0073).
+  - metrics의 비용: job이 끝날 때마다 BullMQ가 같은 Lua 스크립트(moveToFinished) 안에서 metrics 키에 HINCRBY·HGET 등을 더 한다 — 왕복이 늘지는 않고 스크립트 안의 명령 몇 개가 는다.
+  - 프로세스 상태의 오류 글은 이름·코드만(`Error ECONNREFUSED`, `TIMEOUT`) — 연결 오류 메시지에 든 호스트·포트를 화면에 보내지 않는다.

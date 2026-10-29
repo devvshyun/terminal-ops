@@ -38,7 +38,8 @@ export class OpsJobsService {
   /** 최근 실패부터(BullMQ getFailed는 끝난 시각 내림차순) start번째부터 limit개 */
   async listFailed(name: string, start: number, limit: number): Promise<OpsFailedJobsPage> {
     const q = this.queues.queue(name);
-    const [jobs, total] = await Promise.all([q.getFailed(start, start + limit - 1), q.getFailedCount()]);
+    // 읽기만 시간 제한(늦으면 503). 다시 시도·지우기에는 걸지 않는다 — 제한 뒤에 작업이 끝나면 감사 기록 없이 바뀐다(OpsQueuesService.read)
+    const [jobs, total] = await this.queues.read(Promise.all([q.getFailed(start, start + limit - 1), q.getFailedCount()]), '실패 job 목록');
     return { items: jobs.filter(Boolean).map((j) => toFailedJobView(name as OpsQueueName, j)), total, start, limit };
   }
 

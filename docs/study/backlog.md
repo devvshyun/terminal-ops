@@ -208,3 +208,4 @@
 - [ ] Redis `CLIENT LIST`·`CLIENT SETNAME`과 BullMQ `getWorkers` — 블로킹 연결이 살아 있다는 것이 워커가 살아 있다는 것과 어디까지 같나 (apps/api/src/ops/ops-queues.service.ts, decisions/0071)
 - [ ] TanStack Query `focusManager`와 `refetchIntervalInBackground` — "문서가 숨었다"를 무엇으로 아나(visibilitychange), 가려진 창은? (apps/console/src/lib/refresh.ts, decisions/0076)
 - [ ] BullMQ `Job.retry`의 `resetAttemptsMade`·`resetAttemptsStarted`, 실패 job이 다시 처리될 때 backoff는 어디서부터인가 (apps/api/src/ops/ops-jobs.service.ts, decisions/0072)
+- [ ] `Promise.race`로 건 시간 제한과 취소되지 않는 Redis 명령 — ioredis 오프라인 큐·`maxRetriesPerRequest`·`enableOfflineQueue`가 BullMQ 연결에서 어떻게 동작하나 (apps/api/src/ops/with-timeout.ts, decisions/0071)

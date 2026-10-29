@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
@@ -9,14 +9,25 @@ import { ALL_QUEUES, QUEUE, type QueueName } from '../queue/queue-names.js';
 import { REDIS } from '../redis/redis.provider.js';
 import { JOB_SCHEDULERS } from '../scheduler/job-schedulers.js';
 import { recentCount } from './queue-metrics.js';
+import { OpsTimeoutError, withTimeout } from './with-timeout.js';
+
+/** 관제 읽기가 Redis(BullMQ·ping)를 기다리는 최대 시간(Task 1 리뷰 반영, decisions/0071) */
+export const OPS_REDIS_TIMEOUT_MS = 2000;
 
 /** 처리량을 보는 창(분). 화면 카드의 "최근 15분" */
 export const RECENT_MINUTES = 15;
 
 const iso = (ms: number | null | undefined) => (ms ? new Date(ms).toISOString() : null);
 
-/** 오류를 화면에 보일 한 줄로(연결 문자열 같은 긴 내용은 자른다) */
-const oneLine = (error: unknown) => (error instanceof Error ? `${error.name}: ${error.message}` : String(error)).slice(0, 200);
+/**
+ * 의존 오류를 화면에 보일 짧은 글로 — 이름과 코드만(`Error ECONNREFUSED`, `TIMEOUT`). 메시지는 보내지 않는다:
+ * 연결 오류 메시지에는 호스트·포트가 들어간다(`connect ECONNREFUSED 10.0.0.5:6379`, Task 1 리뷰 반영)
+ */
+function errorLabel(error: unknown): string {
+  if (!(error instanceof Error)) return 'Error';
+  const code = (error as { code?: unknown }).code;
+  return (typeof code === 'string' || typeof code === 'number' ? `${error.name} ${code}` : error.name).slice(0, 100);
+}
 
 /** BullMQ getWorkers()의 rawname `<접두사>:<큐 base64>:w:<워커 이름>`에서 워커 이름. 이름 없이 뜬 워커는 null */
 export function workerNameOf(rawname: string | undefined): string | null {
@@ -31,6 +42,8 @@ export function workerNameOf(rawname: string | undefined): string | null {
 @Injectable()
 export class OpsQueuesService {
   private readonly queues: Record<QueueName, Queue>;
+  /** Redis를 기다리는 최대 시간(테스트가 줄인다) */
+  timeoutMs = OPS_REDIS_TIMEOUT_MS;
 
   constructor(
     private readonly em: EntityManager,
@@ -58,8 +71,21 @@ export class OpsQueuesService {
     return this.queues[name as QueueName];
   }
 
+  /**
+   * Redis 읽기를 시간 제한 안에서. 제한에 걸리면 503 — 화면은 "잠시 뒤 다시"로 보이고 10초 뒤 다시 부른다(decisions/0076).
+   * 읽기에만 쓴다: 다시 시도·지우기 같은 쓰기에 걸면 제한 뒤에 작업이 끝나 감사 기록 없이 바뀔 수 있다.
+   */
+  async read<T>(p: Promise<T>, what: string): Promise<T> {
+    try {
+      return await withTimeout(p, this.timeoutMs, what);
+    } catch (error) {
+      if (error instanceof OpsTimeoutError) throw new ServiceUnavailableException(`Redis가 ${this.timeoutMs}ms 안에 답하지 않습니다(${what}). 잠시 뒤 다시 보세요`);
+      throw error;
+    }
+  }
+
   async summary(now = Date.now()): Promise<OpsQueuesView> {
-    const queues = await Promise.all(ALL_QUEUES.map((name) => this.queueView(name, now)));
+    const queues = await this.read(Promise.all(ALL_QUEUES.map((name) => this.queueView(name, now))), '큐 요약');
     return { checkedAt: new Date(now).toISOString(), recentMinutes: RECENT_MINUTES, queues };
   }
 
@@ -95,9 +121,10 @@ export class OpsQueuesService {
   /** 코드의 주기 작업 목록 + Redis에 등록된 것(목록에 없는 것은 defined false로 뒤에) */
   async schedulers(): Promise<OpsSchedulerView[]> {
     const registered = new Map<string, { queue: QueueName; s: Awaited<ReturnType<Queue['getJobSchedulers']>>[number] }>();
-    for (const name of ALL_QUEUES) {
-      for (const s of await this.queues[name].getJobSchedulers(0, -1, true)) registered.set(`${name}/${s.key}`, { queue: name, s });
-    }
+    const lists = await this.read(Promise.all(ALL_QUEUES.map((name) => this.queues[name].getJobSchedulers(0, -1, true))), '주기 작업');
+    ALL_QUEUES.forEach((name, i) => {
+      for (const s of lists[i]) registered.set(`${name}/${s.key}`, { queue: name, s });
+    });
     const rows: OpsSchedulerView[] = [];
     for (const def of JOB_SCHEDULERS) {
       const found = registered.get(`${def.queue}/${def.id}`);
@@ -119,7 +146,8 @@ export class OpsQueuesService {
     const [mysql, redis, workers] = await Promise.all([
       this.ping(() => this.em.getConnection().execute('select 1')),
       this.ping(() => this.redis.ping()),
-      this.workers(),
+      // 워커 목록을 못 읽으면(Redis가 느림·죽음) 빈 목록 — 그때는 redis가 ok:false로 함께 보인다(decisions/0071 대가)
+      withTimeout(this.workers(), this.timeoutMs, '워커 목록').catch((): OpsWorkerView[] => []),
     ]);
     return {
       checkedAt: new Date(now).toISOString(),
@@ -140,10 +168,10 @@ export class OpsQueuesService {
   private async ping(run: () => Promise<unknown>): Promise<OpsDependencyView> {
     const started = performance.now();
     try {
-      await run();
+      await withTimeout(run(), this.timeoutMs, 'ping');
       return { ok: true, latencyMs: Math.round((performance.now() - started) * 10) / 10, error: null };
     } catch (error) {
-      return { ok: false, latencyMs: null, error: oneLine(error) };
+      return { ok: false, latencyMs: null, error: errorLabel(error) };
     }
   }
 

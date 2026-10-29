@@ -29,6 +29,7 @@ export interface OpsQueueView {
   oldestWaitingAt: string | null;
   /** 최근 recentMinutes분(지금 분 포함) 동안 끝난·실패한 job 수(BullMQ 분 단위 metrics). 워커가 아직 한 번도 기록하지 않았으면 null(decisions/0071) */
   completedRecent: number | null;
+  /** 마지막으로 실패한 job만 센다(attempts를 다 쓴 최종 실패) — 재시도로 이어진 중간 실패는 들어가지 않는다 */
   failedRecent: number | null;
   /** 이 큐를 처리하는 워커 연결 수(BullMQ getWorkers — Redis CLIENT LIST) */
   workers: number;
@@ -62,6 +63,7 @@ export interface OpsSchedulerView {
 export interface OpsDependencyView {
   ok: boolean;
   latencyMs: number | null;
+  /** 오류 이름과 코드만(`Error ECONNREFUSED`, 2초 안에 답이 없으면 `TIMEOUT`). 호스트·포트가 든 메시지는 보내지 않는다 */
   error: string | null;
 }
 
