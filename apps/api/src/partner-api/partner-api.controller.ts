@@ -3,9 +3,10 @@ import { EntityManager } from '@mikro-orm/mysql';
 import type { OffsetPage, PartnerTerminalView } from '@terminal-ops/contracts';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
-import { PartnerAuth } from '../auth/access.js';
+import { PartnerAuth, Public } from '../auth/access.js';
 import { Merchant } from '../merchant/merchant.entity.js';
 import type { Terminal } from '../terminal/terminal.entity.js';
+import { PARTNER_OPENAPI } from './openapi.js';
 import { TerminalService } from '../terminal/terminal.service.js';
 
 export class PartnerPageQuery {
@@ -51,5 +52,18 @@ export class PartnerApiController {
     if (!(await this.em.fork().count(Merchant, { code: merchantCode }))) throw new NotFoundException(`가맹점 ${merchantCode}이(가) 없습니다.`);
     const result = await this.terminals.list({ merchantCode, page: q.page, size: q.size });
     return { ...result, items: result.items.map(toPartnerTerminalView) };
+  }
+}
+
+/**
+ * 연동 문서(OpenAPI 3.1, 보강 7, decisions/0083). 로그인·키 없이 — 외부 업체가 키를 받기 전에 읽는다. 외부용 경로만 담는다.
+ * PartnerApiController와 따로 둔 이유: 그 컨트롤러의 라우트가 문서와 같은지 테스트가 비교한다(문서 자신은 비교 대상이 아니다).
+ */
+@Controller('partner/v1')
+export class PartnerDocsController {
+  @Get('openapi.json')
+  @Public()
+  openapi(): typeof PARTNER_OPENAPI {
+    return PARTNER_OPENAPI;
   }
 }

@@ -2,7 +2,7 @@
 
 > 이 파일은 `node scripts/docs-index.mjs`가 만든다. 손으로 고치지 않는다(decisions/0046). 기록을 더한 뒤 다시 만들고, `--check`로 확인한다.
 
-## 결정 기록 (82)
+## 결정 기록 (83)
 
 - [0001](decisions/0001-인증은-작업자-헤더로.md) 인증은 하지 않고, 작업자는 요청 헤더로 기록한다
 - [0002](decisions/0002-esm-vitest-tsc-빌드.md) ESM + Vitest + tsc 빌드로 API를 만든다
@@ -86,6 +86,7 @@
 - [0080](decisions/0080-개발자센터는-ADMIN이-쓰는-별도-앱-apps-developers.md) 개발자센터는 ADMIN이 쓰는 별도 앱 apps/developers로
 - [0081](decisions/0081-외부-업체는-partner-표로-키는-업체-하나에-속한다.md) 외부 업체는 partner 표로, 키는 업체 하나에 속한다
 - [0082](decisions/0082-호출-로그는-MySQL에-가드가-응답이-끝난-뒤-한-줄.md) 호출 로그는 MySQL에, 가드가 응답이 끝난 뒤 한 줄
+- [0083](decisions/0083-연동-문서는-손으로-쓴-OpenAPI와-어긋남-검사-테스트로.md) 연동 문서는 손으로 쓴 OpenAPI와 어긋남 검사 테스트로
 
 ## 트러블슈팅 (33)
 

@@ -114,6 +114,8 @@ const EXPECTED: Record<string, string> = {
   // 외부 업체 키(scope별)
   'GET /partner/v1/terminals/:serialNo': 'partner:terminal-status:read',
   'GET /partner/v1/merchants/:merchantCode/terminals': 'partner:merchant-terminals:read',
+  // 연동 문서(보강 7, decisions/0083) — 로그인·키 없이
+  'GET /partner/v1/openapi.json': 'public',
 };
 
 type ModuleLike = Type<unknown> | { module: Type<unknown>; imports?: unknown[]; controllers?: Type<unknown>[] };
