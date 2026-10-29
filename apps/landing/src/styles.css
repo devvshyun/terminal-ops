@@ -679,8 +679,49 @@ a {
   color: var(--muted);
 }
 
+/* 관제 화면: 무대 밖, 역할 설명 아래에 흐름 배치로 한 장(겹치지 않는다 — 어두운 사진이 밝은 무대에 섞이면 시선이 그쪽으로만 간다) */
+.ops-shot {
+  max-width: var(--wide);
+  margin: 72px auto 0;
+  padding: 0 var(--gutter);
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 32px;
+  align-items: end;
+}
+
+.ops-shot img {
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+  border: 1px solid #1f2d47;
+  box-shadow: 0 30px 70px -36px rgba(15, 26, 44, 0.7);
+}
+
+.ops-shot figcaption {
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.ops-shot figcaption strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--fg);
+  font-family: var(--display);
+  font-size: 24px;
+  letter-spacing: -0.02em;
+}
+
 @media (max-width: 1099px) {
   .roles {
+    margin-top: 48px;
+  }
+}
+
+@media (max-width: 760px) {
+  .ops-shot {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
     margin-top: 48px;
   }
 }
