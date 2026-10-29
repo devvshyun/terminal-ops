@@ -10,6 +10,7 @@ import { useRefetchInterval } from '../lib/refresh';
 /**
  * 작업 기록(보강 6, decisions/0073): 관제 작업(다시 시도·지우기·Outbox 복구 sweep)을 누가 언제 무엇에 했나, 최근부터 20개씩 "더 보기".
  * 고치거나 지우는 단추는 없다(api도 없다 — 쌓기만).
+ * 자동 새로고침은 첫 쪽만 펼쳤을 때만 — "더 보기" 뒤에는 멈춘다(위의 마지막 갱신 시각이 그대로 남는다).
  */
 export function ActionsPage() {
   const refetchInterval = useRefetchInterval();
@@ -18,7 +19,9 @@ export function ActionsPage() {
     queryFn: ({ pageParam }) => api<BeforeIdPage<OpsActionView>>('/ops/actions', { query: { beforeId: pageParam } }),
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (last) => last.nextBeforeId ?? undefined,
-    refetchInterval,
+    // 무한 목록의 간격 다시 읽기는 펼친 쪽을 모두 차례로 다시 읽는다 — "더 보기"를 누른 뒤에는 멈춘다(최종 리뷰 Minor 6a, decisions/0076 보탬).
+    // 첫 쪽만 볼 때는 다른 화면처럼 10초. 관제 작업 뒤의 무효화(작업 기록 키)는 그대로 다시 읽는다
+    refetchInterval: (query) => ((query.state.data?.pages.length ?? 0) > 1 ? false : refetchInterval),
   });
   const items = list.data?.pages.flatMap((p) => p.items) ?? [];
   return (

@@ -5,11 +5,16 @@ import { OutboxEvent, OutboxStatus } from '../outbox/outbox-event.entity.js';
 import { WeeklyReport } from '../report/weekly-report.entity.js';
 import { SyncRun } from '../shipment/shipment.entities.js';
 import { VanReconciliationRun, VanRunStatus } from '../van/van.entities.js';
+import { maskPii } from './job-data.js';
 
 /** 수집 기록은 최근 이만큼의 행(id) 안에서만 오류를 찾는다 — outcome에 인덱스가 없어 PK 범위로 읽는 양을 묶는다(decisions/0070) */
 export const SYNC_RUN_SCAN_WINDOW = 10_000;
 
-const clip = (text: string | null | undefined) => (text ?? '').slice(0, 500);
+/**
+ * 오류 글: 전화번호·이메일 모양을 가린 뒤 500자로 자른다(최종 리뷰 Important 1). 알림 실패의 lastError는 notify job의 실패 이유와 같은 글이고
+ * 업체 응답 본문 200자가 붙는다 — 실패 job 화면(shortReason)과 같은 함수로 가린다(decisions/0072 보탬)
+ */
+const clip = (text: string | null | undefined) => maskPii(text ?? '').slice(0, 500);
 
 /**
  * 최근 업무 오류 한 목록(보강 6, decisions/0070). 새 표 없이 오류를 이미 남기는 네 곳을 읽어 시각 순으로 합친다 —

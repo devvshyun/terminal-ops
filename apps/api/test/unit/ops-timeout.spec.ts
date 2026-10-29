@@ -5,6 +5,9 @@ import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { OPS_REDIS_TIMEOUT_MS, OpsQueuesService } from '../../src/ops/ops-queues.service.js';
 import { withTimeout } from '../../src/ops/with-timeout.js';
+import type { Principal } from '../../src/auth/principal.js';
+import type { OpsAuditService } from '../../src/ops/ops-audit.service.js';
+import { OpsJobsService } from '../../src/ops/ops-jobs.service.js';
 
 /**
  * Redis가 느리거나 죽었을 때 관제 읽기가 오래 매달리지 않는다(Task 1 리뷰 반영, decisions/0071).
@@ -61,5 +64,21 @@ describe('관제 읽기의 Redis 시간 제한 (Task 1 리뷰 반영)', () => {
     const res = (await service({ ping: () => Promise.reject(refused) }).system()) as { redis: { ok: boolean; error: string } };
     expect(res.redis).toMatchObject({ ok: false, error: 'Error ECONNREFUSED' });
     expect(JSON.stringify(res)).not.toContain('10.1.2.3');
+  });
+});
+
+describe('다시 시도·지우기 앞의 확인 읽기도 시간 제한 (최종 리뷰 Minor 1)', () => {
+  it('job 확인(getJob)이 대답하지 않으면 제한 시간 안에 503 — 아무것도 바꾸지 않고 감사 기록도 남기지 않는다', async () => {
+    const recorded: unknown[] = [];
+    const audit = { record: async (...args: unknown[]) => recorded.push(args) } as unknown as OpsAuditService;
+    const jobs = new OpsJobsService(service({ ping: async () => 'PONG' }), audit);
+    const who = { loginId: 'mon', role: 'MONITOR' } as Principal;
+    const runs: (() => Promise<unknown>)[] = [() => jobs.retry('report', 'j-1', who), () => jobs.remove('report', 'j-1', who)];
+    for (const run of runs) {
+      const { ms, result } = await timed(run);
+      expect(result).toBeInstanceOf(ServiceUnavailableException);
+      expect(ms).toBeLessThan(1000);
+    }
+    expect(recorded).toEqual([]);
   });
 });

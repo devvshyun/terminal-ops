@@ -37,10 +37,19 @@ export function redactJobData(data: unknown): Record<string, unknown> {
 }
 
 /**
+ * 오류 글 속 전화번호·이메일 모양을 [가림]으로(이메일 먼저 — 이메일 안의 숫자가 번호로 먼저 잡히지 않게). 자르지 않는다 — 부르는 쪽이 가린 뒤에 자른다
+ * (먼저 자르면 잘린 자리에 번호 반쪽이 남는다). 실패 job의 실패 이유·감사 기록 detail(shortReason)과 최근 오류 네 출처의 글(ops-errors.service.ts)이
+ * 같은 함수를 쓴다(최종 리뷰 Important 1 — 알림·택배 추적 실패는 최근 오류 화면에만 나온다, decisions/0072 보탬).
+ */
+export function maskPii(text: string): string {
+  return text.replace(EMAIL, MASK).replace(PHONE, MASK);
+}
+
+/**
  * 실패 이유 한 줄(외부 업체 응답 본문이 길게 붙을 수 있다 — 500자). 업체 오류 글에 수신자 번호·이메일이 섞여 올 수 있어
- * 전화번호·이메일 모양은 가린 뒤 자른다(Task 2 리뷰 반영 — 먼저 자르면 잘린 자리에 번호 반쪽이 남는다). 그 밖의 글은 그대로다(decisions/0072 대가).
+ * 전화번호·이메일 모양은 가린 뒤 자른다(Task 2 리뷰 반영, maskPii). 그 밖의 글은 그대로다(decisions/0072 대가).
  */
 export function shortReason(reason: string | undefined): string {
-  const text = (reason ?? '').replace(EMAIL, MASK).replace(PHONE, MASK);
+  const text = maskPii(reason ?? '');
   return text.length > 500 ? `${text.slice(0, 500)}…` : text;
 }

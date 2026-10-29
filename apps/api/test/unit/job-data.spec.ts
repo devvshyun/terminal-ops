@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MASK, redactJobData, shortReason } from '../../src/ops/job-data.js';
+import { MASK, maskPii, redactJobData, shortReason } from '../../src/ops/job-data.js';
 
 describe('실패 job data 가리기 (decisions/0072)', () => {
   it('지금 큐에 들어가는 data(id·시리얼·주 시작일)는 그대로 보인다', () => {
@@ -35,6 +35,12 @@ describe('실패 job data 가리기 (decisions/0072)', () => {
     expect(shortReason('SN1-0001 브릿지VAN 목록 응답 503 (run 20261029)')).toBe('SN1-0001 브릿지VAN 목록 응답 503 (run 20261029)');
     // 가린 뒤 500자로 자른다 — 잘린 자리에 번호 반쪽이 남지 않게
     expect(shortReason(`${'e'.repeat(495)} 010-1234-5678`)).toBe(`${'e'.repeat(495)} ${MASK}`);
+  });
+
+  it('maskPii: 전화번호·이메일 모양만 가리고 자르지 않는다 — 실패 이유와 최근 오류(/ops/errors)가 같이 쓴다(최종 리뷰 Important 1)', () => {
+    expect(maskPii('톡톡메신저 400 수신자 010-1234-5678, a.b@example.com')).toBe(`톡톡메신저 400 수신자 ${MASK}, ${MASK}`);
+    expect(maskPii('x'.repeat(600))).toHaveLength(600);
+    expect(maskPii('SN1-0001 응답 503')).toBe('SN1-0001 응답 503');
   });
 
   it('긴 글자는 100자로 자르고, 긴 목록은 20개까지, 너무 깊은 것은 [깊음]', () => {

@@ -17,3 +17,4 @@
   - 대가: 제한에 걸린 BullMQ 명령은 취소되지 않는다 — 오프라인 큐에 남아 다시 연결되면 실행되거나 재시도 끝에 실패한다(결과는 버린다). Redis가 죽은 동안 프로세스 상태의 워커 빈 목록은 "워커 없음"이 아니라 "못 읽음"이다 — redis `ok:false`와 함께 읽는다. 다시 시도·지우기·복구 sweep(쓰기)에는 걸지 않았다 — 제한 뒤에 작업이 끝나면 감사 기록 없이 바뀐다(0073).
   - metrics의 비용: job이 끝날 때마다 BullMQ가 같은 Lua 스크립트(moveToFinished) 안에서 metrics 키에 HINCRBY·HGET 등을 더 한다 — 왕복이 늘지는 않고 스크립트 안의 명령 몇 개가 는다.
   - 프로세스 상태의 오류 글은 이름·코드만(`Error ECONNREFUSED`, `TIMEOUT`) — 연결 오류 메시지에 든 호스트·포트를 화면에 보내지 않는다.
+- 보탬(최종 리뷰 반영, 2026-10-29): 다시 시도·지우기 **앞의 확인 읽기**(`failedJob`의 `getJob`·`getState`)는 아직 아무것도 바꾸지 않았으므로 읽기와 같은 시간 제한(`OpsQueuesService.read`, 'job 확인')을 건다 — 걸리면 503이고 바뀐 것도 감사 기록도 없다. 쓰기(`retry`·`remove`) 자체와 경쟁 뒤 상태 다시 읽기(`notFailedAfterRace`)는 그대로 제한 없이. **복구 sweep 수동 실행에는 시간 제한이 없다** — `requeueStale` 안에서 읽기(`getJobState`)와 쓰기(`addBulk`)가 섞여 있어 가르지 않았다. Redis가 죽으면 이 요청은 BullMQ 연결의 재시도(`maxRetriesPerRequest` 20) 동안 매달릴 수 있고, 그동안 화면 단추는 막혀 있다

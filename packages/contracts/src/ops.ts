@@ -2,6 +2,7 @@
  * 운영 관제(보강 6, decisions/0070). `GET /ops/...`는 관제·ADMIN이 읽고, 관제 작업(다시 시도·지우기·복구 sweep)은 관제(MONITOR)만 한다.
  * 큐·주기 작업·워커 상태는 BullMQ(Redis)에서, Outbox·업무 오류·감사 기록은 MySQL에서 그때그때 읽는다(캐시 없음).
  */
+import type { Role } from './auth.js';
 
 /** BullMQ 큐 이름(api queue-names.ts QUEUE와 같은 값 — api contract-assertions.ts가 단언) */
 export type OpsQueueName = 'track-bungae' | 'track-neurimbo' | 'carrier-sweep' | 'outbox' | 'device' | 'report';
@@ -121,7 +122,7 @@ export interface OpsErrorView {
    */
   at: string;
   title: string;
-  /** 그 행에 남은 오류 글(500자까지) */
+  /** 그 행에 남은 오류 글(500자까지). 전화번호·이메일 모양은 '[가림]'으로 가린 뒤 자른다(실패 job의 failedReason과 같은 함수, decisions/0072) */
   message: string;
 }
 
@@ -162,7 +163,8 @@ export interface OpsActionView {
   action: OpsActionKind;
   /** 로그인 아이디와 그때의 역할 */
   actor: string;
-  actorRole: string;
+  /** 기록 때의 역할 — api는 문자열 열을 그대로 넘긴다. 나중에 역할 값이 바뀌면 옛 행에는 지금 Role에 없는 값이 남을 수 있다 */
+  actorRole: Role;
   queue: OpsQueueName | null;
   jobId: string | null;
   jobName: string | null;

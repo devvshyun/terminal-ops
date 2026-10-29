@@ -38,7 +38,7 @@ export class OpsJobsService {
   /** 최근 실패부터(BullMQ getFailed는 끝난 시각 내림차순) start번째부터 limit개 */
   async listFailed(name: string, start: number, limit: number): Promise<OpsFailedJobsPage> {
     const q = this.queues.queue(name);
-    // 읽기만 시간 제한(늦으면 503). 다시 시도·지우기에는 걸지 않는다 — 제한 뒤에 작업이 끝나면 감사 기록 없이 바뀐다(OpsQueuesService.read)
+    // 읽기만 시간 제한(늦으면 503). 다시 시도·지우기 자체에는 걸지 않는다 — 제한 뒤에 작업이 끝나면 감사 기록 없이 바뀐다(OpsQueuesService.read). 그 앞의 확인 읽기(failedJob)는 건다
     const [jobs, total] = await this.queues.read(Promise.all([q.getFailed(start, start + limit - 1), q.getFailedCount()]), '실패 job 목록');
     return { items: jobs.filter(Boolean).map((j) => toFailedJobView(name as OpsQueueName, j)), total, start, limit };
   }
@@ -87,9 +87,10 @@ export class OpsJobsService {
 
   private async failedJob(name: string, jobId: string): Promise<Job> {
     const q = this.queues.queue(name);
-    const job = await q.getJob(jobId);
+    // 쓰기 앞의 확인 읽기는 아직 아무것도 바꾸지 않았으니 읽기 시간 제한을 건다 — 늦으면 503, 바뀐 것 없음(최종 리뷰 Minor 1, decisions/0071 보탬)
+    const job = await this.queues.read(q.getJob(jobId), 'job 확인');
     if (!job) throw new NotFoundException(`job이 없습니다: ${name} ${jobId}`);
-    const state = await job.getState();
+    const state = await this.queues.read(job.getState(), 'job 확인');
     if (state !== 'failed') throw new BusinessError(409, 'JOB_NOT_FAILED', `실패 상태가 아닌 job입니다(지금 ${state}): ${name} ${jobId}`);
     return job;
   }

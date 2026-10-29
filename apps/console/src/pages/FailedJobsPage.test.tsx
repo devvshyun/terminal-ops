@@ -154,4 +154,58 @@ describe('실패 job (보강 6, decisions/0072)', () => {
     expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
     expect(calls.filter((c) => c.path.endsWith('/failed')).map((c) => c.query.get('start'))).toEqual(['0', '20']);
   });
+
+  it('큐를 고르지 않은 채 그 큐의 마지막 실패 job을 지워도 고른 큐가 다른 큐로 바뀌지 않는다(작업 뒤 큐를 주소에 고정, 최종 리뷰 Minor 2)', async () => {
+    const failed: Record<string, OpsFailedJobView[]> = { report: [job('van-run-7')] };
+    // 큐 요약의 실패 수도 지금 남은 job 수로 — 지운 뒤 "실패가 있는 첫 큐"가 없어진다
+    const { calls } = mockApi({
+      'GET /auth/me': () => ({ body: MONITOR }),
+      'GET /ops/queues': () => ({ body: queuesView([queue('outbox'), queue('report', { counts: { waiting: 0, active: 0, delayed: 0, prioritized: 0, failed: failed.report.length, completed: 0 } })]) }),
+      'GET /ops/queues/:name/failed': (call) => {
+        const items = failed[call.path.split('/')[3]] ?? [];
+        return { body: { items, total: items.length, start: 0, limit: 20 } };
+      },
+      'POST /ops/queues/:name/jobs/:id/remove': () => {
+        failed.report = [];
+        return { body: { queue: 'report', jobId: 'van-run-7', action: 'REMOVE_JOB', actionId: 12 } };
+      },
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderApp('/failed');
+    await userEvent.click(within((await screen.findByText('van-run-7')).closest('tr')!).getByRole('button', { name: '지우기' }));
+    expect(await screen.findByText('report의 job van-run-7을(를) 지웠습니다(작업 기록 #12).')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('option', { name: 'report (실패 0)' })).toBeInTheDocument());
+    expect(await screen.findByText('이 큐에 남은 실패 job이 없습니다.')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: '큐' })).toHaveValue('report');
+    // 잠깐이라도 다른 큐를 읽지 않는다
+    expect(calls.filter((c) => c.path.endsWith('/failed')).every((c) => c.path === '/ops/queues/report/failed')).toBe(true);
+  });
+
+  it('둘째 쪽의 마지막 job을 지워 쪽이 비면 앞 쪽으로 옮긴다(최종 리뷰 Minor 2)', async () => {
+    const failed = { report: Array.from({ length: 21 }, (_, i) => job(`j-${i + 1}`)) };
+    failedApi(MONITOR, failed);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderApp('/failed?queue=report');
+    expect(await screen.findByText('1–20 / 21')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '다음' }));
+    await userEvent.click(within((await screen.findByText('j-21')).closest('tr')!).getByRole('button', { name: '지우기' }));
+    expect(await screen.findByText('1–20 / 20')).toBeInTheDocument();
+    expect(screen.queryByText('이 큐에 남은 실패 job이 없습니다.')).not.toBeInTheDocument();
+  });
+
+  it('둘째 쪽을 보다가 큐를 바꾸거나 메뉴 "실패 job"을 다시 누르면 첫 쪽부터(최종 리뷰 Minor 2)', async () => {
+    const many = Array.from({ length: 25 }, (_, i) => job(`j-${i + 1}`));
+    const { calls } = failedApi(MONITOR, { report: many, outbox: Array.from({ length: 22 }, (_, i) => job(`o-${i + 1}`, { queue: 'outbox' })) });
+    renderApp('/failed?queue=report');
+    await userEvent.click(await screen.findByRole('button', { name: '다음' }));
+    expect(await screen.findByText('21–25 / 25')).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: '큐' }), 'outbox');
+    expect(await screen.findByText('1–20 / 22')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '다음' }));
+    expect(await screen.findByText('21–22 / 22')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('link', { name: '실패 job' }));
+    // 주소에 큐가 없으면 실패가 있는 첫 큐(report — 큐 요약의 실패 수 2)의 첫 쪽
+    expect(await screen.findByText('1–20 / 25')).toBeInTheDocument();
+    expect(calls.filter((c) => c.path.endsWith('/failed')).map((c) => `${c.path.split('/')[3]}:${c.query.get('start')}`)).toEqual(['report:0', 'report:20', 'outbox:0', 'outbox:20', 'report:0']);
+  });
 });

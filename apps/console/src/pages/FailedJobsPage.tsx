@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { OpsFailedJobsPage, OpsFailedJobView, OpsJobActionResult, OpsQueuesView } from '@terminal-ops/contracts';
@@ -78,7 +78,6 @@ export function FailedJobsPage() {
   const client = useQueryClient();
   const refetchInterval = useRefetchInterval();
   const [params, setParams] = useSearchParams();
-  const [start, setStart] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
 
   const queues = useQuery({ queryKey: keys.queues, queryFn: () => api<OpsQueuesView>('/ops/queues'), refetchInterval });
@@ -88,7 +87,14 @@ export function FailedJobsPage() {
     : queues.isError
       ? OPS_QUEUE_NAMES.map((name) => ({ name, failed: null }))
       : [];
-  const selected = params.get('queue') ?? names.find((q) => (q.failed ?? 0) > 0)?.name ?? names[0]?.name ?? null;
+  const pinned = params.get('queue');
+  const selected = pinned ?? names.find((q) => (q.failed ?? 0) > 0)?.name ?? names[0]?.name ?? null;
+  // 쪽(start)도 주소에 — 큐와 함께 둔다(최종 리뷰 Minor 2). 큐를 바꾸면(고르기·메뉴 "실패 job"으로 ?queue=가 빠짐) start가 빠져 첫 쪽부터.
+  // 큐가 주소에 없을 때(실패가 있는 첫 큐를 고른 것)는 start를 보지 않는다 — 그 큐가 말없이 바뀌어도 앞 큐의 쪽을 이어 쓰지 않게
+  const startParam = Number(params.get('start'));
+  const start = pinned !== null && Number.isInteger(startParam) && startParam > 0 ? startParam : 0;
+  const goTo = (queue: string, nextStart: number, replace = false) =>
+    setParams(nextStart > 0 ? { queue, start: String(nextStart) } : { queue }, { replace });
 
   const failed = useQuery({
     queryKey: keys.failed(selected ?? '', start),
@@ -112,16 +118,23 @@ export function FailedJobsPage() {
   const onAction = (kind: Action, job: OpsFailedJobView) => {
     if (!window.confirm(CONFIRM[kind](job))) return;
     setNotice(null);
+    // 큐를 주소에 고정한다 — 고르지 않은 채(실패가 있는 첫 큐) 그 큐의 마지막 job을 처리하면 무효화 뒤 고른 큐가 말없이 다른 큐로 바뀌었다(최종 리뷰 Minor 2).
+    // 응답 뒤가 아니라 부르기 전에: 응답 뒤에 고정하면 무효화 뒤 잠깐 다른 큐를 한 번 읽었다(테스트에서 봄 — 주소 반영이 큐 요약보다 늦은 것으로 추측)
+    if (pinned === null) goTo(job.queue, start, true);
     action.mutate({ kind, job });
   };
 
   const choose = (name: string) => {
-    setStart(0);
     setNotice(null);
-    setParams({ queue: name });
+    goTo(name, 0);
   };
 
   const page = failed.data;
+  // 지금 쪽이 비었는데 앞에 job이 남았으면(둘째 쪽의 마지막 job을 처리함) 남은 마지막 쪽으로 옮긴다(최종 리뷰 Minor 2)
+  useEffect(() => {
+    if (selected && page && page.items.length === 0 && page.start > 0) goTo(selected, page.total > 0 ? Math.floor((page.total - 1) / PAGE_SIZE) * PAGE_SIZE : 0, true);
+    // goTo는 렌더마다 새 함수라 의존에서 뺀다(같은 selected·page면 다시 옮기지 않음)
+  }, [selected, page]);
   return (
     <>
       <h1>실패 job</h1>
@@ -165,13 +178,13 @@ export function FailedJobsPage() {
             </tbody>
           </table>
           <div className="toolbar">
-            <button type="button" disabled={start === 0} onClick={() => setStart(Math.max(0, start - PAGE_SIZE))}>
+            <button type="button" disabled={start === 0} onClick={() => goTo(selected!, Math.max(0, start - PAGE_SIZE))}>
               이전
             </button>
             <span>
               {page.start + 1}–{page.start + page.items.length} / {page.total}
             </span>
-            <button type="button" disabled={page.start + page.items.length >= page.total} onClick={() => setStart(start + PAGE_SIZE)}>
+            <button type="button" disabled={page.start + page.items.length >= page.total} onClick={() => goTo(selected!, start + PAGE_SIZE)}>
               다음
             </button>
           </div>

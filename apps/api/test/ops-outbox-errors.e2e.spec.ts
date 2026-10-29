@@ -44,6 +44,8 @@ describe('Outbox 요약·복구 sweep /ops/outbox, 최근 업무 오류 /ops/err
     row(OutboxStatus.QUEUED, new Date(Math.floor(now / 1000) * 1000)); // 막 넣은 것 — 복구 sweep 기준(60초) 안
     row(OutboxStatus.SENT, minutesAgo(20));
     const failed = row(OutboxStatus.FAILED, minutesAgo(40), { attempts: 5, lastError: 'PartnerPermanentError: 톡톡메신저 400 INVALID_CHANNEL' });
+    // 업체 응답 본문이 붙은 오류 글에 수신자 번호·이메일이 섞인 행 — 최근 오류도 실패 이유와 같은 가리기를 지난다(최종 리뷰 Important 1)
+    const failedPii = row(OutboxStatus.FAILED, minutesAgo(50), { attempts: 1, lastError: 'PartnerPermanentError: 톡톡메신저 400 수신자 010-1234-5678 owner.kim+a@example.co.kr' });
     // 업무 오류 셋(시각을 다르게 두어 순서를 본다)과 오류가 아닌 행 하나씩
     const sync = e.create(SyncRun, { job: 'track-bungae', attempt: 3, worker: 'pid-1', outcome: 'ERROR', startedAt: minutesAgo(10), detail: 'PartnerTemporaryError: 번개택배 503' });
     e.create(SyncRun, { job: 'track-bungae', attempt: 1, worker: 'pid-1', outcome: 'OK', startedAt: minutesAgo(2) });
@@ -59,7 +61,7 @@ describe('Outbox 요약·복구 sweep /ops/outbox, 최근 업무 오류 /ops/err
     const weekly = e.create(WeeklyReport, { weekStart: '2026-10-19', status: WeeklyReportStatus.GENERATED, generatedAt: minutesAgo(20), attempts: 2, lastError: 'ToktokError: 톡톡메신저 503' });
     e.create(WeeklyReport, { weekStart: '2026-10-12', status: WeeklyReportStatus.SENT, generatedAt: minutesAgo(15), attempts: 1 });
     await e.flush();
-    Object.assign(ids, { queuedOld: queuedOld.id, failed: failed.id, sync: sync.id, van: van.id, weekly: weekly.id });
+    Object.assign(ids, { queuedOld: queuedOld.id, failed: failed.id, failedPii: failedPii.id, sync: sync.id, van: van.id, weekly: weekly.id });
   });
   afterAll(async () => {
     await resetQueues(t.app);
@@ -71,7 +73,7 @@ describe('Outbox 요약·복구 sweep /ops/outbox, 최근 업무 오류 /ops/err
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       checkedAt: expect.stringMatching(/^\d{4}-/),
-      counts: { PENDING: 2, QUEUED: 3, SENT: 1, FAILED: 1 },
+      counts: { PENDING: 2, QUEUED: 3, SENT: 1, FAILED: 2 },
       oldestPendingAt: minutesAgo(9).toISOString(),
       oldestQueuedAt: minutesAgo(5).toISOString(),
       requeueAfterMs: 60_000,
@@ -94,7 +96,7 @@ describe('Outbox 요약·복구 sweep /ops/outbox, 최근 업무 오류 /ops/err
     expect(await em().count(OpsActionLog)).toBe(2);
   });
 
-  it('최근 업무 오류: 수집 실패·VAN 대조 실패·주간 리포트 lastError·알림 실패를 시각 순으로 한 목록에(오류가 아닌 행은 빠진다)', async () => {
+  it('최근 업무 오류: 수집 실패·VAN 대조 실패·주간 리포트 lastError·알림 실패를 시각 순으로 한 목록에(오류가 아닌 행은 빠진다), 오류 글의 전화번호·이메일은 가린다', async () => {
     const res = await t.http(MONITOR).get('/ops/errors');
     expect(res.status).toBe(200);
     expect(res.body).toEqual([
@@ -108,7 +110,15 @@ describe('Outbox 요약·복구 sweep /ops/outbox, 최근 업무 오류 /ops/err
         title: `알림 #${ids.failed} 보내기 실패 — terminal.status_changed, 5번 시도`,
         message: 'PartnerPermanentError: 톡톡메신저 400 INVALID_CHANNEL',
       },
+      {
+        source: 'OUTBOX',
+        id: ids.failedPii,
+        at: minutesAgo(50).toISOString(),
+        title: `알림 #${ids.failedPii} 보내기 실패 — terminal.status_changed, 1번 시도`,
+        message: 'PartnerPermanentError: 톡톡메신저 400 수신자 [가림] [가림]',
+      },
     ]);
+    expect(JSON.stringify(res.body)).not.toMatch(/010-1234-5678|owner.kim/);
     expect((await t.http(ADMIN).get('/ops/errors').query({ limit: 2 })).body.map((e: { source: string }) => e.source)).toEqual(['SYNC_RUN', 'WEEKLY_REPORT']);
     expect((await t.http(MONITOR).get('/ops/errors').query({ limit: 0 })).status).toBe(400);
   });

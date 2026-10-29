@@ -219,14 +219,14 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 
 ## 테스트
 
-(보강 6 운영 관제 뒤 실제로 돌려 센 값(2026-10-29). api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 5 뒤에는 api 83/571, 보강 4 뒤에는 api 82/568·admin 14/125, 보강 3 뒤에는 api 80/561·merchant 7/47, 보강 2 뒤에는 api 79/549, 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
+(보강 6 운영 관제와 그 최종 리뷰 반영 뒤 실제로 돌려 센 값(2026-10-29 — 리뷰 반영 전에는 api 89/600·console 8/52). api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 5 뒤에는 api 83/571, 보강 4 뒤에는 api 82/568·admin 14/125, 보강 3 뒤에는 api 80/561·merchant 7/47, 보강 2 뒤에는 api 79/549, 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
 
 | 앱 | 파일 | 테스트 |
 |---|---|---|
-| api(실험 제외) | 89 | 600 |
+| api(실험 제외) | 90 | 603 |
 | admin | 19 | 163 |
 | merchant | 7 | 47 |
 | field | 7 | 60 |
-| console | 8 | 52 |
+| console | 8 | 56 |
 | partners | 6 | 53 |
 | device-sim | 5 | 46 |

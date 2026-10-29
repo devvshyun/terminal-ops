@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { OpsActionView, OpsSchedulerView } from '@terminal-ops/contracts';
@@ -84,6 +84,24 @@ describe('작업 기록 (보강 6, decisions/0073)', () => {
     expect(within(sweep).getByText('Outbox')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '더 보기' })).not.toBeInTheDocument();
     expect(calls.filter((c) => c.path === '/ops/actions').map((c) => c.query.get('beforeId'))).toEqual([null, '5']);
+  });
+
+  it('자동 새로고침은 첫 쪽만 펼쳤을 때만 — "더 보기"로 쪽을 늘리면 간격 다시 읽기를 멈춘다(펼친 쪽 수만큼 요청이 늘지 않게, 최종 리뷰 Minor 6a)', async () => {
+    const { calls } = mockApi({
+      ...ME,
+      'GET /ops/actions': (call) =>
+        call.query.get('beforeId') === '5' ? { body: { items: [action(4)], nextBeforeId: null } } : { body: { items: [action(6), action(5)], nextBeforeId: 5 } },
+    });
+    renderApp('/actions', { refreshMs: 40 });
+    const reads = () => calls.filter((c) => c.path === '/ops/actions').length;
+    // 첫 쪽만이면 간격마다 다시 읽는다
+    await waitFor(() => expect(reads()).toBeGreaterThanOrEqual(3));
+    await userEvent.click(screen.getByRole('button', { name: '더 보기' }));
+    expect(await screen.findByText('report / van-run-4 (van-reconcile)')).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 80));
+    const after = reads();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(reads()).toBe(after);
   });
 });
 
