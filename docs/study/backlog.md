@@ -200,3 +200,7 @@
 - [ ] TypeScript 컴파일러 API — `createScanner`(문맥 없는 토큰화: 정규식·템플릿 안을 코드로 읽음, `reScanSlashToken`·`reScanTemplateToken`)와 `createSourceFile` + `getChildren`(잎 = 토큰, JSDoc은 자식 노드로 붙음) (apps/field/src/copies.test.ts, decisions/0062)
 - [ ] HTML `<input>` 값 정리(줄바꿈 지우기)와 붙여 넣기 이벤트(`clipboardData.getData('text')`, `preventDefault`) — 여러 줄 붙여 넣기가 한 덩어리가 됨 (apps/field/src/pages/ScanPage.tsx, decisions/0064)
 - [ ] 바코드 스캐너 키보드 웨지의 접미사(Enter·Tab)·접두사 설정과 브라우저 `BarcodeDetector` 지원 범위(안드로이드 Chrome 등) (decisions/0064)
+- [ ] TypeScript 클래스 메서드 이름 겹침(TS2393)과 Nest 라우트 — 같은 컨트롤러에 `list`가 둘이면? 데코레이터 메타데이터는 어느 쪽에 남나 (apps/api/src/firmware/firmware.controller.ts, decisions/0066)
+- [ ] Vite env 읽기 규칙 — `envDir`·`.env.[mode]`·`VITE_` 접두사, 프로세스 env와 파일 env의 우선순위, 빌드 때 상수로 박히는 것 (apps/admin/src/apps.ts, decisions/0067)
+- [ ] CSV 수식 주입(= + - @로 시작하는 칸)과 엑셀이 UTF-8 CSV를 읽는 방법(BOM), `data:` URL과 Blob URL(`createObjectURL`·`revokeObjectURL`)의 차이 (apps/admin/src/lib/csv.ts, decisions/0068)
+- [ ] React `key`로 줄 상태 초기화 — 서버 값이 바뀌면 key를 바꿔 다시 마운트하는 방법과 `useEffect`로 맞추는 방법의 차이 (apps/admin/src/pages/AccountsPage.tsx, decisions/0069)

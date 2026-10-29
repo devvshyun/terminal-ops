@@ -8,6 +8,8 @@ import { WriteButton } from '../components/WriteButton';
 import { formatKst } from '../lib/format';
 import { label } from '../lib/labels';
 import { keys } from '../api/query-keys';
+import { hasRole, useMe } from '../session';
+import { FirmwareRegisterForm, RolloutCreateForm } from './RolloutForms';
 import type { RolloutStatus, RolloutView } from '@terminal-ops/contracts';
 
 /** 배포 상태 이름. 키가 contracts RolloutStatus와 하나라도 다르면 tsc가 막는다 */
@@ -18,9 +20,12 @@ const ROLLOUT_STATUS_LABEL: Record<RolloutStatus, string> = {
   ABORTED: '중단',
 };
 
-/** 펌웨어 단계 배포 현황(F8): 배포마다 단계별 대상·성공·실패·시간 초과, 멈춤·재개·중단 */
+/** 펌웨어 단계 배포 현황(F8): 배포마다 단계별 대상·성공·실패·시간 초과, 멈춤·재개·중단. 운영자는 펌웨어 등록·배포 만들기도(보강 5) */
 export function RolloutsPage() {
   const client = useQueryClient();
+  const canWrite = hasRole(useMe(), ['OPERATOR']);
+  /** 열어 둔 쓰기 폼(보강 5). 닫혀 있으면 모델·펌웨어 목록을 부르지 않는다 */
+  const [open, setOpen] = useState<'firmware' | 'rollout' | null>(null);
   const [status, setStatus] = useState('');
   const list = useBeforeIdList<RolloutView>(keys.rollouts.all, '/firmware-rollouts', { status });
   const control = useMutation({
@@ -36,6 +41,18 @@ export function RolloutsPage() {
   return (
     <section>
       <h2>펌웨어 배포</h2>
+      {canWrite ? (
+        <div className="actions">
+          <button type="button" aria-expanded={open === 'firmware'} onClick={() => setOpen(open === 'firmware' ? null : 'firmware')}>
+            펌웨어 등록
+          </button>
+          <button type="button" aria-expanded={open === 'rollout'} onClick={() => setOpen(open === 'rollout' ? null : 'rollout')}>
+            새 배포 만들기
+          </button>
+        </div>
+      ) : null}
+      {open === 'firmware' ? <FirmwareRegisterForm /> : null}
+      {open === 'rollout' ? <RolloutCreateForm /> : null}
       <div className="filters">
         <select aria-label="배포 상태" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">상태 전체</option>

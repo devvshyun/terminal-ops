@@ -10,12 +10,20 @@ const HINT: Partial<Record<ErrorCode, string>> = {
   PARTNER_ERROR: '외부 업체(가상) 응답이 실패했습니다. 잠시 뒤 다시 시도하세요.',
   VAN_RECONCILIATION_RUNNING: '이미 진행 중인 작업이 있습니다. 끝난 뒤 다시 실행하세요.',
   ANOMALY_SCAN_RUNNING: '이미 진행 중인 작업이 있습니다. 끝난 뒤 다시 실행하세요.',
+  ROLLOUT_ALREADY_ACTIVE: '이 모델에 진행 중이거나 멈춘 배포가 있습니다. 그 배포를 끝내거나 중단한 뒤 만드세요.',
+  INVALID_STAGES: '단계 비율은 커지는 순서이고 마지막이 100이어야 합니다.',
   FORBIDDEN: '이 작업을 할 권한이 없습니다(역할 확인).',
   UNAUTHENTICATED: '로그인이 끝났습니다. 다시 로그인하세요.',
   LOGIN_FAILED: '아이디 또는 비밀번호가 맞지 않습니다.',
   LOGIN_LOCKED: '로그인 실패가 많아 잠시 막혔습니다. 잠시 뒤 다시 시도하세요.',
-  // 계정 관리 화면은 Bundle 7 — 지금은 API(PATCH /admin/accounts/:id)에서만 나지만, 화면이 생겨도 안내가 비지 않게 미리 둔다
+  // 단말기 등록 화면의 엑셀 올리기(보강 5, pages/RegistrationPage.tsx)
+  FILE_TOO_LARGE: '파일이 2MB를 넘습니다. 나눠서 올리세요.',
+  INVALID_FILE: '.xlsx 엑셀 파일만 올릴 수 있습니다(csv·xls는 엑셀에서 .xlsx로 저장).',
+  MISSING_COLUMNS: '1행 머리글에 serialNo·modelCode 열이 있어야 합니다.',
+  TOO_MANY_ROWS: '한 파일에 5,000행까지입니다. 나눠서 올리세요.',
+  // 계정 화면(보강 5, pages/AccountsPage.tsx)
   LAST_ADMIN: '마지막 활성 ADMIN입니다. 다른 ADMIN 계정을 먼저 만들거나 살린 뒤 바꾸세요.',
+  MERCHANT_REQUIRED: '가맹점주 계정에는 가맹점을 꼭 고르고, 다른 역할에는 가맹점을 주지 않습니다.',
 };
 
 export function describeError(error: unknown): { title: string; detail: string; code: ErrorCode | null } {

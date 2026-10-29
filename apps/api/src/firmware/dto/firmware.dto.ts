@@ -1,4 +1,5 @@
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
+import type { CreateRolloutRequest, RegisterFirmwareRequest } from '@terminal-ops/contracts';
 import { BeforeIdQuery } from '../../common/keyset.js';
 import { FIRMWARE_VERSION_PATTERN } from '../../device/heartbeat.service.js';
 import { SERIAL_NO_MESSAGE, SERIAL_NO_PATTERN } from '../../terminal/bulk-rows.js';
@@ -9,7 +10,7 @@ const VERSION_MESSAGE = 'version은 영문·숫자·점·하이픈 1~20자입니
 /** 단계 제한 시간 상한(하루). firmware_rollout.stage_timeout_ms는 int(최대 2,147,483,647ms ≈ 24.8일) */
 export const MAX_STAGE_TIMEOUT_MS = 24 * 60 * 60_000;
 
-export class RegisterFirmwareDto {
+export class RegisterFirmwareDto implements RegisterFirmwareRequest {
   @IsString()
   modelCode!: string;
 
@@ -17,7 +18,15 @@ export class RegisterFirmwareDto {
   version!: string;
 }
 
-export class CreateRolloutDto {
+/** GET /firmware 조건(최근 등록부터, decisions/0039). 모델로 거른다 — 배포 만들기 화면의 버전 선택지(decisions/0066) */
+export class ListFirmwareQuery extends BeforeIdQuery {
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  modelCode?: string;
+}
+
+export class CreateRolloutDto implements CreateRolloutRequest {
   @IsString()
   modelCode!: string;
 

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import ExcelJS from 'exceljs';
-import type { ApiErrorBody, InputErrorCode } from '@terminal-ops/contracts';
+import type { ApiErrorBody, InputErrorCode, TerminalImportView } from '@terminal-ops/contracts';
 import { BulkRegistrationService, type BulkRegisterRow } from './bulk-registration.service.js';
 import { summarize, type RowResult } from './bulk-rows.js';
 import { readCellValue } from './import-cells.js';
@@ -76,7 +76,7 @@ export async function readImportRows(buffer: Buffer): Promise<ImportRow[]> {
 export class TerminalImportService {
   constructor(private readonly bulk: BulkRegistrationService) {}
 
-  async import(file: UploadedSpreadsheet | undefined, actor: string) {
+  async import(file: UploadedSpreadsheet | undefined, actor: string): Promise<TerminalImportView> {
     if (!file) throw invalid('INVALID_FILE', 'file 필드로 .xlsx 파일을 보내세요.');
     if (!file.originalname.toLowerCase().endsWith('.xlsx')) throw invalid('INVALID_FILE', '.xlsx 파일만 받습니다.');
     const rows = await readImportRows(file.buffer);

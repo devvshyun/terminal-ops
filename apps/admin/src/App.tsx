@@ -6,6 +6,7 @@ import { RequireRole } from './components/RequireRole';
 import { SessionCacheSync } from './components/SessionCacheSync';
 import { LoginPage } from './pages/LoginPage';
 import { useMe } from './session';
+import { AccountsPage } from './pages/AccountsPage';
 import { BatchHistoryPage } from './pages/BatchHistoryPage';
 import { AnomaliesPage } from './pages/reports/AnomaliesPage';
 import { PurchaseOrdersPage } from './pages/reports/PurchaseOrdersPage';
@@ -13,6 +14,7 @@ import { VanRunDetailPage } from './pages/reports/VanRunDetailPage';
 import { VanRunsPage } from './pages/reports/VanRunsPage';
 import { WeeklyReportsPage } from './pages/reports/WeeklyReportsPage';
 import { HomePage } from './pages/HomePage';
+import { RegistrationPage } from './pages/RegistrationPage';
 import { RolloutsPage } from './pages/RolloutsPage';
 import { ScanPage } from './pages/ScanPage';
 import { ServiceTicketDetailPage } from './pages/ServiceTicketDetailPage';
@@ -45,6 +47,7 @@ export function App() {
           <Route index element={<Home />} />
           <Route path="terminals" element={guard('/terminals', <TerminalListPage />)} />
           <Route path="terminals/:serialNo" element={guard('/terminals', <TerminalDetailPage />)} />
+          <Route path="registrations" element={guard('/registrations', <RegistrationPage />)} />
           <Route path="scans" element={guard('/scans', <ScanPage />)} />
           <Route path="service-tickets" element={guard('/service-tickets', <ServiceTicketsPage />)} />
           <Route path="service-tickets/:id" element={guard('/service-tickets', <ServiceTicketDetailPage />)} />
@@ -55,6 +58,7 @@ export function App() {
           <Route path="reports/purchase-orders" element={guard('/reports/purchase-orders', <PurchaseOrdersPage />)} />
           <Route path="reports/weekly" element={guard('/reports/weekly', <WeeklyReportsPage />)} />
           <Route path="batch-runs" element={guard('/batch-runs', <BatchHistoryPage />)} />
+          <Route path="admin/accounts" element={guard('/admin/accounts', <AccountsPage />)} />
           <Route path="*" element={<p>없는 화면입니다.</p>} />
         </Route>
       </Routes>

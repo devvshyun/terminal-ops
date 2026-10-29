@@ -44,6 +44,11 @@ export const keys = {
     one: (id: number) => ['service-ticket', id] as const,
   },
   rollouts: { all: ['firmware-rollouts'] as const },
+  /** 등록된 펌웨어(배포 만들기의 버전 선택지, 보강 5). 펌웨어를 등록하면 all로 */
+  firmware: {
+    all: ['firmware'] as const,
+    byModel: (modelCode: string) => ['firmware', modelCode] as const,
+  },
   anomalies: {
     all: ['anomalies'] as const,
     list: (rule: string, open: string) => ['anomalies', rule, open] as const,
@@ -54,6 +59,8 @@ export const keys = {
     items: (id: number, kind: string, verified: string) => ['van-run', id, kind, verified] as const,
   },
   syncRuns: { all: ['sync-runs'] as const },
+  /** 계정 목록(ADMIN, 보강 5) */
+  accounts: { all: ['accounts'] as const },
   weeklyReports: { all: ['weekly-reports'] as const },
 };
 

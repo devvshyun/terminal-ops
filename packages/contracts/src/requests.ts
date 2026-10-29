@@ -44,6 +44,34 @@ export interface InspectRequest {
   results: InspectionResultInput[];
 }
 
+/** POST /terminals — 단말기 한 대 등록(입고 상태로). 엑셀 일괄 등록은 multipart `file`(본문 모양 없음, 응답 TerminalImportView) */
+export interface RegisterTerminalRequest {
+  /** 대문자·숫자·하이픈 4~32자 */
+  serialNo: string;
+  modelCode: string;
+}
+
+/** POST /firmware — (모델, 버전)이 이미 있으면 409 DUPLICATE */
+export interface RegisterFirmwareRequest {
+  modelCode: string;
+  /** 영문·숫자·점·하이픈 1~20자 */
+  version: string;
+}
+
+/** POST /firmware-rollouts — 등록된 펌웨어의 단계 배포. 같은 모델에 진행 중(RUNNING·PAUSED) 배포가 있으면 409 ROLLOUT_ALREADY_ACTIVE */
+export interface CreateRolloutRequest {
+  modelCode: string;
+  version: string;
+  /** 단계별 누적 비율(%) 1~10개, 커지는 순서, 마지막은 100(어기면 400 INVALID_STAGES) */
+  stages: number[];
+  /** 0~1. 단계 실패율이 이 값을 넘으면 자동 중단 */
+  failureThreshold: number;
+  /** 실패율을 판단하기 전에 모을 최소 보고 수(1 이상) */
+  minSamples: number;
+  /** 단계 안에서 보고를 기다리는 시간(ms, 1~86,400,000). 없으면 10분 */
+  stageTimeoutMs?: number;
+}
+
 /** POST /purchase-orders */
 export interface CreatePurchaseOrderRequest {
   modelCode: string;

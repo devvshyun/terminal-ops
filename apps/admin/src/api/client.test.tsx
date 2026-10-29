@@ -63,6 +63,22 @@ describe('api 클라이언트 (decisions/0041)', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Failed to fetch');
   });
 
+  it('PATCH도 JSON 본문으로 보낸다(계정 바꾸기, 보강 5)', async () => {
+    const { calls } = mockApi({ 'PATCH /admin/accounts/:id': () => ({ body: { id: 3, role: 'MONITOR' } }) });
+    expect(await api('/admin/accounts/3', { method: 'PATCH', body: { role: 'MONITOR' } })).toEqual({ id: 3, role: 'MONITOR' });
+    expect(calls[0]).toMatchObject({ method: 'PATCH', path: '/admin/accounts/3', body: { role: 'MONITOR' } });
+    expect(calls[0].headers['Content-Type']).toBe('application/json');
+  });
+
+  it('FormData(파일 올리기)는 그대로 보내고 Content-Type을 붙이지 않는다 — 브라우저가 multipart 경계와 함께 붙인다(보강 5)', async () => {
+    const { calls } = mockApi({ 'POST /terminals/imports': () => ({ status: 201, body: { total: 0 } }) });
+    const form = new FormData();
+    form.append('file', new File(['x'], 'a.xlsx'));
+    await api('/terminals/imports', { method: 'POST', body: form });
+    expect(calls[0].body).toBe(form);
+    expect(calls[0].headers).toEqual({ Accept: 'application/json' });
+  });
+
   it('204(본문 없음)는 null', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 204 })));
     expect(await api('/anything', { method: 'POST', body: {} })).toBeNull();
