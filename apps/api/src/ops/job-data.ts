@@ -6,8 +6,14 @@
  */
 export const MASK = '[가림]';
 
-/** 이름에 이 글자가 들어간 키는 값을 가린다(대소문자 무시). key는 idempotencyKey 같은 것도 가린다 — 지나치게 가리는 쪽을 고른다 */
-const SECRET_KEY = /pass|secret|token|key|auth|cookie|session|phone|email|card|account|address/i;
+/**
+ * 이름에 이 글자가 들어간 키는 값을 가린다(대소문자 무시). key는 idempotencyKey 같은 것도 가린다 — 지나치게 가리는 쪽을 고른다.
+ * tel·mobile·addr·contact·credential·bearer·jwt·private는 Task 2 리뷰 반영으로 더했다(tel은 hotel 같은 이름도 가린다 — 지나치게 가리는 쪽).
+ */
+const SECRET_KEY = /pass|secret|token|key|auth|cookie|session|phone|tel|mobile|email|contact|card|account|addr|credential|bearer|jwt|private/i;
+/** 실패 이유 속 전화번호(0으로 시작하는 9~11자리, 하이픈 있어도 없어도)·이메일. 시리얼(SN1-0001)·id·HTTP 상태는 닿지 않는다 */
+const PHONE = /(?<!\d)0\d{1,2}-?\d{3,4}-?\d{4}(?!\d)/g;
+const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
 const MAX_STRING = 100;
 const MAX_ITEMS = 20;
 const MAX_DEPTH = 4;
@@ -30,8 +36,11 @@ export function redactJobData(data: unknown): Record<string, unknown> {
   return out !== null && typeof out === 'object' && !Array.isArray(out) ? (out as Record<string, unknown>) : { value: out };
 }
 
-/** 실패 이유 한 줄(외부 업체 응답 본문이 길게 붙을 수 있다 — 500자) */
+/**
+ * 실패 이유 한 줄(외부 업체 응답 본문이 길게 붙을 수 있다 — 500자). 업체 오류 글에 수신자 번호·이메일이 섞여 올 수 있어
+ * 전화번호·이메일 모양은 가린 뒤 자른다(Task 2 리뷰 반영 — 먼저 자르면 잘린 자리에 번호 반쪽이 남는다). 그 밖의 글은 그대로다(decisions/0072 대가).
+ */
 export function shortReason(reason: string | undefined): string {
-  const text = reason ?? '';
+  const text = (reason ?? '').replace(EMAIL, MASK).replace(PHONE, MASK);
   return text.length > 500 ? `${text.slice(0, 500)}…` : text;
 }

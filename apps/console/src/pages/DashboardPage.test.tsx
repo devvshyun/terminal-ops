@@ -10,12 +10,12 @@ const row = (name: string) => screen.getByRole('cell', { name: new RegExp(`^${na
 
 describe('대시보드 (보강 6)', () => {
   it('상태 카드: api 버전·기동 시각, MySQL·Redis 응답, 워커 프로세스 이름(큐마다 겹치면 하나로)', async () => {
-    mockApi({ ...ME, ...dashboardApi({ system: systemView({ redis: { ok: false, latencyMs: null, error: 'Error: connect ECONNREFUSED 127.0.0.1:6379' } }) }) });
+    mockApi({ ...ME, ...dashboardApi({ system: systemView({ redis: { ok: false, latencyMs: null, error: 'Error ECONNREFUSED' } }) }) });
     renderApp('/');
     expect(await screen.findByText('worker-a')).toBeInTheDocument();
     expect(screen.getByText('1.2ms')).toBeInTheDocument();
     expect(screen.getByText('응답 없음')).toBeInTheDocument();
-    expect(screen.getByText('Error: connect ECONNREFUSED 127.0.0.1:6379')).toBeInTheDocument();
+    expect(screen.getByText('Error ECONNREFUSED')).toBeInTheDocument();
     expect(screen.getByText('(1시간 전)')).toBeInTheDocument(); // 기동 90분 전
   });
 
@@ -69,6 +69,16 @@ describe('대시보드 (보강 6)', () => {
     down = true;
     expect(await screen.findByRole('alert', {}, { timeout: 3000 })).toHaveTextContent('api가 Redis를 제때 읽지 못했습니다(HTTP 503). 잠시 뒤 다시 보세요.');
     expect(screen.getByText('9')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/^마지막 갱신 \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} KST/);
+  });
+
+  it('오류는 쿼리마다 그 칸 아래에, 마지막 갱신은 세 쿼리 중 가장 최근(큐만 처음부터 실패해도 "읽는 중"에 멈추지 않음, Task 2·3 리뷰 반영)', async () => {
+    const fail = (message: string) => () => ({ status: 503, body: { statusCode: 503, message } });
+    mockApi({ ...ME, ...dashboardApi(), 'GET /ops/queues': fail('큐 늦음'), 'GET /ops/outbox': fail('outbox 늦음') });
+    renderApp('/');
+    expect(await screen.findByText('worker-a')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(2), { timeout: 4000 });
+    expect(screen.getAllByRole('alert').map((a) => a.textContent)).toEqual([expect.stringContaining('큐 늦음'), expect.stringContaining('outbox 늦음')]);
     expect(screen.getByRole('status')).toHaveTextContent(/^마지막 갱신 \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} KST/);
   });
 });

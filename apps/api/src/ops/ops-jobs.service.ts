@@ -61,7 +61,14 @@ export class OpsJobsService {
     return { queue: name as OpsQueueName, jobId, action: 'RETRY_JOB', actionId: row.id };
   }
 
-  /** 실패한 job을 Redis에서 지운다(되돌릴 수 없다 — 화면은 확인창을 띄운다) */
+  /**
+   * 실패한 job을 Redis에서 지운다(되돌릴 수 없다 — 화면은 확인창을 띄운다).
+   * 알려진 경쟁(Task 2 리뷰 반영, decisions/0072·0073 대가): BullMQ `remove`는 상태를 보지 않고 잠기지 않은 job이면 무엇이든 지운다.
+   * 관제 둘이 거의 같이 누르면 — B가 failed 확인을 지난 뒤 A가 다시 시도해 job이 waiting이 되면 — B의 지우기가 성공해
+   * 다시 넣은 job이 조용히 사라지고, 작업 기록에는 A의 RETRY_JOB 뒤에 B의 REMOVE_JOB(그때의 "실패 이유"를 담은)이 남는다.
+   * 창은 확인과 remove 사이 왕복 한두 번으로 좁고 관제 계정이 둘 이상 동시에 같은 job을 만질 때만이라 기록으로 남긴다.
+   * 막으려면 BullMQ 안쪽 키(잠금·상태 집합)를 직접 만지는 Lua가 들어 이번에는 하지 않는다.
+   */
   async remove(name: string, jobId: string, who: Principal): Promise<OpsJobActionResult> {
     const job = await this.failedJob(name, jobId);
     const detail = this.detailOf(job);

@@ -126,6 +126,23 @@ describe('실패 job (보강 6, decisions/0072)', () => {
     expect(screen.getByText('다시 시도·지우기는 관제 계정만 할 수 있습니다(ADMIN은 보기만).')).toBeInTheDocument();
   });
 
+  it('큐 요약(/ops/queues)이 실패해도 contracts의 큐 이름 여섯으로 고르기를 채워 실패 job을 볼 수 있다(수는 모름, Task 2·3 리뷰 반영)', async () => {
+    mockApi({
+      'GET /auth/me': () => ({ body: MONITOR }),
+      'GET /ops/queues': () => ({ status: 503, body: { statusCode: 503, message: '큐 요약 늦음' } }),
+      'GET /ops/queues/:name/failed': (call) => {
+        const items = call.path.split('/')[3] === 'report' ? [job('van-run-7')] : [];
+        return { body: { items, total: items.length, start: 0, limit: 20 } };
+      },
+    });
+    renderApp('/failed?queue=report');
+    expect(await screen.findByText('van-run-7', {}, { timeout: 4000 })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(6), { timeout: 4000 });
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['track-bungae (실패 ?)', 'track-neurimbo (실패 ?)', 'carrier-sweep (실패 ?)', 'outbox (실패 ?)', 'device (실패 ?)', 'report (실패 ?)']);
+    expect(screen.getByRole('combobox', { name: '큐' })).toHaveValue('report');
+    expect(screen.getByRole('alert')).toHaveTextContent('큐 요약 늦음');
+  });
+
   it('20개가 넘으면 다음·이전으로 start를 옮긴다', async () => {
     const many = Array.from({ length: 25 }, (_, i) => job(`j-${i + 1}`));
     const { calls } = failedApi(MONITOR, { report: many });

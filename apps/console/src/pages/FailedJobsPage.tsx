@@ -8,6 +8,7 @@ import { canOperate } from '../components/AuthGate';
 import { ErrorBox } from '../components/ErrorBox';
 import { Freshness } from '../components/Freshness';
 import { formatKst } from '../lib/format';
+import { OPS_QUEUE_NAMES } from '../lib/labels';
 import { useRefetchInterval } from '../lib/refresh';
 import { useMe } from '../session';
 
@@ -81,8 +82,13 @@ export function FailedJobsPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const queues = useQuery({ queryKey: keys.queues, queryFn: () => api<OpsQueuesView>('/ops/queues'), refetchInterval });
-  const names = queues.data?.queues ?? [];
-  const selected = params.get('queue') ?? names.find((q) => q.counts.failed > 0)?.name ?? names[0]?.name ?? null;
+  // 큐 요약을 못 읽으면(503 등) contracts의 큐 이름으로 고르기를 채운다 — 실패 수는 모름(Task 2·3 리뷰 반영). 처음 읽는 중에는 비워 둔다(첫 큐를 읽었다가 바꾸지 않게)
+  const names: { name: string; failed: number | null }[] = queues.data
+    ? queues.data.queues.map((q) => ({ name: q.name, failed: q.counts.failed }))
+    : queues.isError
+      ? OPS_QUEUE_NAMES.map((name) => ({ name, failed: null }))
+      : [];
+  const selected = params.get('queue') ?? names.find((q) => (q.failed ?? 0) > 0)?.name ?? names[0]?.name ?? null;
 
   const failed = useQuery({
     queryKey: keys.failed(selected ?? '', start),
@@ -125,7 +131,7 @@ export function FailedJobsPage() {
           <select aria-label="큐" value={selected ?? ''} onChange={(e) => choose(e.target.value)}>
             {names.map((q) => (
               <option key={q.name} value={q.name}>
-                {q.name} (실패 {q.counts.failed})
+                {q.name} (실패 {q.failed ?? '?'})
               </option>
             ))}
           </select>

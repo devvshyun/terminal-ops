@@ -1,4 +1,4 @@
-import type { OpsActionKind, OpsErrorSource, OpsSchedulerView } from '@terminal-ops/contracts';
+import type { OpsActionKind, OpsErrorSource, OpsQueueName, OpsSchedulerView } from '@terminal-ops/contracts';
 
 /** 최근 오류 출처(GET /ops/errors, decisions/0070) */
 export const ERROR_SOURCE_LABEL: Record<OpsErrorSource, string> = {
@@ -28,3 +28,10 @@ export function scheduleText(s: Pick<OpsSchedulerView, 'every' | 'pattern' | 'tz
   }
   return `cron ${s.pattern ?? '?'} (${s.tz ?? '서버 시간대'})`;
 }
+
+/**
+ * 큐 이름 여섯(contracts `OpsQueueName`, api가 주는 순서). contracts는 타입만 내보내 값 목록이 없어 여기 둔다 —
+ * Record라 contracts에 큐가 늘면 tsc가 여기를 고치라고 한다. 실패 job 화면이 큐 요약(/ops/queues)을 못 읽었을 때 고르기를 채우는 데 쓴다(Task 2·3 리뷰 반영).
+ */
+const QUEUE_ORDER: Record<OpsQueueName, number> = { 'track-bungae': 0, 'track-neurimbo': 1, 'carrier-sweep': 2, outbox: 3, device: 4, report: 5 };
+export const OPS_QUEUE_NAMES = (Object.keys(QUEUE_ORDER) as OpsQueueName[]).sort((a, b) => QUEUE_ORDER[a] - QUEUE_ORDER[b]);

@@ -168,6 +168,8 @@ function RequeueButton({ afterMs }: { afterMs: number }) {
 /**
  * 대시보드(보강 6): 프로세스·의존 상태 카드, 큐 표(실패 수는 실패 job 화면으로 가는 링크), Outbox 카드.
  * 세 쿼리 모두 자동 새로고침(decisions/0076). "N분 전"은 다시 읽을 때마다 지금 시각으로 다시 센다. 관제는 Outbox 복구 sweep을 여기서 돌린다.
+ * 마지막 갱신은 세 쿼리 중 가장 최근 값, 오류는 쿼리마다 그 칸 아래에(Task 2·3 리뷰 반영 — 앞의 하나만 보이면 나머지 칸이 멈춘 것을 모른다).
+ * 칸마다의 "멈춘 시각"까지는 보이지 않는다 — 오류가 있는 칸은 그 값이 마지막 갱신보다 오래됐을 수 있다.
  */
 export function DashboardPage() {
   const me = useMe();
@@ -175,20 +177,24 @@ export function DashboardPage() {
   const system = useQuery({ queryKey: keys.system, queryFn: () => api<OpsSystemView>('/ops/system'), refetchInterval });
   const queues = useQuery({ queryKey: keys.queues, queryFn: () => api<OpsQueuesView>('/ops/queues'), refetchInterval });
   const outbox = useQuery({ queryKey: keys.outbox, queryFn: () => api<OpsOutboxView>('/ops/outbox'), refetchInterval });
-  const now = new Date(Math.max(system.dataUpdatedAt, queues.dataUpdatedAt, outbox.dataUpdatedAt) || Date.now());
+  const updatedAt = Math.max(system.dataUpdatedAt, queues.dataUpdatedAt, outbox.dataUpdatedAt);
+  const now = new Date(updatedAt || Date.now());
 
   return (
     <>
       <h1>대시보드</h1>
-      <Freshness updatedAt={queues.dataUpdatedAt} fetching={queues.isFetching} error={system.error ?? queues.error ?? outbox.error} />
+      <Freshness updatedAt={updatedAt} fetching={system.isFetching || queues.isFetching || outbox.isFetching} error={null} />
 
       <h2>프로세스·의존 상태</h2>
+      <ErrorBox error={system.error} />
       {system.data ? <SystemCards system={system.data} now={now} /> : null}
 
       <h2>큐</h2>
+      <ErrorBox error={queues.error} />
       {queues.data ? <QueueTable data={queues.data} now={now} /> : null}
 
       <h2>Outbox(알림)</h2>
+      <ErrorBox error={outbox.error} />
       {outbox.data ? <OutboxCards outbox={outbox.data} now={now} /> : null}
       {outbox.data && canOperate(me?.role) ? <RequeueButton afterMs={outbox.data.requeueAfterMs} /> : null}
     </>
