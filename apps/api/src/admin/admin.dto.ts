@@ -103,9 +103,10 @@ export class PartnerCallsQuery extends BeforeIdQuery {
 }
 
 export class CreatePartnerKeyDto implements CreatePartnerKeyRequest {
-  @Type(() => Number)
+  /** JSON 본문이라 숫자로 바꾸지 않는다(@Type 없음) — 글자 "1"·true는 400(최종 검토) */
   @IsInt()
   @Min(1)
+  @Max(Number.MAX_SAFE_INTEGER)
   partnerId!: number;
 
   @IsString()

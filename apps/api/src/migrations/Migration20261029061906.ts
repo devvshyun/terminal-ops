@@ -10,8 +10,9 @@ export class Migration20261029061906 extends Migration {
 
     // 보강 7(decisions/0081): 키는 업체 하나에 속한다. 이미 있는 키는 키 이름(그때까지 업체 이름을 적던 칸)마다 업체를 하나 만들어 잇는다 —
     // 열을 null 허용으로 넣고, 채우고, not null로 바꾼다. 코드는 처음 발급 순서로 P-1, P-2 …(키 이름은 그대로 두어 이름표가 된다)
+    // 시각은 utc_timestamp() — ORM은 UTC로 읽고 쓰는데 now()는 세션 시간대(SYSTEM)다(최종 검토, common/db-datetime.ts)
     this.addSql(`alter table \`partner_api_key\` add \`partner_id\` int unsigned null;`);
-    this.addSql(`insert into \`partner\` (\`code\`, \`name\`, \`created_by\`, \`created_at\`) select concat('P-', row_number() over (order by min(\`id\`))), \`name\`, 'system:migration', now() from \`partner_api_key\` group by \`name\`;`);
+    this.addSql(`insert into \`partner\` (\`code\`, \`name\`, \`created_by\`, \`created_at\`) select concat('P-', row_number() over (order by min(\`id\`))), \`name\`, 'system:migration', utc_timestamp() from \`partner_api_key\` group by \`name\`;`);
     this.addSql(`update \`partner_api_key\` k join \`partner\` p on p.\`name\` = k.\`name\` and p.\`created_by\` = 'system:migration' set k.\`partner_id\` = p.\`id\`;`);
     this.addSql(`alter table \`partner_api_key\` modify \`partner_id\` int unsigned not null;`);
     this.addSql(`alter table \`partner_api_key\` add constraint \`partner_api_key_partner_id_foreign\` foreign key (\`partner_id\`) references \`partner\` (\`id\`);`);

@@ -220,3 +220,5 @@
 - `EXPLAIN ANALYZE`의 actual time 두 숫자(첫 행까지·끝까지)와 첫 실행이 느린 이유(버퍼 풀) — docs/experiments/0019
 - absolute 요소의 포함 블록(가장 가까운 positioned 조상, 없으면 초기 포함 블록)과 `overflow: auto` 상자가 absolute 자손을 가두는 조건 — docs/troubleshooting/0034
 - `word-break: keep-all`과 `overflow-wrap: anywhere`의 차이(한국어 낱말 vs 긴 영문 토큰) — `apps/developers/src/styles.css`, docs/troubleshooting/0034
+- class-transformer `@Type`이 JSON 본문에도 적용되는 조건(ValidationPipe `transform: true`)과 `enableImplicitConversion` — `apps/api/src/admin/admin.dto.ts`, docs/reviews/2026-10-29-developer-center-final-review.md
+- MySQL `now()`(세션 시간대)와 `utc_timestamp()`, mysql2 `dateStrings` — `apps/api/src/common/db-datetime.ts`, docs/reviews/2026-10-29-developer-center-final-review.md

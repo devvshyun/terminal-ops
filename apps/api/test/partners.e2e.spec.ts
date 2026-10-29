@@ -28,6 +28,8 @@ describe('외부 업체 등록과 업체별 키 (보강 7, decisions/0081)', () 
     const list = await withCookie(t, admin).get('/admin/partners');
     expect(list.status).toBe(200);
     expect(list.body.map((p: { code: string }) => p.code)).toContain('HANOL-POS');
+    // 등록 응답과 목록이 같은 시각(열이 초 단위라 저장된 값으로 응답한다 — 최종 검토)
+    expect(list.body.find((p: { code: string }) => p.code === 'HANOL-POS').createdAt).toBe(res.body.createdAt);
   });
 
   it('같은 코드는 409 DUPLICATE, 코드 모양·빈 이름·긴 메모는 400', async () => {
@@ -59,6 +61,10 @@ describe('외부 업체 등록과 업체별 키 (보강 7, decisions/0081)', () 
     const partner = (await createPartner({ code: 'KEYS-1', name: '키 업체' })).body;
     expect((await withCookie(t, admin).post('/admin/partner-keys').send({ name: '운영 서버', scopes: ['terminal-status:read'] })).status).toBe(400);
     expect((await withCookie(t, admin).post('/admin/partner-keys').send({ partnerId: 999999, name: '운영 서버', scopes: ['terminal-status:read'] })).status).toBe(404);
+    // 본문의 partnerId는 JSON 정수만 — 글자·참거짓을 숫자로 바꿔 받지 않는다(최종 검토)
+    for (const partnerId of [String(partner.id), true, 1.5, 2 ** 53]) {
+      expect((await withCookie(t, admin).post('/admin/partner-keys').send({ partnerId, name: '운영 서버', scopes: ['terminal-status:read'] })).status, String(partnerId)).toBe(400);
+    }
     const key = await withCookie(t, admin).post('/admin/partner-keys').send({ partnerId: partner.id, name: '운영 서버', scopes: ['terminal-status:read'] });
     expect(key.status).toBe(201);
     expect(key.body).toMatchObject({ partnerId: partner.id, partnerCode: 'KEYS-1', partnerName: '키 업체', name: '운영 서버' });
