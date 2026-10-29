@@ -16,8 +16,9 @@ const HINT: Partial<Record<ErrorCode, string>> = {
   UNAUTHENTICATED: '로그인이 끝났습니다. 다시 로그인하세요.',
   LOGIN_FAILED: '아이디 또는 비밀번호가 맞지 않습니다.',
   LOGIN_LOCKED: '로그인 실패가 많아 잠시 막혔습니다. 잠시 뒤 다시 시도하세요.',
-  // 계정 관리 화면은 Bundle 7 — 지금은 API(PATCH /admin/accounts/:id)에서만 나지만, 화면이 생겨도 안내가 비지 않게 미리 둔다
+  // 계정 화면(보강 5, pages/AccountsPage.tsx)
   LAST_ADMIN: '마지막 활성 ADMIN입니다. 다른 ADMIN 계정을 먼저 만들거나 살린 뒤 바꾸세요.',
+  MERCHANT_REQUIRED: '가맹점주 계정에는 가맹점을 꼭 고르고, 다른 역할에는 가맹점을 주지 않습니다.',
 };
 
 export function describeError(error: unknown): { title: string; detail: string; code: ErrorCode | null } {

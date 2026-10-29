@@ -59,6 +59,8 @@ export const keys = {
     items: (id: number, kind: string, verified: string) => ['van-run', id, kind, verified] as const,
   },
   syncRuns: { all: ['sync-runs'] as const },
+  /** 계정 목록(ADMIN, 보강 5) */
+  accounts: { all: ['accounts'] as const },
   weeklyReports: { all: ['weekly-reports'] as const },
 };
 

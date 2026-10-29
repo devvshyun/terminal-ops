@@ -17,4 +17,5 @@ export const NAV: { to: string; label: string; roles: readonly Role[] }[] = [
   { to: '/reports/purchase-orders', label: '발주 입고 대조', roles: OFFICE },
   { to: '/reports/weekly', label: '주간 리포트', roles: OFFICE },
   { to: '/batch-runs', label: '배치 실행 이력', roles: OFFICE },
+  { to: '/admin/accounts', label: '계정', roles: ['ADMIN'] },
 ];
