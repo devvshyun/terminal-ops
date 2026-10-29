@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { adminScanUrl } from './admin-link';
 
-describe('어드민 박스 스캔 주소(넓은 화면 안내, decisions/0070)', () => {
+describe('어드민 박스 스캔 주소(넓은 화면 안내, decisions/0077)', () => {
   it('env가 없으면 로컬 어드민 개발 서버', () => {
     expect(adminScanUrl({})).toBe('http://localhost:5173/scans');
   });

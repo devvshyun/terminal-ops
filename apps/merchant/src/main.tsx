@@ -1,4 +1,4 @@
-// 현장 앱 `apps/field/src/main.tsx`에 사본이 있다 — 같이 고친다(decisions/0062, 현장 `src/copies.test.ts`가 코드 차이를 본다)
+// 현장 앱 `apps/field/src/main.tsx`·관제 앱 `apps/console/src/main.tsx`에 사본이 있다 — 같이 고친다(decisions/0062·0075, 두 앱의 `src/copies.test.ts`가 코드 차이를 본다)
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';

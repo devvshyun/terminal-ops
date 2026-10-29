@@ -6,7 +6,7 @@ import { LogoutButton } from './LogoutButton';
 
 /**
  * 휴대폰·PDA 화면 틀: 위에 내 이름과 로그아웃, 가운데 화면, 아래에 탭 셋(홈·박스 스캔·검수 — 엄지가 닿는 곳).
- * 넓은 화면에서도 가운데 한 줄(최대 560px). 아주 넓으면(1180px 이상) 왼쪽 빈 곳에 "휴대폰·PDA용 — 어드민 박스 스캔" 안내(decisions/0070).
+ * 넓은 화면에서도 가운데 한 줄(최대 560px). 아주 넓으면(1180px 이상) 왼쪽 빈 곳에 "휴대폰·PDA용 — 어드민 박스 스캔" 안내(decisions/0077).
  */
 export function Shell() {
   const me = useMe();

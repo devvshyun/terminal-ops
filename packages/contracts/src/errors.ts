@@ -6,6 +6,7 @@
 /** 업무 규칙 충돌(409) — api BusinessError(409, …) */
 export type ConflictCode =
   | 'ANOMALY_SCAN_RUNNING'
+  | 'JOB_NOT_FAILED'
   | 'LAST_ADMIN'
   | 'REPLACEMENT_RESERVED'
   | 'ROLLOUT_ALREADY_ACTIVE'

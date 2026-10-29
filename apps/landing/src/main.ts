@@ -1,5 +1,5 @@
 /**
- * 소개 페이지 스크립트(decisions/0071). 하는 일은 둘:
+ * 소개 페이지 스크립트(decisions/0078). 하는 일은 둘:
  * 1. content.ts의 숫자·기록·생애주기를 화면에 채운다(글은 기록과 같은지 content.test.ts가 본다)
  * 2. 움직임(GSAP ScrollTrigger·SplitText) — 동작 줄이기 설정이면 하나도 하지 않는다. 글은 움직임 없이도 처음부터 다 보인다
  */

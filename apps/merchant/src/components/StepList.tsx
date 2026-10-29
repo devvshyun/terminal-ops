@@ -14,7 +14,7 @@ export function StepList({ steps, label }: { steps: Step[]; label: string }) {
 }
 
 /**
- * 진행 막대(가로): 목록 카드에 붙이는 그림. 글자 요약("지금 단계: …", 운송장 한 줄)이 따로 있으므로 스크린 리더에는 숨긴다(decisions/0070).
+ * 진행 막대(가로): 목록 카드에 붙이는 그림. 글자 요약("지금 단계: …", 운송장 한 줄)이 따로 있으므로 스크린 리더에는 숨긴다(decisions/0077).
  * labels를 켜면 칸 아래에 단계 이름을 작게 — 칸이 다섯 개 이하일 때만 쓴다(휴대폰 폭에서 글자가 잘리지 않게).
  */
 export function StepBar({ steps, labels = false }: { steps: Step[]; labels?: boolean }) {

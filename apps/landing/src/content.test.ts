@@ -8,7 +8,7 @@ import { LIFECYCLE, RECORD_TITLES, STATS, recordCounts } from './content';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const read = (path: string) => readFileSync(resolve(ROOT, path), 'utf8');
 
-describe('소개 페이지 내용은 기록과 같다(decisions/0071)', () => {
+describe('소개 페이지 내용은 기록과 같다(decisions/0078)', () => {
   it.each(STATS.map((s) => [s.title, s] as const))('숫자 "%s"의 근거 글이 출처 실험 기록에 그대로 있다', (_, stat) => {
     const text = read(stat.source);
     for (const quote of stat.quote) expect(text).toContain(quote);

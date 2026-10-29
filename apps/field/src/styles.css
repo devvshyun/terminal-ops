@@ -1,7 +1,7 @@
 /*
  * 현장 화면 전역 CSS 한 장(어드민·점주 앱과 같은 방식, decisions/0041·0061). 휴대폰·PDA 폭(360~430px)이 기준이고, 넓은 화면에서는 가운데 한 줄(최대 560px).
  * 장갑 낀 손·한 손 조작: 누르는 것은 높이 48px 이상, 자주 누르는 큰 버튼은 64px. 글자는 16px(입력칸이 16px보다 작으면 iOS가 확대한다).
- * 색·글꼴·움직임은 디자인 토큰(decisions/0070): 잉크(단말기 몸체 남색) + 강조색 하나(LED 파랑), 상태 색은 결과에만. 글꼴은 앱에 넣어(@fontsource) 외부 CDN 없이 뜬다.
+ * 색·글꼴·움직임은 디자인 토큰(decisions/0077): 잉크(단말기 몸체 남색) + 강조색 하나(LED 파랑), 상태 색은 결과에만. 글꼴은 앱에 넣어(@fontsource) 외부 CDN 없이 뜬다.
  */
 @import '@fontsource/ibm-plex-sans-kr/400.css';
 @import '@fontsource/ibm-plex-sans-kr/700.css';

@@ -12,7 +12,7 @@ const COMING: TerminalStatus[] = ['ALLOCATED', 'SHIPPED', 'DELIVERED'];
 const RETURNS: TerminalStatus[] = ['RETURN_REQUESTED', 'RETURNING', 'RETURNED'];
 
 function TerminalCard({ t, now, className, children }: { t: MerchantTerminalView; now: Date; className?: string; children?: ReactNode }) {
-  // 연결이 끊긴 사용 중 단말기는 카드째 표시(왼쪽 빨간 띠) — 빨간 점 하나로는 놓치기 쉽다(decisions/0070)
+  // 연결이 끊긴 사용 중 단말기는 카드째 표시(왼쪽 빨간 띠) — 빨간 점 하나로는 놓치기 쉽다(decisions/0077)
   const offline = t.connectivity !== null && t.connectivity.lastSeenAt !== null && !t.connectivity.online;
   const classes = ['card', className, offline ? 'offline' : null].filter(Boolean).join(' ');
   return (

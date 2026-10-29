@@ -1,6 +1,6 @@
 # 0033. 새 앱에서 `npm install`이 `Cannot read properties of null (reading 'edgesOut')`로 멈춘다
 
-- 날짜 / 관련 기능: 2026-10-29 / 소개 페이지(`apps/landing`, decisions/0071)
+- 날짜 / 관련 기능: 2026-10-29 / 소개 페이지(`apps/landing`, decisions/0078)
 - 증상: lock 파일 없이 새 `package.json`(`vite 8.3.4`, `vitest 5.0.4`, `typescript 6.0.3`, `gsap 3.15.0`, 글꼴 셋)으로 `npm install`(npm 10.9.4, Node 22.22.0)을 돌리면 `npm error Cannot read properties of null (reading 'edgesOut')`로 끝나고 아무것도 설치되지 않았다. 두 번 돌려도 같았다
 - 가설: 1) 저장소 루트에 workspaces 설정이 있어 꼬인다 2) vitest의 선택 peer 의존성 해석(arborist `#loadPeerSet`)이 새로 나온 판과 어긋난다 3) 네트워크·캐시
 - 확인:

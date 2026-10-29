@@ -50,7 +50,7 @@ describe('로그인 문과 화면 틀 (보강 4, decisions/0061)', () => {
     expect(screen.getByText(/검수 합격 4 · 불합격 1 · 거절된 줄 1/)).toBeInTheDocument();
     expect(screen.getByText('2026-10-28 (KST 0시부터)')).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: '박스 스캔' }).map((a) => a.getAttribute('href'))).toEqual(['/scan', '/scan']);
-    // 넓은 화면 안내(휴대폰 폭에서는 CSS로 숨긴다): 사무실 PC에서는 어드민 박스 스캔으로(decisions/0070)
+    // 넓은 화면 안내(휴대폰 폭에서는 CSS로 숨긴다): 사무실 PC에서는 어드민 박스 스캔으로(decisions/0077)
     const note = screen.getByRole('complementary', { name: '이 화면 안내' });
     expect(within(note).getByRole('link', { name: '어드민 박스 스캔 열기' })).toHaveAttribute('href', 'http://localhost:5173/scans');
   });
