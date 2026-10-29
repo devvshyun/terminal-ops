@@ -1,9 +1,9 @@
 import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
-import type { BeforeIdPage, RolloutView } from '@terminal-ops/contracts';
+import type { BeforeIdPage, FirmwareView, RolloutView } from '@terminal-ops/contracts';
 import { OFFICE, Roles } from '../auth/access.js';
 import { Role } from '../auth/role.js';
 import { Operator } from '../common/operator.decorator.js';
-import { CreateRolloutDto, ListRolloutsQuery, RegisterFirmwareDto } from './dto/firmware.dto.js';
+import { CreateRolloutDto, ListFirmwareQuery, ListRolloutsQuery, RegisterFirmwareDto } from './dto/firmware.dto.js';
 import { FirmwareService, toFirmwareView } from './firmware.service.js';
 import { RolloutService, toRolloutView } from './rollout.service.js';
 import type { FirmwareRollout } from './firmware.entities.js';
@@ -20,6 +20,14 @@ export class FirmwareController {
   @Roles(Role.OPERATOR)
   async register(@Body() dto: RegisterFirmwareDto, @Operator() actor: string) {
     return toFirmwareView(await this.firmware.register(dto, actor));
+  }
+
+  /** 등록된 펌웨어(최근 것부터, ?modelCode=&beforeId=&limit=). 배포 목록과 같은 사무실 역할이 본다(decisions/0066) */
+  @Get('firmware')
+  @Roles(...OFFICE)
+  async listFirmware(@Query() query: ListFirmwareQuery): Promise<BeforeIdPage<FirmwareView>> {
+    const { items, nextBeforeId } = await this.firmware.list(query);
+    return { items: items.map(toFirmwareView), nextBeforeId };
   }
 
   @Post('firmware-rollouts')

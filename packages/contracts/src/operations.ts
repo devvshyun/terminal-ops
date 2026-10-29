@@ -81,7 +81,22 @@ export interface MerchantTicketView extends Omit<TicketView, 'openedBy' | 'remot
   replacementStatus: TerminalStatus | null;
 }
 
-/** 펌웨어(api toFirmwareView, POST /firmware) */
+/** 엑셀 일괄 등록 결과 한 줄(POST /terminals/imports). row = 엑셀 행 번호(머리글이 1행) */
+export interface TerminalImportRow extends RowResult {
+  row: number;
+}
+
+/** POST /terminals/imports 응답 — 행 순서 그대로(decisions/0019·0022) */
+export interface TerminalImportView {
+  fileName: string;
+  /** 읽은 데이터 행 수(빈 행 제외) */
+  total: number;
+  /** 결과 코드별 행 수(0인 코드는 빠진다) */
+  summary: Partial<Record<RowResultCode, number>>;
+  results: TerminalImportRow[];
+}
+
+/** 펌웨어(api toFirmwareView, POST /firmware, GET /firmware) */
 export interface FirmwareView {
   id: number;
   modelCode: string;

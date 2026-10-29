@@ -38,6 +38,7 @@ const EXPECTED: Record<string, string> = {
   'GET /sync-runs': 'ADMIN,MONITOR,OPERATOR',
   'GET /service-tickets': 'ADMIN,MONITOR,OPERATOR',
   'GET /service-tickets/:id': 'ADMIN,MONITOR,OPERATOR',
+  'GET /firmware': 'ADMIN,MONITOR,OPERATOR',
   'GET /firmware-rollouts': 'ADMIN,MONITOR,OPERATOR',
   'GET /firmware-rollouts/:id': 'ADMIN,MONITOR,OPERATOR',
   'GET /anomaly-rules': 'ADMIN,MONITOR,OPERATOR',
