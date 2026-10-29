@@ -46,7 +46,7 @@ describe('틀 — 로그인한 사람과 역할별 메뉴 (decisions/0041, api d
     expect(within(nav).getAllByRole('link')).toHaveLength(9);
   });
 
-  it('왼쪽 아래 "다른 화면": 매장·현장·관제는 새 탭 링크, 아직 없는 화면 셋은 준비 중(링크 아님). 메뉴 링크 수에는 들지 않는다(보강 5·6)', async () => {
+  it('왼쪽 아래 "다른 화면": 매장·현장·관제·개발자센터는 새 탭 링크, 아직 없는 화면 둘은 준비 중(링크 아님). 메뉴 링크 수에는 들지 않는다(보강 5·6·7)', async () => {
     mockApi(HOME);
     loginAs('관제1', 'MONITOR');
     renderPage(<App />, { path: '/*' });
@@ -54,8 +54,9 @@ describe('틀 — 로그인한 사람과 역할별 메뉴 (decisions/0041, api d
     expect(within(others).getByRole('link', { name: '매장 화면' })).toHaveAttribute('href', 'http://localhost:5174');
     expect(within(others).getByRole('link', { name: '현장 화면' })).toHaveAttribute('target', '_blank');
     expect(within(others).getByRole('link', { name: '운영 관제' })).toHaveAttribute('href', 'http://localhost:5176');
-    expect(within(others).getAllByRole('link')).toHaveLength(3);
-    for (const name of ['개발자센터', '가상 업체 콘솔', '단말기 시뮬레이터']) expect(within(others).getByText(`${name}(준비 중)`)).toBeInTheDocument();
+    expect(within(others).getByRole('link', { name: '개발자센터' })).toHaveAttribute('href', 'http://localhost:5178');
+    expect(within(others).getAllByRole('link')).toHaveLength(4);
+    for (const name of ['가상 업체 콘솔', '단말기 시뮬레이터']) expect(within(others).getByText(`${name}(준비 중)`)).toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: '메뉴' })).getAllByRole('link')).toHaveLength(9);
   });
 

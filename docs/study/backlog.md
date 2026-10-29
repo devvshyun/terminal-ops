@@ -218,3 +218,5 @@
 - MySQL 8 윈도 함수 `row_number() over (order by min(id))`를 group by와 함께 쓰는 순서(집계 뒤 윈도) — `apps/api/src/migrations/Migration20261029061906.ts`, decisions/0081
 - Express `res`의 'finish'와 'close' 차이(응답을 다 보냄 vs 연결이 닫힘), Nest 가드·인터셉터·필터 실행 순서와 가드 예외가 인터셉터를 건너뛰는 이유 — `apps/api/src/auth/auth.guard.ts`, decisions/0082
 - `EXPLAIN ANALYZE`의 actual time 두 숫자(첫 행까지·끝까지)와 첫 실행이 느린 이유(버퍼 풀) — docs/experiments/0019
+- absolute 요소의 포함 블록(가장 가까운 positioned 조상, 없으면 초기 포함 블록)과 `overflow: auto` 상자가 absolute 자손을 가두는 조건 — docs/troubleshooting/0034
+- `word-break: keep-all`과 `overflow-wrap: anywhere`의 차이(한국어 낱말 vs 긴 영문 토큰) — `apps/developers/src/styles.css`, docs/troubleshooting/0034

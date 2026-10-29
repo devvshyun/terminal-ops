@@ -88,7 +88,7 @@
 - [0082](decisions/0082-호출-로그는-MySQL에-가드가-응답이-끝난-뒤-한-줄.md) 호출 로그는 MySQL에, 가드가 응답이 끝난 뒤 한 줄
 - [0083](decisions/0083-연동-문서는-손으로-쓴-OpenAPI와-어긋남-검사-테스트로.md) 연동 문서는 손으로 쓴 OpenAPI와 어긋남 검사 테스트로
 
-## 트러블슈팅 (33)
+## 트러블슈팅 (34)
 
 - [0001](troubleshooting/0001-설치-직후-WSL2-미동작.md) 설치 직후 WSL2·Docker가 동작하지 않음
 - [0002](troubleshooting/0002-em-create-optionalprops-타입오류.md) em.create에서 TS2345 "Property 'version' is missing"
@@ -123,6 +123,7 @@
 - [0031](troubleshooting/0031-초-단위-datetime-열은-밀리초를-반올림해-응답과-다시-읽은-값이-다르다.md) 초 단위 datetime 열은 밀리초를 반올림해 응답과 다시 읽은 값이 다르다
 - [0032](troubleshooting/0032-테스트-DB로-마이그레이션을-적용하면-DB-이름의-스냅샷-파일이-생긴다.md) 테스트 DB로 마이그레이션을 적용하면 DB 이름의 스냅샷 파일이 생긴다
 - [0033](troubleshooting/0033-새-앱에서-npm-install이-edgesOut-null로-멈춘다.md) 새 앱에서 `npm install`이 `Cannot read properties of null (reading 'edgesOut')`로 멈춘다
+- [0034](troubleshooting/0034-좁은-화면에서-표를-옆으로-밀게-했는데-문서-폭이-늘어난다.md) 좁은 화면에서 표를 옆으로 밀게 했는데도 문서 폭이 늘어난다
 
 ## 실험 (19)
 

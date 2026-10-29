@@ -49,3 +49,12 @@ describe('외부 업체 연동 문서 ↔ PartnerApiController', () => {
     expect(PARTNER_OPENAPI.components.schemas.PartnerTerminal.properties.status.enum).toEqual(Object.values(TerminalStatus));
   });
 });
+
+describe('개발자센터 테스트용 문서 사본', () => {
+  it('apps/developers/src/test/openapi.json은 이 문서와 같다(문서를 고치면 사본도 — 아래 명령으로 다시 만든다)', async () => {
+    // 다시 만들기(apps/api에서): npx tsc -p tsconfig.build.json && node -e "import('./dist/partner-api/openapi.js').then(m=>process.stdout.write(JSON.stringify(m.PARTNER_OPENAPI,null,2)+'\n'))" > ../developers/src/test/openapi.json
+    const { readFileSync } = await import('node:fs');
+    const copy = JSON.parse(readFileSync(new URL('../../../developers/src/test/openapi.json', import.meta.url), 'utf8'));
+    expect(copy).toEqual(JSON.parse(JSON.stringify(PARTNER_OPENAPI)));
+  });
+});
