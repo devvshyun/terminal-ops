@@ -1,0 +1,13 @@
+# 시연 이미지 빌드 컨텍스트(저장소 루트, 보강 9). 설치물·빌드 결과·비밀은 넣지 않는다 — 이미지 안에서 npm ci·빌드한다
+**/node_modules
+**/dist
+**/coverage
+**/.vite
+.git
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+.claude

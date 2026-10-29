@@ -11,7 +11,7 @@ describe('가상 업체 화면 (보강 8)', () => {
     const bungae = await screen.findByRole('region', { name: '번개택배' });
     expect(within(bungae).getByLabelText('429 확률(%)')).toHaveValue(30);
     expect(within(bungae).getByText('장애: 429 확률')).toBeInTheDocument();
-    expect(screen.getAllByRole('region').map((r) => r.getAttribute('aria-label'))).toEqual(['번개택배', '느림보물류', '세움전자', '브릿지VAN', '톡톡메신저', '최근 요청', '톡톡 메시지']);
+    expect(screen.getAllByRole('region').map((r) => r.getAttribute('aria-label'))).toEqual(['번개택배', '느림보물류', '세움전자', '브릿지VAN', '톡톡메신저', '세움전자 납품 명세', '최근 요청', '톡톡 메시지']);
     expect(within(screen.getByRole('region', { name: '느림보물류' })).getByText('정상')).toBeInTheDocument();
   });
 
@@ -75,6 +75,33 @@ describe('가상 업체 화면 (보강 8)', () => {
     await userEvent.selectOptions(screen.getByLabelText('업체'), 'toktok');
     expect(await screen.findByText('끊김')).toHaveClass('code-5xx');
     expect(calls.filter((c) => c.path === '/partners/__admin/requests').at(-1)?.query.get('partner')).toBe('toktok');
+  });
+
+  it('세움전자 납품 명세: 발주번호로 시리얼 목록을 보고 한 번에 복사한다(현장 박스 스캔에 붙여 넣기 — 보강 9 리허설)', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+    const { calls } = mockServers({
+      ...partnersApi(),
+      'GET /partners/seum/v1/purchase-orders/SE-1/delivery-note': () => ({ body: { poNo: 'SE-1', modelCode: 'SN-100', quantity: 10, serials: ['SN100-A1', 'SN100-A2'] } }),
+    });
+    renderApp('/partners');
+    const note = await screen.findByRole('region', { name: '세움전자 납품 명세' });
+    await userEvent.type(within(note).getByLabelText('발주번호'), ' SE-1 ');
+    await userEvent.click(within(note).getByRole('button', { name: '보기' }));
+    expect(await within(note).findByText('발주 10대 · 명세 2대')).toBeInTheDocument();
+    expect(within(note).getByRole('textbox', { name: '납품 시리얼' })).toHaveValue('SN100-A1\nSN100-A2');
+    await userEvent.click(within(note).getByRole('button', { name: '시리얼 복사' }));
+    expect(writeText).toHaveBeenCalledWith('SN100-A1\nSN100-A2');
+    expect(calls.some((c) => c.path === '/partners/seum/v1/purchase-orders/SE-1/delivery-note')).toBe(true);
+  });
+
+  it('없는 발주번호는 안내', async () => {
+    mockServers({ ...partnersApi(), 'GET /partners/seum/v1/purchase-orders/NOPE/delivery-note': () => ({ status: 404, body: { error: 'NOT_FOUND' } }) });
+    renderApp('/partners');
+    const note = await screen.findByRole('region', { name: '세움전자 납품 명세' });
+    await userEvent.type(within(note).getByLabelText('발주번호'), 'NOPE');
+    await userEvent.click(within(note).getByRole('button', { name: '보기' }));
+    expect(await within(note).findByRole('alert')).toHaveTextContent('HTTP 404');
   });
 
   it('가상 업체 서버가 안 떠 있으면 띄우는 명령을 안내한다', async () => {

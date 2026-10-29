@@ -922,6 +922,20 @@ input.bad {
   color: var(--danger);
 }
 
+.note textarea {
+  width: 100%;
+  font: inherit;
+  font-family: var(--mono);
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.note p {
+  margin: 0 0 8px;
+}
+
 .two {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
