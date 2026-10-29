@@ -227,10 +227,10 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 | 앱 | 파일 | 테스트 |
 |---|---|---|
 | api(실험 제외) | 90 | 603 |
-| admin | 19 | 163 |
+| admin | 19 | 165 |
 | merchant | 7 | 47 |
 | field | 8 | 64 |
-| console | 8 | 56 |
+| console | 8 | 58 |
 | landing | 1 | 14 |
 | partners | 6 | 53 |
 | device-sim | 5 | 46 |

@@ -23,7 +23,7 @@ export function When({ iso, now }: { iso: string | null; now: Date }) {
 
 function Dependency({ name, dep }: { name: string; dep: OpsDependencyView }) {
   return (
-    <div className="card">
+    <div className={dep.ok ? 'card' : 'card down'}>
       <h3>{name}</h3>
       {dep.ok ? <span className="badge ok">정상</span> : <span className="badge bad">응답 없음</span>}{' '}
       <span className="big">{dep.latencyMs === null ? '' : `${dep.latencyMs}ms`}</span>
@@ -67,9 +67,45 @@ function SystemCards({ system, now }: { system: OpsSystemView; now: Date }) {
   );
 }
 
-function QueueTable({ data, now }: { data: OpsQueuesView; now: Date }) {
+/** 0인 칸은 흐리게(decisions/0079 — 문제 있는 칸이 묻히지 않게) */
+const num = (value: number | null, alert = false) => ['num', alert ? 'alert' : '', value === 0 ? 'zero' : ''].filter(Boolean).join(' ');
+
+/** 큐 줄에 문제가 있나: 워커 0, 남은 실패, 최근 실패, 멈춤 */
+const troubled = (q: OpsQueuesView['queues'][number]) => q.workers === 0 || q.counts.failed > 0 || (q.failedRecent ?? 0) > 0 || q.paused;
+
+/**
+ * 주의(decisions/0079): 큐 표·상태 카드의 값에서 화면이 고른다(새 API 없음) — 워커 0인 큐, 남은 실패(없으면 최근 실패)가 있는 큐, 멈춘 큐, 응답 없는 MySQL·Redis.
+ * 큐 표에서 빨간 띠가 붙는 줄(troubled)과 같은 기준이다.
+ * 없으면 그리지 않는다. 경고·상태 역할(alert·status)은 쓰지 않는다 — 오류 칸·마지막 갱신과 섞이지 않게, 이름 붙은 영역으로.
+ */
+function Warnings({ queues, system }: { queues?: OpsQueuesView; system?: OpsSystemView }) {
+  const items: { key: string; text: string }[] = [];
+  if (system && !system.mysql.ok) items.push({ key: 'mysql', text: 'MySQL 응답 없음' });
+  if (system && !system.redis.ok) items.push({ key: 'redis', text: 'Redis 응답 없음' });
+  for (const q of queues?.queues ?? []) {
+    if (q.workers === 0) items.push({ key: `${q.name}-w`, text: `${q.name} 큐를 처리하는 워커 없음` });
+    if (q.counts.failed > 0) items.push({ key: `${q.name}-f`, text: `${q.name} 실패 ${q.counts.failed}건 남음` });
+    else if ((q.failedRecent ?? 0) > 0) items.push({ key: `${q.name}-r`, text: `${q.name} 최근 실패 ${q.failedRecent}건` });
+    if (q.paused) items.push({ key: `${q.name}-p`, text: `${q.name} 큐 멈춤` });
+  }
+  if (items.length === 0) return null;
   return (
-    <table>
+    <section className="warnings" aria-label="주의">
+      <strong>주의 {items.length}</strong>
+      <ul>
+        {items.map((i) => (
+          <li key={i.key}>{i.text}</li>
+        ))}
+      </ul>
+      {queues?.queues.some((q) => q.counts.failed > 0) ? <Link to="/failed">실패 job 보기 →</Link> : null}
+    </section>
+  );
+}
+
+function QueueTable({ data, now }: { data: OpsQueuesView; now: Date }) {
+  const most = Math.max(1, ...data.queues.map((q) => q.completedRecent ?? 0));
+  return (
+    <table className="queues">
       <thead>
         <tr>
           <th>큐</th>
@@ -85,22 +121,26 @@ function QueueTable({ data, now }: { data: OpsQueuesView; now: Date }) {
       </thead>
       <tbody>
         {data.queues.map((q) => (
-          <tr key={q.name}>
-            <td>
+          <tr key={q.name} className={troubled(q) ? 'troubled' : undefined}>
+            <td className="queue-name">
               {q.name} {q.paused ? <span className="badge warn">멈춤</span> : null}
             </td>
-            <td className="num">{q.counts.waiting + q.counts.prioritized}</td>
-            <td className="num">{q.counts.active}</td>
-            <td className="num">{q.counts.delayed}</td>
-            <td className={q.counts.failed > 0 ? 'num alert' : 'num'}>
+            <td className={num(q.counts.waiting + q.counts.prioritized)}>{q.counts.waiting + q.counts.prioritized}</td>
+            <td className={num(q.counts.active)}>{q.counts.active}</td>
+            <td className={num(q.counts.delayed)}>{q.counts.delayed}</td>
+            <td className={num(q.counts.failed, q.counts.failed > 0)}>
               {q.counts.failed > 0 ? <Link to={`/failed?queue=${q.name}`}>{q.counts.failed}</Link> : 0}
             </td>
-            <td className="num">{q.completedRecent ?? '-'}</td>
-            <td className={q.failedRecent ? 'num alert' : 'num'}>{q.failedRecent ?? '-'}</td>
-            <td>
+            <td className={num(q.completedRecent)}>
+              {/* 처리량 막대(장식 — 수는 옆 글자) */}
+              <span className="thru" aria-hidden="true" style={{ width: `${Math.round(((q.completedRecent ?? 0) / most) * 80)}px` }} />
+              {q.completedRecent ?? '-'}
+            </td>
+            <td className={num(q.failedRecent, Boolean(q.failedRecent))}>{q.failedRecent ?? '-'}</td>
+            <td className={q.oldestWaitingAt ? undefined : 'zero'}>
               <When iso={q.oldestWaitingAt} now={now} />
             </td>
-            <td className={q.workers === 0 ? 'num alert' : 'num'}>{q.workers}</td>
+            <td className={num(q.workers, q.workers === 0)}>{q.workers}</td>
           </tr>
         ))}
       </tbody>
@@ -184,6 +224,7 @@ export function DashboardPage() {
     <>
       <h1>대시보드</h1>
       <Freshness updatedAt={updatedAt} fetching={system.isFetching || queues.isFetching || outbox.isFetching} error={null} />
+      <Warnings queues={queues.data} system={system.data} />
 
       <h2>프로세스·의존 상태</h2>
       <ErrorBox error={system.error} />

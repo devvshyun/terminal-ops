@@ -8,6 +8,17 @@ import { HomePage } from './HomePage';
 const health = { 'GET /health': () => ({ body: { status: 'ok' } }) };
 
 describe('처음 화면 — 대시보드 (api decisions/0044)', () => {
+  it('지금 볼 것: 오래 오프라인·설치 안 됨(열린 이상 규칙별)과 VAN 어긋남, 0이면 괜찮음 표시(decisions/0079)', async () => {
+    mockApi({ ...health, 'GET /dashboard/summary': () => ({ body: dashboardBody() }) });
+    renderPage(<HomePage />);
+    const strip = await screen.findByRole('region', { name: '지금 볼 것' });
+    const cells = [...strip.children];
+    expect(cells.map((c) => c.querySelector('strong')?.textContent)).toEqual(['장기 오프라인', '배송 뒤 설치 안 됨', 'VAN 어긋남']);
+    expect(cells.map((c) => c.querySelector('.count')?.textContent)).toEqual(['2대', '0대', '7건']);
+    expect(cells.map((c) => c.className)).toEqual(['', 'calm', 'warn']);
+    expect(within(strip).getByRole('link', { name: '대조 결과 보기 →' })).toHaveAttribute('href', '/reports/van/12');
+  });
+
   it('운영 현황 카드: 단말기(상태별·모델별), 접속 상태, 열린 이상(규칙별), 배포·A/S·VAN·이번 주 전이, 집계 기준 시각', async () => {
     mockApi({ ...health, 'GET /dashboard/summary': () => ({ body: dashboardBody() }) });
     renderPage(<HomePage />);
