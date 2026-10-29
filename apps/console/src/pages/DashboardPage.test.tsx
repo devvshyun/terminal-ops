@@ -25,6 +25,14 @@ describe('대시보드 (보강 6)', () => {
     expect(await screen.findByText('큐를 처리하는 워커가 없습니다')).toBeInTheDocument();
   });
 
+  it('Redis를 못 읽어 워커 목록이 비면(redis ok:false) "워커 없음"이 아니라 "읽지 못함"(Task 1 리뷰 반영 8b3f9a4)', async () => {
+    mockApi({ ...ME, ...dashboardApi({ system: systemView({ redis: { ok: false, latencyMs: null, error: 'TIMEOUT' }, workers: [] }) }) });
+    renderApp('/');
+    expect(await screen.findByText('워커 목록을 읽지 못함 — Redis 응답 없음')).toBeInTheDocument();
+    expect(screen.queryByText('큐를 처리하는 워커가 없습니다')).not.toBeInTheDocument();
+    expect(screen.getByText('?')).toBeInTheDocument(); // 수 대신
+  });
+
   it('큐 표: 대기(우선순위 포함)·처리 중·지연·남은 실패(실패 job 화면 링크)·최근 15분·가장 오래 기다린 job·워커, 멈춤 표시', async () => {
     const queues = queuesView([
       queue('track-bungae', { counts: { waiting: 3, active: 1, delayed: 2, prioritized: 1, failed: 0, completed: 0 }, oldestWaitingAt: minutesAgo(5), completedRecent: 42, failedRecent: 0 }),
@@ -59,7 +67,7 @@ describe('대시보드 (보강 6)', () => {
     renderApp('/', { refreshMs: 50 });
     expect(await screen.findByText('9')).toBeInTheDocument();
     down = true;
-    expect(await screen.findByRole('alert', {}, { timeout: 3000 })).toHaveTextContent('요청이 실패했습니다(HTTP 503).');
+    expect(await screen.findByRole('alert', {}, { timeout: 3000 })).toHaveTextContent('api가 Redis를 제때 읽지 못했습니다(HTTP 503). 잠시 뒤 다시 보세요.');
     expect(screen.getByText('9')).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent(/^마지막 갱신 \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} KST/);
   });

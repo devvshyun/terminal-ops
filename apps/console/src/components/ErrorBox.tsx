@@ -13,9 +13,16 @@ const HINT: Partial<Record<ErrorCode, string>> = {
   LOGIN_LOCKED: '로그인 실패가 많아 잠시 막혔습니다. 잠시 뒤 다시 시도하세요.',
 };
 
+/** 코드 없는 응답의 상태별 안내. 503 = 관제 읽기가 Redis 시간 제한(2초)에 걸림(api OpsQueuesService.read, Task 1 리뷰 반영) */
+const STATUS_HINT: Partial<Record<number, string>> = {
+  404: '찾는 큐·job이 없습니다(이미 지워졌을 수 있습니다).',
+  400: '요청 값을 확인하세요.',
+  503: 'api가 Redis를 제때 읽지 못했습니다(HTTP 503). 잠시 뒤 다시 보세요.',
+};
+
 export function describeError(error: unknown): { title: string; detail: string; code: ErrorCode | null } {
   if (error instanceof ApiError) {
-    const hint = (error.code && HINT[error.code]) ?? (error.status === 404 ? '찾는 큐·job이 없습니다(이미 지워졌을 수 있습니다).' : error.status === 400 ? '요청 값을 확인하세요.' : null);
+    const hint = (error.code && HINT[error.code]) ?? STATUS_HINT[error.status] ?? null;
     return { title: hint ?? `요청이 실패했습니다(HTTP ${error.status}).`, detail: error.message, code: error.code };
   }
   return { title: 'api 서버에 연결하지 못했습니다. api가 떠 있는지 확인하세요.', detail: error instanceof Error ? error.message : String(error), code: null };

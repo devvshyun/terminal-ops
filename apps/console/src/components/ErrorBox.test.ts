@@ -17,6 +17,15 @@ describe('describeError (회귀 방지)', () => {
     expect(describeError(new ApiError(500, null, '서버 오류', null))).toEqual({ title: '요청이 실패했습니다(HTTP 500).', detail: '서버 오류', code: null });
   });
 
+  it('503(관제 읽기의 Redis 시간 제한, Task 1 리뷰 반영 8b3f9a4): 잠시 뒤 다시 보라는 안내와 서버 메시지', () => {
+    const message = 'Redis가 2000ms 안에 답하지 않습니다(큐 요약). 잠시 뒤 다시 보세요';
+    expect(describeError(new ApiError(503, null, message, null))).toEqual({
+      title: 'api가 Redis를 제때 읽지 못했습니다(HTTP 503). 잠시 뒤 다시 보세요.',
+      detail: message,
+      code: null,
+    });
+  });
+
   it('연결 실패(api 오류가 아님): detail은 오류 메시지, 오류가 아닌 값은 글자로', () => {
     expect(describeError(new TypeError('Failed to fetch'))).toEqual({
       title: 'api 서버에 연결하지 못했습니다. api가 떠 있는지 확인하세요.',

@@ -1,11 +1,15 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import type { OpsDependencyView, OpsOutboxView, OpsQueuesView, OpsSystemView } from '@terminal-ops/contracts';
+import type { OpsDependencyView, OpsOutboxView, OpsQueuesView, OpsRequeueResult, OpsSystemView } from '@terminal-ops/contracts';
 import { api } from '../api/client';
 import { keys } from '../api/query-keys';
+import { canOperate } from '../components/AuthGate';
+import { ErrorBox } from '../components/ErrorBox';
 import { Freshness } from '../components/Freshness';
 import { agoText, formatKst } from '../lib/format';
 import { useRefetchInterval } from '../lib/refresh';
+import { useMe } from '../session';
 
 /** 시각과 "N분 전"을 한 칸에. 없으면 '-' */
 export function When({ iso, now }: { iso: string | null; now: Date }) {
@@ -46,8 +50,18 @@ function SystemCards({ system, now }: { system: OpsSystemView; now: Date }) {
       <Dependency name="Redis" dep={system.redis} />
       <div className="card">
         <h3>워커 프로세스</h3>
-        <span className="big">{names.length}</span>
-        {names.length === 0 ? <div className="badge bad">큐를 처리하는 워커가 없습니다</div> : <div className="muted">{names.join(', ')}</div>}
+        {/* Redis를 못 읽으면 api는 워커를 빈 목록으로 준다(Task 1 리뷰 반영) — 그때 0은 "워커 없음"이 아니라 "모름" */}
+        {names.length === 0 && !system.redis.ok ? (
+          <>
+            <span className="big">?</span>
+            <div className="badge warn">워커 목록을 읽지 못함 — Redis 응답 없음</div>
+          </>
+        ) : (
+          <>
+            <span className="big">{names.length}</span>
+            {names.length === 0 ? <div className="badge bad">큐를 처리하는 워커가 없습니다</div> : <div className="muted">{names.join(', ')}</div>}
+          </>
+        )}
       </div>
     </div>
   );
@@ -115,10 +129,48 @@ function OutboxCards({ outbox, now }: { outbox: OpsOutboxView; now: Date }) {
 }
 
 /**
+ * 멈춘 QUEUED 복구 sweep 지금 한 번(관제만, 확인창 뒤 — decisions/0042·0073). 주기 작업 outbox-requeue와 같은 일이라 눌러도 해롭지 않다
+ * (job이 살아 있는 행은 건너뛴다). 끝나면 Outbox 요약·작업 기록을 다시 읽는다.
+ */
+function RequeueButton({ afterMs }: { afterMs: number }) {
+  const client = useQueryClient();
+  const [result, setResult] = useState<OpsRequeueResult | null>(null);
+  const requeue = useMutation({
+    mutationFn: () => api<OpsRequeueResult>('/ops/outbox/requeue', { method: 'POST' }),
+    onSuccess: (r) => {
+      setResult(r);
+      void client.invalidateQueries({ queryKey: keys.outbox });
+      void client.invalidateQueries({ queryKey: keys.actions });
+    },
+  });
+  const run = () => {
+    if (!window.confirm(`만든 지 ${afterMs / 1000}초 지난 QUEUED 알림 중 큐에 job이 없는 것을 다시 넣을까요? (주기 작업 outbox-requeue와 같은 일)`)) return;
+    setResult(null);
+    requeue.mutate();
+  };
+  return (
+    <>
+      <div className="toolbar">
+        <button type="button" className="primary" disabled={requeue.isPending} onClick={run}>
+          멈춘 QUEUED 복구 sweep 지금 실행
+        </button>
+      </div>
+      {result ? (
+        <p className="notice" role="status">
+          QUEUED {result.checked}건을 보고 {result.requeued.length}건을 다시 넣었습니다{result.requeued.length > 0 ? `(#${result.requeued.join(', #')})` : ''}. 작업 기록 #{result.actionId}
+        </p>
+      ) : null}
+      <ErrorBox error={requeue.error} />
+    </>
+  );
+}
+
+/**
  * 대시보드(보강 6): 프로세스·의존 상태 카드, 큐 표(실패 수는 실패 job 화면으로 가는 링크), Outbox 카드.
- * 세 쿼리 모두 자동 새로고침(decisions/0076). "N분 전"은 다시 읽을 때마다 지금 시각으로 다시 센다.
+ * 세 쿼리 모두 자동 새로고침(decisions/0076). "N분 전"은 다시 읽을 때마다 지금 시각으로 다시 센다. 관제는 Outbox 복구 sweep을 여기서 돌린다.
  */
 export function DashboardPage() {
+  const me = useMe();
   const refetchInterval = useRefetchInterval();
   const system = useQuery({ queryKey: keys.system, queryFn: () => api<OpsSystemView>('/ops/system'), refetchInterval });
   const queues = useQuery({ queryKey: keys.queues, queryFn: () => api<OpsQueuesView>('/ops/queues'), refetchInterval });
@@ -138,6 +190,7 @@ export function DashboardPage() {
 
       <h2>Outbox(알림)</h2>
       {outbox.data ? <OutboxCards outbox={outbox.data} now={now} /> : null}
+      {outbox.data && canOperate(me?.role) ? <RequeueButton afterMs={outbox.data.requeueAfterMs} /> : null}
     </>
   );
 }
