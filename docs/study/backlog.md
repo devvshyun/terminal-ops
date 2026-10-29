@@ -202,3 +202,4 @@
 - [ ] 바코드 스캐너 키보드 웨지의 접미사(Enter·Tab)·접두사 설정과 브라우저 `BarcodeDetector` 지원 범위(안드로이드 Chrome 등) (decisions/0064)
 - [ ] TypeScript 클래스 메서드 이름 겹침(TS2393)과 Nest 라우트 — 같은 컨트롤러에 `list`가 둘이면? 데코레이터 메타데이터는 어느 쪽에 남나 (apps/api/src/firmware/firmware.controller.ts, decisions/0066)
 - [ ] Vite env 읽기 규칙 — `envDir`·`.env.[mode]`·`VITE_` 접두사, 프로세스 env와 파일 env의 우선순위, 빌드 때 상수로 박히는 것 (apps/admin/src/apps.ts, decisions/0067)
+- [ ] CSV 수식 주입(= + - @로 시작하는 칸)과 엑셀이 UTF-8 CSV를 읽는 방법(BOM), `data:` URL과 Blob URL(`createObjectURL`·`revokeObjectURL`)의 차이 (apps/admin/src/lib/csv.ts, decisions/0068)

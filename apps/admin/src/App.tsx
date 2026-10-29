@@ -13,6 +13,7 @@ import { VanRunDetailPage } from './pages/reports/VanRunDetailPage';
 import { VanRunsPage } from './pages/reports/VanRunsPage';
 import { WeeklyReportsPage } from './pages/reports/WeeklyReportsPage';
 import { HomePage } from './pages/HomePage';
+import { RegistrationPage } from './pages/RegistrationPage';
 import { RolloutsPage } from './pages/RolloutsPage';
 import { ScanPage } from './pages/ScanPage';
 import { ServiceTicketDetailPage } from './pages/ServiceTicketDetailPage';
@@ -45,6 +46,7 @@ export function App() {
           <Route index element={<Home />} />
           <Route path="terminals" element={guard('/terminals', <TerminalListPage />)} />
           <Route path="terminals/:serialNo" element={guard('/terminals', <TerminalDetailPage />)} />
+          <Route path="registrations" element={guard('/registrations', <RegistrationPage />)} />
           <Route path="scans" element={guard('/scans', <ScanPage />)} />
           <Route path="service-tickets" element={guard('/service-tickets', <ServiceTicketsPage />)} />
           <Route path="service-tickets/:id" element={guard('/service-tickets', <ServiceTicketDetailPage />)} />

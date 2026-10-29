@@ -1,4 +1,4 @@
-import type { Carrier, Role, TerminalStatus, TransitionSource } from '@terminal-ops/contracts';
+import type { Carrier, Role, RowResultCode, TerminalStatus, TransitionSource } from '@terminal-ops/contracts';
 
 /**
  * 화면에 보이는 이름만 둔다(규칙은 두지 않는다 — 가능한 전이는 서버가 준다, decisions/0040).
@@ -39,6 +39,19 @@ export const SOURCE_LABEL: Record<TransitionSource, string> = {
   SCAN: '박스 스캔',
   IMPORT: '엑셀 등록',
   SERVICE: 'A/S',
+};
+
+/** 일괄 등록(엑셀)의 행 결과(보강 5). 박스 스캔 화면은 코드를 그대로 보인다 */
+export const ROW_RESULT_LABEL: Record<RowResultCode, string> = {
+  CREATED: '등록됨',
+  RETURNED: '회수 입고됨',
+  INVALID_FORMAT: '형식 오류',
+  DUPLICATE_IN_REQUEST: '파일 안 중복',
+  UNKNOWN_MODEL: '모르는 모델',
+  ALREADY_EXISTS: '이미 등록됨',
+  NOT_IN_DELIVERY_NOTE: '납품 명세에 없음',
+  NOT_FOUND: '없는 단말기',
+  INVALID_STATE: '지금 상태로는 안 됨',
 };
 
 export const CARRIER_LABEL: Record<Carrier, string> = {

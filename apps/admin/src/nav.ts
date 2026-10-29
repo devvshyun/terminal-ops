@@ -8,6 +8,7 @@ import { OFFICE, STAFF } from './session';
 export const NAV: { to: string; label: string; roles: readonly Role[] }[] = [
   { to: '/', label: '처음', roles: OFFICE },
   { to: '/terminals', label: '단말기', roles: STAFF },
+  { to: '/registrations', label: '단말기 등록', roles: ['OPERATOR'] },
   { to: '/scans', label: '박스 스캔', roles: ['OPERATOR', 'FIELD'] },
   { to: '/service-tickets', label: 'A/S', roles: OFFICE },
   { to: '/firmware-rollouts', label: '펌웨어 배포', roles: OFFICE },
