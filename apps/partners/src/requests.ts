@@ -7,6 +7,7 @@ export interface RequestRecord {
   method: string;
   /** 쿼리 포함 경로(느림보 추적은 쿼리에 운송장 번호가 있다) */
   path: string;
+  /** 0 = 응답을 다 보내기 전에 연결이 끊김(지연 손잡이를 켰을 때 보낸 쪽이 먼저 끊은 장면) */
   status: number;
   ms: number;
 }
@@ -27,9 +28,10 @@ export class RequestLog {
     if (this.rows.length > MAX_REQUESTS) this.rows.shift();
   }
 
-  /** 최근부터 limit개 */
-  recent(limit: number): RequestRecord[] {
-    return this.rows.slice(-limit).reverse();
+  /** 최근부터 limit개. partner를 주면 그 업체만 거른 뒤 자른다(조용한 업체가 다른 업체 요청에 밀려 안 보이지 않게) */
+  recent(limit: number, partner?: string): RequestRecord[] {
+    const rows = partner ? this.rows.filter((r) => r.partner === partner) : this.rows;
+    return rows.slice(-limit).reverse();
   }
 
   clear(): void {

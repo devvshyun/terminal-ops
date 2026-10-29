@@ -7,8 +7,10 @@ import { App } from '../App';
 /** 부른 요청 하나 */
 export interface Call {
   method: string;
-  /** /partners·/sim을 포함한 경로(쿼리 제외) */
+  /** /partners·/sim을 포함한 경로(쿼리 제외). 앞의 /api는 뗀다 — 실제로 /api 아래로 보냈는지는 url로 본다 */
   path: string;
+  /** 화면이 부른 그대로의 경로(/api/… — Vite 프록시 앞마디, decisions/0084 보탬) */
+  url: string;
   query: URLSearchParams;
   body: unknown;
 }
@@ -26,7 +28,13 @@ export function mockServers(handlers: Record<string, Handler>) {
     'fetch',
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input), 'http://sandbox.test');
-      const call: Call = { method: init?.method ?? 'GET', path: url.pathname, query: url.searchParams, body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined };
+      const call: Call = {
+        method: init?.method ?? 'GET',
+        path: url.pathname.replace(/^\/api/, ''),
+        url: url.pathname,
+        query: url.searchParams,
+        body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined,
+      };
       calls.push(call);
       const handler = handlers[`${call.method} ${call.path}`];
       const result = handler ? await handler(call) : { status: 404, body: { error: 'NO_ROUTE', message: `가짜 서버에 없음: ${call.method} ${call.path}` } };

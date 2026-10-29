@@ -223,3 +223,5 @@
 - class-transformer `@Type`이 JSON 본문에도 적용되는 조건(ValidationPipe `transform: true`)과 `enableImplicitConversion` — `apps/api/src/admin/admin.dto.ts`, docs/reviews/2026-10-29-developer-center-final-review.md
 - MySQL `now()`(세션 시간대)와 `utc_timestamp()`, mysql2 `dateStrings` — `apps/api/src/common/db-datetime.ts`, docs/reviews/2026-10-29-developer-center-final-review.md
 - 격자 칸 `1fr`의 최소 폭(`min-width: auto`)과 `minmax(0, 1fr)` — `apps/sandbox/src/styles.css`(devlog 2026-10-29 보강 8 Task 3), docs/troubleshooting/0034
+- Vite 개발 서버 미들웨어 순서(프록시 → SPA 기본 문서)와 프록시 `bypass` — docs/troubleshooting/0035
+- TanStack Query `setQueryData` 뒤 무효화 다시 읽기가 한 번에 그려질 때(React 일괄 렌더링)와 `key`로 다시 그리기 — `apps/sandbox/src/pages/DevicesPage.test.tsx`, docs/reviews/2026-10-29-sandbox-final-review.md

@@ -22,18 +22,23 @@ export function DevicesPage() {
   const devices = useQuery({ queryKey: keys.devices, queryFn: () => call<SimDevices>('sim', `/__admin/devices?limit=${DEVICE_LIMIT}`), refetchInterval: POLL_MS });
   const refresh = () => client.invalidateQueries({ queryKey: keys.all });
   const run = useMutation({ mutationFn: (path: '/__admin/start' | '/__admin/stop') => call('sim', path, { method: 'POST' }), onSuccess: refresh });
-  const configure = useMutation({
-    mutationFn: (patch: Partial<SimConfig>) => call<SimConfig>('sim', '/__admin/config', { method: 'POST', body: patch }),
-    onSuccess: (c) => {
-      client.setQueryData(keys.config, c);
-      void refresh();
+  const saved = (c: SimConfig) => {
+    client.setQueryData(keys.config, c);
+    void refresh();
+  };
+  const configure = useMutation({ mutationFn: (patch: Partial<SimConfig>) => call<SimConfig>('sim', '/__admin/config', { method: 'POST', body: patch }), onSuccess: saved });
+  // 끄고 켜기는 그때 서버의 offlineSerials를 다시 읽어 바꾼다 — 캐시한 목록으로 보내면 다른 곳(다른 탭·스크립트)에서 바꾼 것을 덮는다(최종 검토)
+  const toggle = useMutation({
+    mutationFn: async ({ serialNo, offline }: { serialNo: string; offline: boolean }) => {
+      const current = (await call<SimConfig>('sim', '/__admin/config')).offlineSerials;
+      const offlineSerials = offline ? [...current.filter((s) => s !== serialNo), serialNo] : current.filter((s) => s !== serialNo);
+      return call<SimConfig>('sim', '/__admin/config', { method: 'POST', body: { offlineSerials } });
     },
+    onSuccess: saved,
   });
   const running = stats.data?.running ?? false;
-  const toggle = (serialNo: string, offline: boolean) => {
-    const current = config.data?.offlineSerials ?? [];
-    configure.mutate({ offlineSerials: offline ? [...current, serialNo] : current.filter((s) => s !== serialNo) });
-  };
+  // 오프라인 비율이 있으면 꺼진 단말기는 하나씩 켤 수 없다 — 시뮬레이터가 offlineSerials와 비율로 고른 단말기를 합쳐서, 목록에서 빼도 비율 쪽이면 그대로 꺼져 있다
+  const byRate = (config.data?.offlineRate ?? 0) > 0;
   return (
     <>
       <div className="head-row">
@@ -56,7 +61,7 @@ export function DevicesPage() {
           </div>
         ) : null}
       </div>
-      <ErrorBox error={stats.error ?? run.error ?? configure.error} />
+      <ErrorBox error={stats.error ?? run.error ?? configure.error ?? toggle.error} />
       <div className="split">
         <div>
           {stats.data ? <Stats stats={stats.data} /> : null}
@@ -84,8 +89,7 @@ export function DevicesPage() {
                 </thead>
                 <tbody>
                   {devices.data.items.map((d) => {
-                    // offlineRate(무작위)로 꺼진 단말기는 offlineSerials에 없어 하나씩 켤 수 없다
-                    const byRate = d.offline && !config.data!.offlineSerials.includes(d.serialNo);
+                    const locked = d.offline && byRate;
                     return (
                       <tr key={d.serialNo} aria-label={d.serialNo}>
                         <td className="mono strong">{d.serialNo}</td>
@@ -97,9 +101,9 @@ export function DevicesPage() {
                         <td>
                           <button
                             type="button"
-                            disabled={configure.isPending || byRate}
-                            title={byRate ? '오프라인 비율(offlineRate)로 꺼진 단말기입니다. 비율을 0으로 바꾸세요' : undefined}
-                            onClick={() => toggle(d.serialNo, !d.offline)}
+                            disabled={toggle.isPending || locked}
+                            title={locked ? '오프라인 비율(offlineRate)이 0보다 크면 하나씩 켤 수 없습니다. 비율을 0으로 바꾸세요' : undefined}
+                            onClick={() => toggle.mutate({ serialNo: d.serialNo, offline: !d.offline })}
                           >
                             {d.offline ? '켜기' : '끄기'}
                           </button>
@@ -113,7 +117,12 @@ export function DevicesPage() {
             {devices.data && devices.data.total > devices.data.items.length ? <p className="muted small">앞 {devices.data.items.length}대만 보입니다.</p> : null}
           </section>
         </div>
-        {config.data ? <ConfigForm key={JSON.stringify(config.data)} config={config.data} pending={configure.isPending} onSubmit={(p) => configure.mutate(p)} /> : <ErrorBox error={config.error} />}
+        {config.data ? (
+          // 폼이 다루는 값이 바뀔 때만 새로 그린다 — 단말기 끄고 켜기(offlineSerials)로는 적던 값을 버리지 않는다(최종 검토)
+          <ConfigForm key={formKey(config.data)} config={config.data} pending={configure.isPending} onSubmit={(p) => configure.mutate(p)} />
+        ) : (
+          <ErrorBox error={config.error} />
+        )}
       </div>
     </>
   );
@@ -142,6 +151,12 @@ function Stats({ stats }: { stats: SimStats }) {
   );
 }
 
+const FORM_FIELDS = ['targetUrl', 'serialPrefix', 'serialStart', 'count', 'intervalMs', 'batchSize', 'firmwareFailRate', 'deviceKey'] as const;
+const formKey = (c: SimConfig) => JSON.stringify(FORM_FIELDS.map((f) => c[f]));
+
+/** 숫자 칸: 비었거나 숫자가 아니면 NaN(Number('')는 0이라 그대로 쓰면 "비우기 = 0"이 된다 — 최종 검토) */
+const num = (text: string) => (text.trim() === '' ? Number.NaN : Number(text));
+
 /** 설정 폼 — 화면 단위(초·%)로 받고 바뀐 것만 서버 단위(ms·0~1)로 보낸다 */
 function ConfigForm({ config, pending, onSubmit }: { config: SimConfig; pending: boolean; onSubmit: (patch: Partial<SimConfig>) => void }) {
   const [targetUrl, setTargetUrl] = useState(config.targetUrl);
@@ -153,10 +168,10 @@ function ConfigForm({ config, pending, onSubmit }: { config: SimConfig; pending:
   const next: Partial<SimConfig> = {
     targetUrl: targetUrl.trim(),
     serialPrefix: serialPrefix.trim(),
-    count: Number(count),
-    intervalMs: Math.round(Number(intervalSec) * 1000),
-    batchSize: Number(batchSize),
-    firmwareFailRate: Math.round(Number(failPct) * 100) / 10_000,
+    count: num(count),
+    intervalMs: Math.round(num(intervalSec) * 1000),
+    batchSize: num(batchSize),
+    firmwareFailRate: Math.round(num(failPct) * 100) / 10_000,
   };
   const patch = Object.fromEntries(Object.entries(next).filter(([k, v]) => v !== config[k as keyof SimConfig])) as Partial<SimConfig>;
   const valid = Object.values(next).every((v) => (typeof v === 'number' ? Number.isFinite(v) : v !== ''));

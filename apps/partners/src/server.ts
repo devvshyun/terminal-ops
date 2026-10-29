@@ -30,7 +30,7 @@ async function route(state: PartnersState, req: IncomingMessage, res: ServerResp
     const raw = url.searchParams.get('limit');
     const limit = raw === null ? 50 : Number(raw);
     if (!Number.isInteger(limit) || limit < 1 || limit > MAX_REQUESTS) return sendJson(res, 400, { error: 'BAD_REQUEST', message: `limit은 1~${MAX_REQUESTS} 정수입니다.` });
-    return sendJson(res, 200, { total: state.requests.total, items: state.requests.recent(limit) });
+    return sendJson(res, 200, { total: state.requests.total, items: state.requests.recent(limit, url.searchParams.get('partner') ?? undefined) });
   }
   if (method === 'GET' && path === '/__admin/stats') return sendJson(res, 200, state.stats);
   if (method === 'GET' && path === '/__admin/toktok/messages') return sendJson(res, 200, toktokSummary(state));
@@ -68,14 +68,19 @@ async function route(state: PartnersState, req: IncomingMessage, res: ServerResp
   sendJson(res, 404, { error: 'NO_ROUTE', method, path });
 }
 
-/** 업체 요청을 응답이 끝날 때 기록한다(관리 API는 빼고). reset 전에 받은 요청이 reset 뒤에 끝나도 새 기록에 들어간다 — 시연 도구용이라 받아들인다 */
+/**
+ * 업체 요청을 연결이 닫힐 때 기록한다(관리 API는 빼고). 'close'는 응답을 다 보낸 뒤에도, 보내기 전에 끊겨도 온다 —
+ * 다 보내지 못했으면 상태 0(최종 검토: 'finish'만 들으면 지연 손잡이로 보낸 쪽이 먼저 끊은 요청이 빠졌다).
+ * 업체 이름은 경로 첫 마디. 주소는 URL로 해석하지 않는다 — 깨진 주소(`GET http://[bad`)면 리스너 안에서 던져 서버가 죽는다(최종 검토).
+ * reset 전에 받은 요청이 reset 뒤에 끝나도 새 기록에 들어간다 — 시연 도구용이라 받아들인다
+ */
 function recordWhenDone(state: PartnersState, req: IncomingMessage, res: ServerResponse): void {
   const path = req.url ?? '/';
   if (path.startsWith('/__admin')) return;
   const started = performance.now();
-  res.once('finish', () => {
-    const partner = new URL(path, 'http://partners').pathname.split('/')[1] ?? '';
-    state.requests.add({ at: new Date().toISOString(), partner, method: req.method ?? 'GET', path, status: res.statusCode, ms: Math.round(performance.now() - started) });
+  res.once('close', () => {
+    const partner = path.startsWith('/') ? (path.split(/[/?]/)[1] ?? '') : '';
+    state.requests.add({ at: new Date().toISOString(), partner, method: req.method ?? 'GET', path, status: res.writableFinished ? res.statusCode : 0, ms: Math.round(performance.now() - started) });
   });
 }
 

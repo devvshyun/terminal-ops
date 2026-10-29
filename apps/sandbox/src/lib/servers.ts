@@ -1,5 +1,5 @@
 /**
- * 두 서버의 관리 API를 부르는 곳(보강 8, decisions/0084). Vite 프록시가 /partners → :4010, /sim → :4020으로 넘긴다.
+ * 두 서버의 관리 API를 부르는 곳(보강 8, decisions/0084). Vite 프록시가 /api/partners → :4010, /api/sim → :4020으로 넘긴다.
  * 서버가 안 떠 있으면 프록시가 502·504를 내거나 연결이 끊긴다 — 둘 다 ServerDown으로 바꿔 "띄우는 명령"을 안내한다.
  */
 export type Server = 'partners' | 'sim';
@@ -30,7 +30,7 @@ export class ServerError extends Error {
 export async function call<T>(server: Server, path: string, init: { method?: 'GET' | 'POST'; body?: unknown } = {}): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`/${server}${path}`, {
+    res = await fetch(`/api/${server}${path}`, {
       method: init.method ?? 'GET',
       headers: init.body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),

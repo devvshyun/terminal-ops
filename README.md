@@ -24,6 +24,7 @@ terminal-ops/
 │  ├─ field/             현장 작업자 화면 — 휴대폰·PDA 폭, 바코드 스캐너(키보드 웨지) 입력, 점주 앱과 같은 스택·같은 판(Vite 프록시 /api → api, 보강 4)
 │  ├─ console/           운영 관제 화면 — 큐·워커·주기 작업·Outbox·업무 오류 보기, 실패 job 다시 시도·지우기(Vite 프록시 /api → api, 보강 6)
 │  ├─ developers/        외부 연동 개발자센터 — 외부 업체 등록, API 키 발급·폐기, 호출 로그, 연동 문서(ADMIN, Vite 프록시 /api → api, 보강 7)
+│  ├─ sandbox/           시연 도구 — 가상 업체 장애 손잡이·받은 요청, 단말기 시뮬레이터 시작·정지·단말기 끄기(로그인 없음, Vite 프록시 /api/partners·/api/sim, 보강 8)
 │  ├─ landing/           소개 페이지 — api 없이 뜨는 정적 페이지(Vite + GSAP), 숫자는 실험 기록과 같은지 테스트가 본다(decisions/0078)
 │  ├─ partners/          가상 업체 서버(node:http, 포트 4010): 세움전자·번개택배·느림보물류·브릿지VAN·톡톡메신저
 │  └─ device-sim/        단말기 시뮬레이터(하트비트, 펌웨어 업데이트 결과 보고)
@@ -42,7 +43,7 @@ Node 24, Docker Desktop(WSL2)이 필요하다. 명령은 Git Bash 기준.
 cp .env.example .env                 # 로컬 개발 전용 값. DEVICE_API_KEY는 자리표시자다 — 임의의 값(16자 이상, 공백 없는 ASCII)으로 바꿔 쓴다
                                      # (보강 2 뒤 .env가 이미 있으면 .env.example의 "# 보강 2" 아래 줄들을 덧붙인다 — DEVICE_API_KEY가 없으면 api가 뜨지 않는다)
 docker compose up -d --wait          # MySQL·Redis, healthcheck가 healthy가 될 때까지 기다린다(첫 실행은 MySQL 초기화에 수십 초)
-for a in api admin merchant field console developers landing partners device-sim; do (cd apps/$a && npm ci); done   # api·admin·merchant·field·console·developers는 packages/contracts를 링크한다(따로 설치하지 않는다)
+for a in api admin merchant field console developers sandbox landing partners device-sim; do (cd apps/$a && npm ci); done   # api·admin·merchant·field·console·developers는 packages/contracts를 링크한다(따로 설치하지 않는다)
 cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB 스키마와 기준 데이터(모델·가맹점·검수 항목)와 시연 계정 7개·시연 외부 업체 키(NODE_ENV=production·SEED_DEMO=0이면 기준 데이터만)
 
 # 필요한 것만 터미널마다 하나씩(또는 백그라운드 — 끌 때는 PID로)
@@ -55,12 +56,13 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 (cd apps/console && npm run dev)                       # :5176 → 넓은 화면으로 http://localhost:5176/login (관제 계정 monitor, ADMIN은 보기만)
 (cd apps/landing && npm run dev)                       # :5177 → 소개 페이지(api 필요 없음)
 (cd apps/developers && npm run dev)                    # :5178 → 개발자센터 http://localhost:5178/login (ADMIN 계정 admin)
+(cd apps/sandbox && npm run dev)                       # :5179 → 시연 도구 http://localhost:5179/partners · /devices (partners·device-sim이 떠 있어야 한다)
 (cd apps/device-sim && npm run build && node --env-file=../../.env dist/main.js)   # 선택: 단말기 시뮬레이터(:4020) — api와 같은 .env의 DEVICE_API_KEY를 X-Device-Key로 보낸다(api는 .env를 스스로 읽고, 시뮬레이터는 --env-file로)
 ```
 
 - 워커 프로세스를 띄우는 실험(0005·0014)은 먼저 `cd apps/api && npm run build` — `dist/worker.js`를 자식 프로세스로 띄우므로, 빌드하지 않으면 멈추고("먼저 npm run build 하세요"), 소스만 고치고 빌드를 잊으면 옛 워커로 잰다(경고 없음).
 - 테스트: 각 앱 폴더에서 `npm test`. api 테스트는 테스트 DB(`terminal_ops_test`)와 Redis 테스트 접두사(`test-`)만 쓰고, 가상 업체 서버를 테스트 포트(4011)에 직접 띄운다 — api 테스트를 두 개 동시에 돌리지 않는다. 실험은 `EXPERIMENTS=1 npx vitest run test/experiments/<파일> --silent=false`.
-- 타입 검사: vitest는 타입을 보지 않는다. api `npm run typecheck`(또는 `npm run build`), admin·merchant·field·console·developers·landing `npm run build`(tsc 포함) — api·화면이 `packages/contracts`와 어긋나면 여기서 실패한다([decisions/0048](docs/decisions/0048-계약은-반환-타입-implements-enum-단언으로-강제한다.md)).
+- 타입 검사: vitest는 타입을 보지 않는다. api `npm run typecheck`(또는 `npm run build`), admin·merchant·field·console·developers·sandbox·landing `npm run build`(tsc 포함) — api·화면이 `packages/contracts`와 어긋나면 여기서 실패한다([decisions/0048](docs/decisions/0048-계약은-반환-타입-implements-enum-단언으로-강제한다.md)).
 - 미리보기(화면 확인)는 `infra/preview.env`(주기 작업을 등록하지 않음)를 저장소 `.env` 뒤에 읽는다. 띄우기 전 점검(빌드, 남은 주기 작업 `npm run scheduler:clear`, 같은 접두사의 다른 워커)은 그 파일 주석에 있다.
 - 주기 작업은 Redis에 남는다(BullMQ job scheduler). 지우려면 `cd apps/api && npm run scheduler:clear`(이 접두사의 주기 작업만 — Redis 전체를 비우지 않는다).
 
@@ -139,7 +141,7 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 - 펌웨어 배포(운영자 쓰기): "펌웨어 등록"(모델·버전), "새 배포 만들기"(모델 → 등록 버전, 단계 비율·실패 임계치·최소 표본·단계 시간 제한, 확인 뒤 시작). 버전 선택지는 `GET /firmware`([decisions/0066](docs/decisions/0066-어드민-확장은-있는-API를-쓰고-새-API는-펌웨어-목록-하나.md))
 - 발주는 "발주 입고 대조" 화면 그대로(발주하기·대조·마감, [decisions/0068](docs/decisions/0068-운영자-쓰기-화면은-새-메뉴-하나와-기존-화면-안의-폼으로.md))
 - 계정(ADMIN): 목록·만들기·역할 바꾸기·사용 중지([decisions/0069](docs/decisions/0069-계정-화면은-어드민에-외부-업체-키-화면은-개발자센터로.md))
-- 왼쪽 아래 "다른 화면": 매장(:5174)·현장(:5175)·관제(:5176, 보강 6)·개발자센터(:5178, 보강 7) 새 탭, 이후 화면(업체 콘솔·시뮬레이터)은 준비 중. 주소는 `apps/admin/src/apps.ts` 한 곳 — 바꿀 때는 `VITE_MERCHANT_APP_URL`·`VITE_FIELD_APP_URL` 같은 env를 주고 어드민을 다시 띄운다([decisions/0067](docs/decisions/0067-다른-화면-바로가기-주소는-apps-ts-한-곳과-Vite-env로.md))
+- 왼쪽 아래 "다른 화면": 매장(:5174)·현장(:5175)·관제(:5176, 보강 6)·개발자센터(:5178, 보강 7)·가상 업체 콘솔과 단말기 시뮬레이터(:5179, 보강 8) 새 탭. 주소는 `apps/admin/src/apps.ts` 한 곳 — 바꿀 때는 `VITE_MERCHANT_APP_URL`·`VITE_FIELD_APP_URL` 같은 env를 주고 어드민을 다시 띄운다([decisions/0067](docs/decisions/0067-다른-화면-바로가기-주소는-apps-ts-한-곳과-Vite-env로.md))
 
 ## 운영 관제(보강 6)
 
@@ -161,6 +163,14 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 - 호출 로그: 외부용 API 호출(업체·키·메서드·경로·상태·걸린 시간), 업체로 거르기, 50개씩 더 보기
 - 연동 문서: api의 `openapi.json`을 그대로 그린 경로별 설명·매개변수·응답 필드·오류, curl 예
 - 시연 순서: 업체 등록 → 키 발급(두 범위) → 문서의 curl로 `/partner/v1/merchants/GANGNAM-KIMBAP/terminals` → 호출 로그에 200 → 범위 하나짜리 키로 같은 경로 → 403이 남는다 → 키 폐기 → 401(로그에는 없다)
+
+## 시연 도구(보강 8)
+
+가상 업체 서버(:4010)와 단말기 시뮬레이터(:4020)를 화면에서 조작한다. 로그인 없음 — 두 서버 자체가 인증 없는 로컬 시연 서버다([decisions/0084](docs/decisions/0084-시연-도구는-한-앱-apps-sandbox-로그인-없이.md)).
+
+- `/partners` 가상 업체: 업체 다섯(번개택배·느림보물류·세움전자·브릿지VAN·톡톡메신저) 카드의 장애 손잡이(429·5xx 확률, 지연, 중복·순서 섞기 등 — 지금 값은 서버에서 읽는다), 켜진 장애는 카드 머리에. 업체가 받은 최근 요청(5초마다, 업체 거르기, 끊긴 요청은 "끊김")과 톡톡 메시지. "모두 기본값으로"는 받은 데이터도 지운다
+- `/devices` 단말기 시뮬레이터: 시작·정지, 설정(대상 api·대수·주기·묶음·펌웨어 실패율), 보낸 것(하트비트·받아들임·거절·실패·p50/p95·펌웨어 보고), 단말기 표에서 하나씩 끄고 켜기(`offlineSerials`)
+- 서버 쪽 새 관리 API: partners `GET /__admin/config`·`GET /__admin/requests?limit=&partner=`(메모리 200개), device-sim `GET /__admin/devices?limit=`([decisions/0085](docs/decisions/0085-업체-서버에-최근-요청-기록-시뮬레이터에-단말기-목록.md))
 
 ## 기능
 
@@ -185,6 +195,7 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 | 매장 화면(보강 3) | 점주 홈(오고 있는 단말기·진행 중 A/S·사용 중 단말기 접속·회수), 단말기 상세, 고장 접수, A/S 진행 단계·설치 확인. `/me` 점주용 응답·보이는 상태·내 매장·접수 상세 | `apps/merchant/src/`, `apps/api/src/me/` |
 | 현장 화면(보강 4) | 오늘 내 작업, 박스 스캔(스캐너 입력·중복·형식 표시·scanId 멱등·줄마다 결과), 검수 대기·시리얼 찾기·체크리스트. `GET /field/today` | `apps/field/src/`, `apps/api/src/field/` |
 | 운영 관제(보강 6) | 큐 요약(최근 15분 처리량·워커), 프로세스·의존 상태, 주기 작업, Outbox 요약·복구 sweep, 최근 업무 오류, 실패 job 다시 시도·지우기(data 가림), 감사 기록, 자동 새로고침 | `apps/console/src/`, `apps/api/src/ops/`, `apps/api/src/queue/worker-options.ts` |
+| 시연 도구(보강 8) | 가상 업체 장애 손잡이·최근 요청·톡톡 메시지, 시뮬레이터 시작·정지·설정·단말기 끄기 | `apps/sandbox/src/`, `apps/partners/src/requests.ts`, `apps/device-sim/src/server.ts` |
 | 개발자센터(보강 7) | 외부 업체 등록, 업체별 키 발급(원문 한 번)·폐기, 외부용 API 호출 로그(가드가 응답 끝에 한 줄), 손으로 쓴 OpenAPI와 어긋남 검사 | `apps/developers/src/`, `apps/api/src/partner/`, `apps/api/src/partner-api/openapi.ts`, `apps/api/src/auth/auth.guard.ts` |
 
 ## 실험 결과
@@ -231,14 +242,14 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 
 이 프로젝트의 산출물은 코드와 기록이다(규칙 `CLAUDE.md`, 양식 `docs/README.md`).
 
-- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 83·트러블슈팅 34·실험 19 (`node scripts/docs-index.mjs`로 만든다)
+- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 85·트러블슈팅 35·실험 19 (`node scripts/docs-index.mjs`로 만든다)
 - 개발일지: [`docs/devlog/`](docs/devlog/)(날짜별, 날마다 "N일차 요약"), 설계 스펙 [`docs/specs/`](docs/specs/), 구현 계획 [`docs/plans/`](docs/plans/), 날마다의 최종 리뷰 [`docs/reviews/`](docs/reviews/)
 - 7일 회고: [`docs/retrospective.md`](docs/retrospective.md) — 날별로 만든 것, 잘 된 것·안 된 것, 반복된 실수, 면접에서 말할 거리, 남은 이월과 그 뒤 보강
 - 공부거리: [`docs/study/backlog.md`](docs/study/backlog.md)
 
 ## 테스트
 
-(보강 7 개발자센터와 그 최종 검토 반영 뒤, 클라우드 컨테이너에서 실제로 돌려 센 값(2026-10-29). api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 6 뒤에는 api 90/603·admin 19/163·console 8/56, 보강 5 뒤에는 api 83/571, 보강 4 뒤에는 api 82/568·admin 14/125, 보강 3 뒤에는 api 80/561·merchant 7/47, 보강 2 뒤에는 api 79/549, 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
+(보강 8 시연 도구와 그 최종 검토 반영 뒤, 클라우드 컨테이너에서 실제로 돌려 센 값(2026-10-29) — api 코드는 바뀌지 않았지만 e2e가 띄우는 가상 업체 서버가 바뀌어 다시 돌렸다. 보강 7 뒤에는 partners 6/53·device-sim 5/46. api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 6 뒤에는 api 90/603·admin 19/163·console 8/56, 보강 5 뒤에는 api 83/571, 보강 4 뒤에는 api 82/568·admin 14/125, 보강 3 뒤에는 api 80/561·merchant 7/47, 보강 2 뒤에는 api 79/549, 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
 
 | 앱 | 파일 | 테스트 |
 |---|---|---|
@@ -248,6 +259,7 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 | field | 8 | 64 |
 | console | 8 | 58 |
 | developers | 9 | 44 |
+| sandbox | 4 | 24 |
 | landing | 1 | 14 |
-| partners | 6 | 53 |
-| device-sim | 5 | 46 |
+| partners | 7 | 61 |
+| device-sim | 6 | 49 |

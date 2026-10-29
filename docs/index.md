@@ -90,7 +90,7 @@
 - [0084](decisions/0084-시연-도구는-한-앱-apps-sandbox-로그인-없이.md) 가상 업체 콘솔과 시뮬레이터 화면은 한 앱 apps/sandbox로, 로그인 없이
 - [0085](decisions/0085-업체-서버에-최근-요청-기록-시뮬레이터에-단말기-목록.md) 가상 업체 서버에 최근 요청 기록, 시뮬레이터에 단말기 목록
 
-## 트러블슈팅 (34)
+## 트러블슈팅 (35)
 
 - [0001](troubleshooting/0001-설치-직후-WSL2-미동작.md) 설치 직후 WSL2·Docker가 동작하지 않음
 - [0002](troubleshooting/0002-em-create-optionalprops-타입오류.md) em.create에서 TS2345 "Property 'version' is missing"
@@ -126,6 +126,7 @@
 - [0032](troubleshooting/0032-테스트-DB로-마이그레이션을-적용하면-DB-이름의-스냅샷-파일이-생긴다.md) 테스트 DB로 마이그레이션을 적용하면 DB 이름의 스냅샷 파일이 생긴다
 - [0033](troubleshooting/0033-새-앱에서-npm-install이-edgesOut-null로-멈춘다.md) 새 앱에서 `npm install`이 `Cannot read properties of null (reading 'edgesOut')`로 멈춘다
 - [0034](troubleshooting/0034-좁은-화면에서-표를-옆으로-밀게-했는데-문서-폭이-늘어난다.md) 좁은 화면에서 표를 옆으로 밀게 했는데도 문서 폭이 늘어난다
+- [0035](troubleshooting/0035-시연-도구-화면을-새로-열면-화면-대신-업체-서버-JSON이-온다.md) 시연 도구 `/partners`를 새로 열면 화면 대신 업체 서버의 JSON이 온다
 
 ## 실험 (19)
 

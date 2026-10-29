@@ -8,7 +8,7 @@ import type { PartnersConfig, RequestsPage, ToktokMessages } from '../lib/types'
 
 /** 최근 요청·톡톡 메시지를 다시 읽는 간격 */
 const POLL_MS = 5000;
-const keys = { config: ['partners', 'config'] as const, requests: ['partners', 'requests'] as const, toktok: ['partners', 'toktok'] as const };
+const keys = { config: ['partners', 'config'] as const, requests: (partner: string) => ['partners', 'requests', partner] as const, requestsAll: ['partners', 'requests'] as const, toktok: ['partners', 'toktok'] as const };
 const NAME: Record<string, string> = Object.fromEntries(PARTNERS.map((p) => [p.key, p.name]));
 
 /**
@@ -22,7 +22,8 @@ export function PartnersPage() {
     mutationFn: () => call<PartnersConfig>('partners', '/__admin/reset', { method: 'POST' }),
     onSuccess: (c) => {
       client.setQueryData(keys.config, c);
-      void client.invalidateQueries({ queryKey: ['partners'] });
+      void client.invalidateQueries({ queryKey: keys.requestsAll });
+      void client.invalidateQueries({ queryKey: keys.toktok });
     },
   });
   const onReset = () => {
@@ -116,8 +117,13 @@ function PartnerCard({ def, values }: { def: PartnerDef; values: Record<string, 
 
 function Requests() {
   const [partner, setPartner] = useState('');
-  const page = useQuery({ queryKey: keys.requests, queryFn: () => call<RequestsPage>('partners', '/__admin/requests?limit=100'), refetchInterval: POLL_MS });
-  const items = (page.data?.items ?? []).filter((r) => !partner || r.partner === partner);
+  // 업체 거르기는 서버에서(?partner=) — 최근 100개를 자른 뒤 거르면 조용한 업체가 안 보인다(최종 검토)
+  const page = useQuery({
+    queryKey: keys.requests(partner),
+    queryFn: () => call<RequestsPage>('partners', `/__admin/requests?limit=100${partner ? `&partner=${partner}` : ''}`),
+    refetchInterval: POLL_MS,
+  });
+  const items = page.data?.items ?? [];
   return (
     <section className="section" aria-label="최근 요청">
       <div className="head-row">
@@ -137,7 +143,7 @@ function Requests() {
         </label>
       </div>
       <ErrorBox error={page.error} />
-      {page.data && items.length === 0 ? <p className="empty">아직 받은 요청이 없습니다.</p> : null}
+      {page.data && items.length === 0 ? <p className="empty">{partner ? `${NAME[partner]}가 받은 요청이 아직 없습니다.` : '아직 받은 요청이 없습니다.'}</p> : null}
       {items.length > 0 ? (
         <table aria-label="최근 요청">
           <thead>
@@ -160,7 +166,8 @@ function Requests() {
                   <span className="method">{r.method}</span> {r.path}
                 </td>
                 <td>
-                  <span className={`code ${codeClass(r.status)}`}>{r.status}</span>
+                  {/* 0 = 응답을 다 보내기 전에 끊김(보낸 쪽이 먼저 끊음) */}
+                  <span className={`code ${r.status === 0 ? 'code-5xx' : codeClass(r.status)}`}>{r.status === 0 ? '끊김' : r.status}</span>
                 </td>
                 <td className="num">{r.ms}ms</td>
               </tr>

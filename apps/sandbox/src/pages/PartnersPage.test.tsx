@@ -62,8 +62,19 @@ describe('가상 업체 화면 (보강 8)', () => {
     expect(within(rows[0]).getByText('429')).toHaveClass('code-4xx');
     expect(within(rows[1]).getByText('503')).toHaveClass('code-5xx');
     expect(rows[1]).toHaveTextContent('/neurimbo/api/track?invoiceNo=X1');
-    await userEvent.selectOptions(screen.getByLabelText('업체'), 'neurimbo');
-    expect(within(screen.getByRole('table', { name: '최근 요청' })).getAllByRole('row').slice(1)).toHaveLength(1);
+    expect(within(rows[2]).getByText('200')).toHaveClass('code-2xx');
+  });
+
+  it('업체를 고르면 서버에서 거른다(?partner=), 끊긴 요청(상태 0)은 "끊김"', async () => {
+    const { calls } = mockServers({
+      ...partnersApi(),
+      'GET /partners/__admin/requests': (c) => ({ body: { total: 9, items: c.query.get('partner') === 'toktok' ? [request({ id: 5, partner: 'toktok', path: '/toktok/hooks/ops', status: 0 })] : [request()] } }),
+    });
+    renderApp('/partners');
+    await screen.findByRole('table', { name: '최근 요청' });
+    await userEvent.selectOptions(screen.getByLabelText('업체'), 'toktok');
+    expect(await screen.findByText('끊김')).toHaveClass('code-5xx');
+    expect(calls.filter((c) => c.path === '/partners/__admin/requests').at(-1)?.query.get('partner')).toBe('toktok');
   });
 
   it('가상 업체 서버가 안 떠 있으면 띄우는 명령을 안내한다', async () => {
