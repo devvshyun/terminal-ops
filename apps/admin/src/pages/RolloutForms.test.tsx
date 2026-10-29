@@ -53,6 +53,9 @@ describe('단계 비율 읽기 parseStages (보강 5)', () => {
     expect(parseStages('10, 50')).toEqual({ error: '마지막 단계는 100이어야 합니다.' });
     expect(parseStages('0, 100')).toEqual({ error: '단계 비율은 1~100 사이 정수입니다.' });
     expect(parseStages('10.5, 100')).toEqual({ error: '단계 비율은 1~100 사이 정수입니다.' });
+    expect(parseStages('0x10, 100')).toEqual({ error: '단계 비율은 1~100 사이 정수입니다.' });
+    expect(parseStages('1e1, 100')).toEqual({ error: '단계 비율은 1~100 사이 정수입니다.' });
+    expect(parseStages('+10, 100')).toEqual({ error: '단계 비율은 1~100 사이 정수입니다.' });
     expect(parseStages('1,2,3,4,5,6,7,8,9,10,100')).toEqual({ error: '단계는 10개까지입니다.' });
   });
 });
@@ -141,6 +144,8 @@ describe('펌웨어 등록·배포 만들기 (F8, 보강 5)', () => {
       stageTimeoutMs: 900_000,
     });
     await waitFor(() => expect(calls.filter((c) => c.path === '/firmware-rollouts' && c.method === 'GET').length).toBeGreaterThan(listReads));
+    expect(within(form).getByLabelText('배포 버전')).toHaveValue(''); // 만든 뒤 버전을 비워 같은 배포를 또 누르지 않게
+    expect(within(form).getByRole('button', { name: '배포 시작' })).toBeDisabled();
   });
 
   it('등록된 펌웨어가 없는 모델은 안내하고 버전 선택이 꺼진다. 진행 중 배포가 있으면(409 ROLLOUT_ALREADY_ACTIVE) 안내', async () => {

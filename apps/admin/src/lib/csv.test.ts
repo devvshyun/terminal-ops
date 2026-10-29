@@ -15,6 +15,8 @@ describe('CSV (보강 5 엑셀 등록 결과 내려받기)', () => {
     expect(csvCell('=HYPERLINK("x")')).toBe(`"'=HYPERLINK(""x"")"`);
     expect(csvCell('+1')).toBe("'+1");
     expect(csvCell('@a')).toBe("'@a");
+    expect(csvCell('\t=1+1')).toBe("'\t=1+1");
+    expect(csvCell('\r=1')).toBe('"\'\r=1"');
   });
 
   it('내려받기 주소는 BOM을 붙인 UTF-8 data URL', () => {

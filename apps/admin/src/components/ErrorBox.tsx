@@ -16,6 +16,11 @@ const HINT: Partial<Record<ErrorCode, string>> = {
   UNAUTHENTICATED: '로그인이 끝났습니다. 다시 로그인하세요.',
   LOGIN_FAILED: '아이디 또는 비밀번호가 맞지 않습니다.',
   LOGIN_LOCKED: '로그인 실패가 많아 잠시 막혔습니다. 잠시 뒤 다시 시도하세요.',
+  // 단말기 등록 화면의 엑셀 올리기(보강 5, pages/RegistrationPage.tsx)
+  FILE_TOO_LARGE: '파일이 2MB를 넘습니다. 나눠서 올리세요.',
+  INVALID_FILE: '.xlsx 엑셀 파일만 올릴 수 있습니다(csv·xls는 엑셀에서 .xlsx로 저장).',
+  MISSING_COLUMNS: '1행 머리글에 serialNo·modelCode 열이 있어야 합니다.',
+  TOO_MANY_ROWS: '한 파일에 5,000행까지입니다. 나눠서 올리세요.',
   // 계정 화면(보강 5, pages/AccountsPage.tsx)
   LAST_ADMIN: '마지막 활성 ADMIN입니다. 다른 ADMIN 계정을 먼저 만들거나 살린 뒤 바꾸세요.',
   MERCHANT_REQUIRED: '가맹점주 계정에는 가맹점을 꼭 고르고, 다른 역할에는 가맹점을 주지 않습니다.',

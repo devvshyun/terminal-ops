@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { keys } from '../api/query-keys';
 import type { TerminalImportView } from '@terminal-ops/contracts';
 import { App } from '../App';
 import { loginAs, mockApi, renderPage, type Call } from '../test/render';
@@ -58,6 +59,57 @@ describe('단말기 등록 — 한 대 (F1, 보강 5)', () => {
     await userEvent.type(within(form).getByLabelText('시리얼'), 'DUP-0001');
     await userEvent.click(within(form).getByRole('button', { name: '등록' }));
     expect(await within(form).findByRole('alert')).toHaveTextContent('DUPLICATE');
+  });
+});
+
+describe('단말기 등록 — 리뷰 보강 (F1, 보강 5)', () => {
+  it('한 대 등록이 성공하면 운영 현황(dashboard)도 다시 읽게 하고, 새 시리얼을 치기 시작하면 앞의 성공 문구를 지운다', async () => {
+    mockApi({
+      ...MODELS,
+      'POST /terminals': (c: Call) => ({
+        status: 201,
+        body: { ...(c.body as object), modelName: '유선 카운터형', merchantCode: null, merchantName: null, status: 'RECEIVED', statusChangedAt: '2026-10-29T01:00:00.000Z', version: 1, createdAt: '2026-10-29T01:00:00.000Z', updatedAt: '2026-10-29T01:00:00.000Z' },
+      }),
+    });
+    loginAs();
+    const { client } = renderPage(<RegistrationPage />);
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const form = screen.getByRole('form', { name: '한 대 등록' });
+    await within(form).findByRole('option', { name: 'SN-100 유선 카운터형' });
+    await userEvent.selectOptions(within(form).getByLabelText('모델'), 'SN-100');
+    await userEvent.type(within(form).getByLabelText('시리얼'), 'NEW-0001');
+    await userEvent.click(within(form).getByRole('button', { name: '등록' }));
+    expect(await within(form).findByRole('status')).toHaveTextContent('NEW-0001 등록됨');
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: keys.dashboard });
+    await userEvent.type(within(form).getByLabelText('시리얼'), 'N');
+    expect(within(form).queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('엑셀 일괄 등록이 성공하면 운영 현황(dashboard)도 다시 읽게 한다', async () => {
+    mockApi({ ...MODELS, 'POST /terminals/imports': () => ({ status: 201, body: importBody }) });
+    loginAs();
+    const { client } = renderPage(<RegistrationPage />);
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    await userEvent.upload(screen.getByLabelText('엑셀 파일'), xlsx());
+    await userEvent.click(screen.getByRole('button', { name: '올리기' }));
+    await screen.findByLabelText('등록 결과');
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: keys.dashboard });
+  });
+
+  it.each([
+    ['FILE_TOO_LARGE', 413, '2MB'],
+    ['INVALID_FILE', 400, '.xlsx'],
+    ['MISSING_COLUMNS', 400, 'serialNo'],
+    ['TOO_MANY_ROWS', 400, '5,000'],
+  ])('파일째 거절 %s는 운영자가 할 일을 안내한다', async (code, status, hint) => {
+    mockApi({ ...MODELS, 'POST /terminals/imports': () => ({ status, body: { statusCode: status, code, message: '서버 메시지' } }) });
+    loginAs();
+    renderPage(<RegistrationPage />);
+    await userEvent.upload(screen.getByLabelText('엑셀 파일'), xlsx());
+    await userEvent.click(screen.getByRole('button', { name: '올리기' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(code);
+    expect(alert.querySelector('strong')?.textContent).toContain(hint);
   });
 });
 

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AccountView } from '@terminal-ops/contracts';
 import { App } from '../App';
 import { dashboardBody } from '../test/fixtures';
+import { getMe } from '../session';
 import { loginAs, mockApi, renderPage, type Call } from '../test/render';
 import { AccountsPage } from './AccountsPage';
 
@@ -160,6 +161,76 @@ describe('계정 화면 (ADMIN, 보강 5)', () => {
     await userEvent.click(within(row('admin')).getByRole('button', { name: '역할 저장' }));
     expect(await within(row('admin')).findByRole('alert')).toHaveTextContent('마지막 활성 ADMIN입니다. 다른 ADMIN 계정을 먼저 만들거나 살린 뒤 바꾸세요.');
     expect(within(row('admin')).getByLabelText('역할')).toHaveValue('ADMIN');
+  });
+
+  it('만들기 409 DUPLICATE는 아이디가 겹쳤다고(대소문자 구분 없음) 알리고, 실패하면 입력(비밀번호 포함)을 지우지 않는다', async () => {
+    // 만들기는 늘 409
+    const { calls } = mockApi({
+      ...MERCHANTS,
+      'GET /admin/accounts': () => ({ body: [account(1, 'admin', { role: 'ADMIN' })] }),
+      'POST /admin/accounts': () => ({ status: 409, body: { statusCode: 409, code: 'DUPLICATE', message: '이미 있는 값입니다(login_id).' } }),
+    });
+    loginAs('admin', 'ADMIN');
+    renderPage(<AccountsPage />);
+    const form = screen.getByRole('form', { name: '계정 만들기' });
+    await userEvent.type(within(form).getByLabelText('새 아이디'), 'Admin');
+    await userEvent.type(within(form).getByLabelText('표시 이름'), '겹침');
+    await userEvent.type(within(form).getByLabelText('처음 비밀번호'), 'demo-pass-0001');
+    await userEvent.click(within(form).getByRole('button', { name: '만들기' }));
+    expect(await within(form).findByRole('alert')).toHaveTextContent('이미 있는 아이디입니다(대소문자 구분 없음)');
+    expect(calls.some((c) => c.method === 'POST')).toBe(true);
+    expect(within(form).getByLabelText('처음 비밀번호')).toHaveValue('demo-pass-0001');
+    expect(within(form).getByLabelText('새 아이디')).toHaveValue('Admin');
+  });
+
+  it('성공하면 만든 계정 안내만 남기고 입력·요청 변수(비밀번호)는 비운다', async () => {
+    accountsApi([account(1, 'admin', { role: 'ADMIN' })]);
+    loginAs('admin', 'ADMIN');
+    const { client } = renderPage(<AccountsPage />);
+    const form = screen.getByRole('form', { name: '계정 만들기' });
+    await userEvent.type(within(form).getByLabelText('새 아이디'), 'newbie');
+    await userEvent.type(within(form).getByLabelText('표시 이름'), '새 사람');
+    await userEvent.type(within(form).getByLabelText('처음 비밀번호'), 'demo-pass-0001');
+    await userEvent.click(within(form).getByRole('button', { name: '만들기' }));
+    expect(await within(form).findByRole('status')).toHaveTextContent('newbie 만듦');
+    await waitFor(() => expect(client.getMutationCache().getAll().filter((m) => m.state.status === 'success')).toHaveLength(0));
+    const vars = client.getMutationCache().getAll().map((m) => JSON.stringify(m.state.variables ?? null));
+    expect(vars.join('')).not.toContain('demo-pass-0001');
+  });
+
+  it('표시 이름은 50자까지, 비밀번호 길이는 글자(코드 포인트) 수로 센다', async () => {
+    accountsApi([account(1, 'admin', { role: 'ADMIN' })]);
+    loginAs('admin', 'ADMIN');
+    renderPage(<AccountsPage />);
+    const form = screen.getByRole('form', { name: '계정 만들기' });
+    expect(within(form).getByLabelText('표시 이름')).toHaveAttribute('maxlength', '50');
+    await userEvent.type(within(form).getByLabelText('새 아이디'), 'emoji-user');
+    await userEvent.type(within(form).getByLabelText('표시 이름'), '이모지');
+    await userEvent.type(within(form).getByLabelText('처음 비밀번호'), '😀😀😀😀😀😀😀😀😀'); // 9글자(UTF-16으로는 18)
+    expect(within(form).getByText('비밀번호는 10~200자입니다.')).toBeInTheDocument();
+    expect(within(form).getByRole('button', { name: '만들기' })).toBeDisabled();
+    await userEvent.type(within(form).getByLabelText('처음 비밀번호'), '😀');
+    expect(within(form).queryByText('비밀번호는 10~200자입니다.')).not.toBeInTheDocument();
+    expect(within(form).getByRole('button', { name: '만들기' })).toBeEnabled();
+  });
+
+  it('내 계정의 역할을 바꾸면 세션이 끊겨(401) 로그인 화면으로 돌아간다', async () => {
+    let patched = false;
+    mockApi({
+      ...MERCHANTS,
+      'GET /admin/accounts': () => (patched ? { status: 401, body: { statusCode: 401, code: 'UNAUTHENTICATED', message: '로그인이 필요합니다.' } } : { body: [account(1, 'admin', { role: 'ADMIN' }), account(2, 'other', { role: 'ADMIN' })] }),
+      'PATCH /admin/accounts/:id': () => {
+        patched = true;
+        return { body: account(1, 'admin', { role: 'OPERATOR' }) };
+      },
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    loginAs('admin', 'ADMIN');
+    renderPage(<AccountsPage />);
+    await userEvent.selectOptions(within(await screen.findByRole('row', { name: '계정 admin' })).getByLabelText('역할'), 'OPERATOR');
+    await userEvent.click(within(row('admin')).getByRole('button', { name: '역할 저장' }));
+    // 저장 뒤 목록을 다시 읽다가 401을 받으면 로그인 정보가 비워진다
+    await waitFor(() => expect(getMe()).toBeNull());
   });
 
   it('ADMIN 메뉴에 "계정"이 있고, 운영자가 주소로 열면 권한 안내만(계정 목록을 부르지 않는다)', async () => {

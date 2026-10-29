@@ -19,6 +19,7 @@ export function parseStages(text: string): { stages: number[] } | { error: strin
   const parts = text.split(/[\s,]+/).filter(Boolean);
   if (parts.length === 0) return { error: '단계 비율을 쉼표로 적으세요(예 10, 50, 100).' };
   if (parts.length > 10) return { error: '단계는 10개까지입니다.' };
+  if (parts.some((p) => !/^\d+$/.test(p))) return { error: '단계 비율은 1~100 사이 정수입니다.' }; // 0x10·1e1·+10·10.5처럼 Number()가 받아 주는 꼴을 거른다
   const stages = parts.map(Number);
   if (stages.some((p) => !Number.isInteger(p) || p < 1 || p > 100)) return { error: '단계 비율은 1~100 사이 정수입니다.' };
   if (stages.some((p, i) => i > 0 && p <= stages[i - 1])) return { error: '단계 비율은 커지는 순서여야 합니다(누적 비율).' };
@@ -116,6 +117,7 @@ export function RolloutCreateForm() {
   const create = useMutation({
     mutationFn: (body: CreateRolloutRequest) => api<RolloutView>('/firmware-rollouts', { method: 'POST', body }),
     // 실패(409 ROLLOUT_ALREADY_ACTIVE 등)도 목록이 낡았다는 뜻일 수 있어 성공·실패 모두 다시 읽는다
+    onSuccess: () => setVersion(''), // 같은 버전으로 또 눌러 409를 받지 않게(성공 문구는 남는다)
     onSettled: () => client.invalidateQueries({ queryKey: keys.rollouts.all }),
   });
 

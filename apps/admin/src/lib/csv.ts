@@ -1,10 +1,10 @@
 import type { TerminalImportView } from '@terminal-ops/contracts';
 import { ROW_RESULT_LABEL } from './labels';
 
-/** CSV 칸 하나: 쉼표·따옴표·줄바꿈이 있으면 따옴표로 감싸고 안의 따옴표는 두 번(RFC 4180). 엑셀이 수식으로 읽는 머리 글자(= + - @)는 앞에 '를 붙인다 */
+/** CSV 칸 하나: 쉼표·따옴표·줄바꿈이 있으면 따옴표로 감싸고 안의 따옴표는 두 번(RFC 4180). 엑셀이 수식으로 읽는 머리 글자(= + - @, 탭·CR로 시작하는 칸도)는 앞에 '를 붙인다 */
 export function csvCell(value: string | number): string {
   let text = String(value);
-  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 

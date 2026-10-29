@@ -25,6 +25,18 @@ describe('다른 화면 주소 — 한 곳(apps.ts)과 env (보강 5, decisions/
     ).toMatchObject({ merchant: 'http://merchant.demo:8081', field: 'http://localhost:5175', developers: 'http://developers.demo:8083', ops: null });
   });
 
+  it('http·https가 아닌 주소(javascript: 등)나 스킴 없는 값, 공백만 있는 값은 쓰지 않고 기본값', () => {
+    expect(
+      urls({
+        VITE_MERCHANT_APP_URL: 'javascript:alert(1)',
+        VITE_FIELD_APP_URL: 'merchant.demo:8081',
+        VITE_OPS_APP_URL: '   ',
+        VITE_DEVELOPERS_APP_URL: 'data:text/html,x',
+        VITE_SIMULATOR_APP_URL: 'HTTPS://sim.demo',
+      }),
+    ).toMatchObject({ merchant: 'http://localhost:5174', field: 'http://localhost:5175', ops: null, developers: null, simulator: 'HTTPS://sim.demo' });
+  });
+
   it('테스트 실행(vitest)의 import.meta.env를 기본으로 읽는다 — VITE_ 주소를 주지 않았으면 기본 주소', () => {
     expect(otherApps().find((a) => a.key === 'merchant')?.url).toBe('http://localhost:5174');
   });

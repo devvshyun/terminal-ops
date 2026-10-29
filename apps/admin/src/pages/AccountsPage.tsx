@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../api/client';
+import { ApiError, api } from '../api/client';
 import { keys } from '../api/query-keys';
 import type { AccountView, CreateAccountRequest, MerchantView, Role, UpdateAccountRequest } from '@terminal-ops/contracts';
 import { ErrorBox } from '../components/ErrorBox';
@@ -10,6 +10,7 @@ import { useMe } from '../session';
 
 /** 서버 규칙과 같은 아이디 형식(api auth/dto/login.dto.ts LOGIN_ID_INPUT — 대문자는 서버가 소문자로 저장) */
 export const LOGIN_ID_PATTERN = /^[A-Za-z0-9._-]{3,50}$/;
+const codePoints = (text: string) => [...text].length; // 서버(class-validator Length)도 글자(코드 포인트) 수로 센다
 const ROLES = Object.keys(ROLE_LABEL) as Role[];
 
 function MerchantSelect({ label, value, onChange, merchants }: { label: string; value: string; onChange: (v: string) => void; merchants: MerchantView[] | undefined }) {
@@ -35,13 +36,19 @@ function CreateAccountForm({ merchants }: { merchants: MerchantView[] | undefine
   const [merchantCode, setMerchantCode] = useState('');
   const problems = [
     loginId && !LOGIN_ID_PATTERN.test(loginId) ? '아이디는 영문·숫자·`.`·`-`·`_` 3~50자입니다.' : null,
-    password && (password.length < 10 || password.length > 200) ? '비밀번호는 10~200자입니다.' : null,
+    displayName.trim() && codePoints(displayName.trim()) > 50 ? '표시 이름은 1~50자입니다.' : null,
+    password && (codePoints(password) < 10 || codePoints(password) > 200) ? '비밀번호는 10~200자입니다.' : null,
     role === 'MERCHANT' && !merchantCode ? '가맹점주 계정은 가맹점을 골라야 합니다.' : null,
   ].filter((p): p is string => p !== null);
-  const ready = LOGIN_ID_PATTERN.test(loginId) && displayName.trim() !== '' && password.length >= 10 && problems.length === 0;
+  const ready = LOGIN_ID_PATTERN.test(loginId) && displayName.trim() !== '' && codePoints(password) >= 10 && problems.length === 0;
+  const [created, setCreated] = useState<{ loginId: string; role: Role } | null>(null);
   const create = useMutation({
     mutationFn: (body: CreateAccountRequest) => api<AccountView>('/admin/accounts', { method: 'POST', body }),
-    onSuccess: async () => {
+    gcTime: 0, // 끝난 요청(비밀번호가 든 변수)을 캐시에 남기지 않는다
+    onSuccess: async (account) => {
+      // 만든 계정 안내만 남기고, 비밀번호가 든 요청 변수는 mutation 상태에서 비운다
+      setCreated({ loginId: account.loginId, role: account.role });
+      create.reset();
       setLoginId('');
       setDisplayName('');
       setPassword('');
@@ -51,6 +58,7 @@ function CreateAccountForm({ merchants }: { merchants: MerchantView[] | undefine
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!ready) return;
+    setCreated(null);
     create.mutate({ loginId, displayName: displayName.trim(), password, role, merchantCode: role === 'MERCHANT' ? merchantCode : null } satisfies CreateAccountRequest);
   };
   return (
@@ -58,7 +66,7 @@ function CreateAccountForm({ merchants }: { merchants: MerchantView[] | undefine
       <h3>계정 만들기</h3>
       <div className="row">
         <input aria-label="새 아이디" placeholder="아이디" autoComplete="off" value={loginId} onChange={(e) => setLoginId(e.target.value.trim())} />
-        <input aria-label="표시 이름" placeholder="표시 이름" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+        <input aria-label="표시 이름" placeholder="표시 이름" maxLength={50} value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
         <input aria-label="처음 비밀번호" placeholder="처음 비밀번호(10자 이상)" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
         <select aria-label="새 역할" value={role} onChange={(e) => setRole(e.target.value as Role)}>
           {ROLES.map((r) => (
@@ -77,10 +85,20 @@ function CreateAccountForm({ merchants }: { merchants: MerchantView[] | undefine
           {p}
         </p>
       ))}
-      <ErrorBox error={create.error} />
-      {create.data ? (
+      {create.error instanceof ApiError && create.error.code === 'DUPLICATE' ? (
+        <div className="error" role="alert">
+          <strong>이미 있는 아이디입니다(대소문자 구분 없음).</strong>
+          <div className="error-detail">
+            {create.error.message}
+            <code> DUPLICATE</code>
+          </div>
+        </div>
+      ) : (
+        <ErrorBox error={create.error} />
+      )}
+      {created ? (
         <p className="ok" role="status">
-          {create.data.loginId} 만듦 · {ROLE_LABEL[create.data.role]}
+          {created.loginId} 만듦 · {ROLE_LABEL[created.role]}
         </p>
       ) : null}
     </form>

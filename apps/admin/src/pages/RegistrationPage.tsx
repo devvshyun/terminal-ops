@@ -38,7 +38,7 @@ export function RegistrationPage() {
     mutationFn: (body: RegisterTerminalRequest) => api<TerminalView>('/terminals', { method: 'POST', body }),
     onSuccess: async () => {
       setSerialNo('');
-      await client.invalidateQueries({ queryKey: keys.terminals.all });
+      await Promise.all([client.invalidateQueries({ queryKey: keys.terminals.all }), client.invalidateQueries({ queryKey: keys.dashboard })]);
     },
   });
   const submitOne = (event: FormEvent) => {
@@ -56,7 +56,7 @@ export function RegistrationPage() {
       return api<TerminalImportView>('/terminals/imports', { method: 'POST', body: form });
     },
     onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: keys.terminals.all });
+      await Promise.all([client.invalidateQueries({ queryKey: keys.terminals.all }), client.invalidateQueries({ queryKey: keys.dashboard })]);
     },
   });
   const result = upload.data;
@@ -69,7 +69,10 @@ export function RegistrationPage() {
       <form className="panel" aria-label="한 대 등록" onSubmit={submitOne}>
         <h3>한 대 등록</h3>
         <div className="row">
-          <input aria-label="시리얼" placeholder="시리얼(예 SN1-000123)" value={serialNo} onChange={(e) => setSerialNo(e.target.value.trim())} />
+          <input aria-label="시리얼" placeholder="시리얼(예 SN1-000123)" value={serialNo} onChange={(e) => {
+              setSerialNo(e.target.value.trim());
+              if (register.data || register.error) register.reset(); // 새 시리얼을 치기 시작하면 앞의 결과는 지운다
+            }} />
           <select aria-label="모델" value={modelCode} onChange={(e) => setModelCode(e.target.value)}>
             <option value="">모델 선택</option>
             {models.data?.map((m) => (

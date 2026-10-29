@@ -18,7 +18,9 @@ type Env = Record<string, unknown>;
 export function otherApps(env: Env = import.meta.env): OtherApp[] {
   const pick = (name: string, fallback: string | null) => {
     const value = env[name];
-    return typeof value === 'string' && value.trim() !== '' ? value.trim() : fallback;
+    const text = typeof value === 'string' ? value.trim() : '';
+    // 링크로 쓰이므로 http·https만 받는다(javascript:·data: 같은 값은 env 실수여도 쓰지 않고 기본값)
+    return /^https?:\/\//i.test(text) ? text : fallback;
   };
   return [
     { key: 'merchant', label: '매장 화면', who: '가맹점주', url: pick('VITE_MERCHANT_APP_URL', 'http://localhost:5174') },

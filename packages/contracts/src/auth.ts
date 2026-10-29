@@ -38,7 +38,7 @@ export interface AccountView extends MeView {
 
 /** POST /admin/accounts */
 export interface CreateAccountRequest {
-  /** 영문 소문자·숫자·`.`·`-`·`_` 3~50자 */
+  /** 영문·숫자·`.`·`-`·`_` 3~50자. 대소문자를 받고 소문자로 저장한다 */
   loginId: string;
   displayName: string;
   /** 10~200자 */
