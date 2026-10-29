@@ -97,6 +97,7 @@ const EXPECTED: Record<string, string> = {
   // 외부 업체(보강 7, decisions/0081)
   'GET /admin/partners': 'ADMIN',
   'POST /admin/partners': 'ADMIN',
+  'GET /admin/partner-calls': 'ADMIN',
 
   // 운영 관제(보강 6, decisions/0070) — 보기는 관제·ADMIN, 관제 작업은 관제만
   'GET /ops/queues': 'ADMIN,MONITOR',

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { AuthGuard, testPrincipal } from '../../src/auth/auth.guard.js';
 import { readCookie } from '../../src/auth/cookies.js';
 import type { PartnerKeyService } from '../../src/auth/partner-key.service.js';
+import type { PartnerCallService } from '../../src/partner/partner-call.service.js';
 import type { SessionStore } from '../../src/auth/session.store.js';
 import { authTestHeadersWarning, resolveAuthTestHeaders } from '../../src/config/auth-test-headers.js';
 
@@ -28,7 +29,7 @@ describe('테스트 전용 인증 헤더 스위치 (decisions/0056)', () => {
 
 describe('HTTP가 아닌 요청(Task 2 리뷰)', () => {
   it('ws·rpc 등 HTTP가 아닌 실행 문맥은 기본 거부(false) — 붙일 때 규칙을 따로 정한다', async () => {
-    const guard = new AuthGuard(new Reflector(), {} as SessionStore, {} as PartnerKeyService);
+    const guard = new AuthGuard(new Reflector(), {} as SessionStore, {} as PartnerKeyService, {} as PartnerCallService);
     for (const type of ['rpc', 'ws']) {
       expect(await guard.canActivate({ getType: () => type } as unknown as ExecutionContext)).toBe(false);
     }

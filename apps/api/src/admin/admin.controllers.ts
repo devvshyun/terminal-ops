@@ -1,12 +1,13 @@
 import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
-import type { AccountView, CreatedPartnerKeyView, PartnerKeyView, PartnerView } from '@terminal-ops/contracts';
+import type { AccountView, BeforeIdPage, CreatedPartnerKeyView, PartnerCallView, PartnerKeyView, PartnerView } from '@terminal-ops/contracts';
 import { Roles } from '../auth/access.js';
 import { AccountService } from '../auth/account.service.js';
 import { PartnerKeyService } from '../auth/partner-key.service.js';
 import { Role } from '../auth/role.js';
 import { Operator } from '../common/operator.decorator.js';
+import { PartnerCallService } from '../partner/partner-call.service.js';
 import { PartnerService } from '../partner/partner.service.js';
-import { CreateAccountDto, CreatePartnerDto, CreatePartnerKeyDto, PartnerKeysQuery, UpdateAccountDto } from './admin.dto.js';
+import { CreateAccountDto, CreatePartnerDto, CreatePartnerKeyDto, PartnerCallsQuery, PartnerKeysQuery, UpdateAccountDto } from './admin.dto.js';
 
 /** 계정·역할 관리(ADMIN만, decisions/0052). 화면은 Bundle 7 이후 — 지금은 API와 테스트까지 */
 @Controller('admin/accounts')
@@ -74,5 +75,17 @@ export class AdminPartnerKeysController {
   @HttpCode(200)
   revoke(@Param('id', ParseIntPipe) id: number): Promise<PartnerKeyView> {
     return this.keys.revoke(id);
+  }
+}
+
+/** 외부용 API 호출 기록(ADMIN만, 보강 7, decisions/0082). 최근부터 beforeId 키셋 */
+@Controller('admin/partner-calls')
+export class AdminPartnerCallsController {
+  constructor(private readonly calls: PartnerCallService) {}
+
+  @Get()
+  @Roles(Role.ADMIN)
+  list(@Query() query: PartnerCallsQuery): Promise<BeforeIdPage<PartnerCallView>> {
+    return this.calls.list(query);
   }
 }

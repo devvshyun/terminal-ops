@@ -216,3 +216,5 @@
 - [ ] 가변 글꼴 축(`wght`)과 `font-weight` 애니메이션 비용 — 굵기를 바꾸면 줄 바꿈·레이아웃이 다시 계산되나, `font-variation-settings`와 무엇이 다른가 (apps/landing/src/main.ts, decisions/0078)
 - [ ] GSAP ScrollTrigger `pin`·`scrub`·`invalidateOnRefresh`와 `matchMedia` 정리 함수 — 창 크기가 바뀔 때 고정 구간 길이를 다시 재는 방법 (apps/landing/src/main.ts)
 - MySQL 8 윈도 함수 `row_number() over (order by min(id))`를 group by와 함께 쓰는 순서(집계 뒤 윈도) — `apps/api/src/migrations/Migration20261029061906.ts`, decisions/0081
+- Express `res`의 'finish'와 'close' 차이(응답을 다 보냄 vs 연결이 닫힘), Nest 가드·인터셉터·필터 실행 순서와 가드 예외가 인터셉터를 건너뛰는 이유 — `apps/api/src/auth/auth.guard.ts`, decisions/0082
+- `EXPLAIN ANALYZE`의 actual time 두 숫자(첫 행까지·끝까지)와 첫 실행이 느린 이유(버퍼 풀) — docs/experiments/0019

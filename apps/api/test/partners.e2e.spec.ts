@@ -84,6 +84,8 @@ describe('외부 업체 등록과 업체별 키 (보강 7, decisions/0081)', () 
     const list = (await withCookie(t, admin).get('/admin/partners')).body as { code: string; activeKeys: number; totalKeys: number; lastUsedAt: string | null }[];
     const rowA = list.find((p) => p.code === 'COUNT-A')!;
     expect([rowA.activeKeys, rowA.totalKeys]).toEqual([1, 3]);
+    // 업체 목록은 원시 SQL로 읽는다 — 엔티티로 읽은 키의 시각과 같아야 한다(시간대가 어긋나지 않게)
+    expect(rowA.lastUsedAt).toBe(onlyA.body.find((k: { name: string }) => k.name === '하나').lastUsedAt);
     expect(rowA.lastUsedAt).not.toBeNull();
     expect(list.find((p) => p.code === 'COUNT-B')).toMatchObject({ activeKeys: 1, totalKeys: 1, lastUsedAt: null });
   });
