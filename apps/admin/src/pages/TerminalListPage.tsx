@@ -2,12 +2,36 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
 import { api } from '../api/client';
-import type { MerchantView, TerminalModelView, TerminalPage } from '@terminal-ops/contracts';
+import type { DashboardView, MerchantView, TerminalModelView, TerminalPage } from '@terminal-ops/contracts';
 import { ErrorBox } from '../components/ErrorBox';
+import { StatusBadge } from '../components/StatusBadge';
 import { formatKst } from '../lib/format';
 import { label, TERMINAL_STATUS_LABEL, TERMINAL_STATUSES } from '../lib/labels';
 import { keys } from '../api/query-keys';
 import { hasRole, OFFICE, useMe } from '../session';
+
+/**
+ * 상태 칩(decisions/0079): 처음 화면 집계(GET /dashboard/summary — 30초 캐시)의 상태별 수를 칩으로 보이고, 누르면 그 상태로 거른다.
+ * 수는 **전체 기준**(지금 검색 조건과 상관없다)이라 칩 옆에 적는다. 집계는 사무실 역할만 부를 수 있어 그 밖의 역할에는 칩이 없다.
+ */
+function StatusChips({ active, onPick }: { active: string; onPick: (status: string) => void }) {
+  const summary = useQuery({ queryKey: keys.dashboard, queryFn: () => api<DashboardView>('/dashboard/summary') });
+  if (!summary.data) return null;
+  return (
+    <div className="chips" role="group" aria-label="상태로 거르기">
+      <button type="button" aria-pressed={active === ''} onClick={() => onPick('')}>
+        전체<b>{summary.data.terminals.total.toLocaleString()}</b>
+      </button>
+      {summary.data.terminals.byStatus.map((s) => (
+        <button key={s.status} type="button" aria-pressed={active === s.status} onClick={() => onPick(s.status)}>
+          {label(TERMINAL_STATUS_LABEL, s.status)}
+          <b>{s.count.toLocaleString()}</b>
+        </button>
+      ))}
+      <span className="hint">수는 검색 조건과 상관없는 전체 기준입니다(최대 30초 전 집계)</span>
+    </div>
+  );
+}
 
 const SIZE = 20;
 const FILTERS = ['status', 'modelCode', 'merchantCode', 'q'] as const;
@@ -41,6 +65,16 @@ export function TerminalListPage() {
     for (const k of FILTERS) if (draft[k].trim()) next.set(k, draft[k].trim());
     setParams(next); // 조건이 바뀌면 1쪽부터
   };
+  /** 칩: 상태만 바꿔 1쪽부터(다른 조건은 그대로) */
+  const pickStatus = (status: string) => {
+    const next = new URLSearchParams();
+    for (const k of FILTERS) {
+      const v = k === 'status' ? status : filter[k];
+      if (v) next.set(k, v);
+    }
+    setParams(next);
+  };
+  const merchantName = new Map((merchants.data ?? []).map((m) => [m.code, m.name]));
   const goto = (p: number) => {
     const next = new URLSearchParams(params);
     next.set('page', String(p));
@@ -91,11 +125,12 @@ export function TerminalListPage() {
           검색
         </button>
       </form>
+      {canSeeMerchants ? <StatusChips active={filter.status} onPick={pickStatus} /> : null}
       <ErrorBox error={list.error} />
       {list.data ? (
         <>
           <p className="muted">총 {list.data.total.toLocaleString()}대</p>
-          <table>
+          <table className="rows-linked">
             <thead>
               <tr>
                 <th scope="col">시리얼</th>
@@ -108,13 +143,24 @@ export function TerminalListPage() {
             <tbody>
               {list.data.items.map((t) => (
                 <tr key={t.serialNo}>
-                  <td>
+                  <td className="serial">
                     <Link to={`/terminals/${encodeURIComponent(t.serialNo)}`}>{t.serialNo}</Link>
                   </td>
                   <td>{t.modelCode}</td>
-                  <td>{label(TERMINAL_STATUS_LABEL, t.status)}</td>
-                  <td>{t.merchantCode ?? '-'}</td>
-                  <td>{formatKst(t.statusChangedAt)}</td>
+                  <td>
+                    <StatusBadge status={t.status} />
+                  </td>
+                  <td>
+                    {t.merchantCode ? (
+                      <>
+                        {merchantName.get(t.merchantCode) ?? t.merchantCode}
+                        {merchantName.has(t.merchantCode) ? <span className="mono muted"> {t.merchantCode}</span> : null}
+                      </>
+                    ) : (
+                      '-'
+                    )}
+                  </td>
+                  <td className="time">{formatKst(t.statusChangedAt)}</td>
                 </tr>
               ))}
               {list.data.items.length === 0 ? (

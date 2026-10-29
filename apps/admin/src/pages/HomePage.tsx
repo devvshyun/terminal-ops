@@ -7,15 +7,66 @@ import type { DashboardView } from '@terminal-ops/contracts';
 import { ErrorBox } from '../components/ErrorBox';
 import { useNow } from '../hooks/useNow';
 import { ageText, formatKst } from '../lib/format';
-import { label, TERMINAL_STATUS_LABEL } from '../lib/labels';
+import { label, STAGES, STATUS_STAGE, TERMINAL_STATUS_LABEL } from '../lib/labels';
 
 /** 카드 하나(제목이 영역 이름 — 화면 읽기 도구와 테스트가 이름으로 찾는다) */
-function Card({ title, children }: { title: string; children: ReactNode }) {
+function Card({ title, className, children }: { title: string; className?: string; children: ReactNode }) {
   const id = useId(); // 제목에 공백이 있어 aria-labelledby용 id로 쓰지 않는다(공백이 id 목록 구분자)
   return (
-    <section className="card" aria-labelledby={id}>
+    <section className={className ? `card ${className}` : 'card'} aria-labelledby={id}>
       <h4 id={id}>{title}</h4>
       {children}
+    </section>
+  );
+}
+
+/** 비율 막대(장식 — 같은 수가 글자로 옆에 있다). 0인 칸은 그리지 않는다 */
+function Bar({ className, parts }: { className: string; parts: { key: string; value: number; fill: string }[] }) {
+  return (
+    <div className={className} aria-hidden="true">
+      {parts
+        .filter((p) => p.value > 0)
+        .map((p) => (
+          <span key={p.key} className={p.fill} style={{ flexGrow: p.value }} />
+        ))}
+    </div>
+  );
+}
+
+/**
+ * 지금 볼 것(decisions/0079): 오래 오프라인·배송 뒤 설치 안 됨(열린 이상의 규칙별 수)과 최근 VAN 대조의 어긋남. 새 집계 없이 같은 응답에서 고른다.
+ * 0이면 초록 테두리로 "괜찮음"을 보인다. 이름은 서버가 주는 규칙 이름(label) 그대로
+ */
+const WATCHED_RULES = [
+  { rule: 'OFFLINE_TOO_LONG', fallback: '오래 오프라인', tone: '' },
+  { rule: 'DELIVERED_NOT_INSTALLED', fallback: '배송 뒤 설치 안 됨', tone: 'warn' },
+] as const;
+
+function Attention({ data }: { data: DashboardView }) {
+  return (
+    <section className="attention" aria-label="지금 볼 것">
+      {WATCHED_RULES.map((w) => {
+        const r = data.anomalies.byRule.find((x) => x.rule === w.rule);
+        const n = r?.open ?? 0;
+        return (
+          <div key={w.rule} className={n === 0 ? 'calm' : w.tone}>
+            <strong>{r?.label ?? w.fallback}</strong>
+            <span className="count">
+              {n}
+              <small>대</small>
+            </span>
+            <Link to="/reports/anomalies">이상 단말기에서 보기 →</Link>
+          </div>
+        );
+      })}
+      <div className={data.van && data.van.confirmed > 0 ? 'warn' : 'calm'}>
+        <strong>VAN 어긋남</strong>
+        <span className="count">
+          {data.van?.confirmed ?? 0}
+          <small>건</small>
+        </span>
+        {data.van ? <Link to={`/reports/van/${data.van.runId}`}>대조 결과 보기 →</Link> : <span className="muted">대조 기록 없음</span>}
+      </div>
     </section>
   );
 }
@@ -23,62 +74,79 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
 /** 운영 현황 카드들. 숫자는 서버가 집계한 값 그대로(화면은 세지 않는다) */
 function Dashboard({ data }: { data: DashboardView }) {
   const { terminals, connectivity, anomalies, van } = data;
+  const byStage = STAGES.map((stage) => ({
+    key: stage,
+    value: terminals.byStatus.filter((s) => STATUS_STAGE[s.status] === stage).reduce((sum, s) => sum + s.count, 0),
+    fill: `stage-fill-${stage}`,
+  }));
   return (
-    <div className="cards">
-      <Card title="단말기">
-        <p className="big">{terminals.total}대</p>
-        <ul className="plain">
-          {terminals.byStatus.map((s) => (
-            <li key={s.status}>
-              {label(TERMINAL_STATUS_LABEL, s.status)} {s.count}
-            </li>
-          ))}
-        </ul>
-        <p className="muted">{terminals.byModel.map((m) => `${m.modelCode} ${m.count}`).join(' · ')}</p>
-        <Link to="/terminals">단말기 목록</Link>
-      </Card>
-      <Card title="접속 상태">
-        <p className="big">운영 중 {connectivity.inService}대</p>
-        <p>
-          온라인 {connectivity.online} · 오프라인 {connectivity.offline} · 기록 없음 {connectivity.noRecord}
-        </p>
-      </Card>
-      <Card title="열린 이상">
-        <p className="big">{anomalies.open}건</p>
-        <ul className="plain">
-          {anomalies.byRule.map((r) => (
-            <li key={r.rule}>
-              {r.label} {r.open}
-            </li>
-          ))}
-        </ul>
-        <Link to="/reports/anomalies">이상 단말기 보기</Link>
-      </Card>
-      <Card title="진행 중 배포">
-        <p className="big">{data.rollouts.active}건</p>
-        <Link to="/firmware-rollouts">펌웨어 배포 보기</Link>
-      </Card>
-      <Card title="열린 A/S">
-        <p className="big">{data.serviceTickets.open}건</p>
-        <Link to="/service-tickets">A/S 보기</Link>
-      </Card>
-      <Card title="최근 VAN 대조">
-        {van ? (
-          <>
-            <p className="big">어긋남 {van.confirmed}건</p>
-            <p>
-              <Link to={`/reports/van/${van.runId}`} aria-label={`VAN 대조 #${van.runId} 상세`}>#{van.runId}</Link> {formatKst(van.finishedAt)} 끝
-            </p>
+    <>
+      <Attention data={data} />
+      <div className="cards">
+        <Card title="단말기" className="wide">
+          <p className="big">{terminals.total}대</p>
+          <Bar className="life-bar" parts={byStage} />
+          <ul className="plain life-legend">
+            {terminals.byStatus.map((s) => (
+              <li key={s.status} className={`stage-fill-${STATUS_STAGE[s.status]}`}>
+                {label(TERMINAL_STATUS_LABEL, s.status)} {s.count}
+              </li>
+            ))}
+          </ul>
+          <p className="muted">{terminals.byModel.map((m) => `${m.modelCode} ${m.count}`).join(' · ')}</p>
+          <Link to="/terminals">단말기 목록</Link>
+        </Card>
+        <Card title="접속 상태" className="half">
+          <p className="big">운영 중 {connectivity.inService}대</p>
+          <Bar
+            className="conn-bar"
+            parts={[
+              { key: 'online', value: connectivity.online, fill: 'stage-fill-live' },
+              { key: 'offline', value: connectivity.offline, fill: 'stage-fill-bad' },
+              { key: 'none', value: connectivity.noRecord, fill: 'stage-fill-intake' },
+            ]}
+          />
+          <p>
+            온라인 {connectivity.online} · 오프라인 {connectivity.offline} · 기록 없음 {connectivity.noRecord}
+          </p>
+        </Card>
+        <Card title="열린 이상">
+          <p className="big">{anomalies.open}건</p>
+          <ul className="plain">
+            {anomalies.byRule.map((r) => (
+              <li key={r.rule}>
+                {r.label} {r.open}
+              </li>
+            ))}
+          </ul>
+          <Link to="/reports/anomalies">이상 단말기 보기</Link>
+        </Card>
+        <Card title="진행 중 배포">
+          <p className="big">{data.rollouts.active}건</p>
+          <Link to="/firmware-rollouts">펌웨어 배포 보기</Link>
+        </Card>
+        <Card title="열린 A/S">
+          <p className="big">{data.serviceTickets.open}건</p>
+          <Link to="/service-tickets">A/S 보기</Link>
+        </Card>
+        <Card title="최근 VAN 대조">
+          {van ? (
+            <>
+              <p className="big">어긋남 {van.confirmed}건</p>
+              <p>
+                <Link to={`/reports/van/${van.runId}`} aria-label={`VAN 대조 #${van.runId} 상세`}>#{van.runId}</Link> {formatKst(van.finishedAt)} 끝
+              </p>
           </>
-        ) : (
-          <p>없음</p>
-        )}
-      </Card>
-      <Card title="이번 주 전이">
-        <p className="big">{data.week.transitions}건</p>
-        <p className="muted">{data.week.weekStart}(월)부터</p>
-      </Card>
-    </div>
+          ) : (
+            <p>없음</p>
+          )}
+        </Card>
+        <Card title="이번 주 전이">
+          <p className="big">{data.week.transitions}건</p>
+          <p className="muted">{data.week.weekStart}(월)부터</p>
+        </Card>
+      </div>
+    </>
   );
 }
 

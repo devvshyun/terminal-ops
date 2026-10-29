@@ -15,7 +15,10 @@ export function Shell() {
   return (
     <>
       <header className="top">
-        <strong className="app-name">단말온 운영 관제</strong>
+        <strong className="app-name">
+          <span className="brand-mark" aria-hidden="true" />
+          단말온 운영 관제
+        </strong>
         <nav className="menu" aria-label="메뉴">
           <NavLink to="/" end>
             대시보드
