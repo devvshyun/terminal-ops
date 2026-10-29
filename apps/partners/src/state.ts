@@ -1,3 +1,4 @@
+import { RequestLog } from './requests.js';
 import { createRng } from './rng.js';
 
 export interface BungaeConfig {
@@ -190,6 +191,8 @@ export class PartnersState {
   vanTids: string[] = [];
   vanBySerial = new Map<string, string>();
   stats: Stats = emptyStats();
+  /** 업체가 받은 최근 요청(시연 도구용, 보강 8) */
+  requests = new RequestLog();
   private inFlight = new Map<string, number>();
 
   reset(): void {
@@ -207,6 +210,7 @@ export class PartnersState {
     this.vanTids = [];
     this.vanBySerial.clear();
     this.stats = emptyStats();
+    this.requests.clear();
     this.inFlight.clear();
   }
 

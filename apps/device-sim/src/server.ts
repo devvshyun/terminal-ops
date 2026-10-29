@@ -61,6 +61,16 @@ async function route(fleet: Fleet, serialize: Serialize, req: IncomingMessage, r
       return sendJson(res, 200, publicConfig(fleet.config));
     });
   }
+  if (method === 'GET' && path === '/__admin/devices') {
+    // 시연 도구의 단말기 표(보강 8): 수 넷 + 시리얼 순 앞 limit대(1~1000 정수, 기본 100)
+    const raw = new URL(req.url ?? '/', 'http://device-sim').searchParams.get('limit');
+    const limit = raw === null ? 100 : Number(raw);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 1000) return sendJson(res, 400, { error: 'BAD_REQUEST', message: 'limit은 1~1000 정수입니다.' });
+    const all = [...fleet.devices.values()].sort((a, b) => (a.serialNo < b.serialNo ? -1 : a.serialNo > b.serialNo ? 1 : 0));
+    const offline = all.filter((d) => d.offline).length;
+    const updating = all.filter((d) => d.updating).length;
+    return sendJson(res, 200, { total: all.length, online: all.length - offline, offline, updating, items: all.slice(0, limit) });
+  }
   if (method === 'GET' && path === '/__admin/stats') return sendJson(res, 200, { running: fleet.running, ...fleet.stats.view() });
   if (method === 'GET' && (m = path.match(/^\/__admin\/devices\/([^/]+)$/))) {
     const device = fleet.devices.get(decodeURIComponent(m[1]));
