@@ -345,6 +345,16 @@ th {
   color: var(--muted);
 }
 
+/* 빈 표: 머리줄만 남지 않게 빈 줄 하나(CSS만). 불러오는 중에도 tbody가 비어 있어서 '없음' 같은 문구 대신 대시만 */
+tbody:empty::after {
+  content: '—';
+  display: block;
+  padding: 14px 12px;
+  color: var(--muted);
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+
 tbody tr {
   transition: background-color 120ms ease-out;
 }

@@ -346,6 +346,14 @@ th {
   border-bottom-color: var(--line);
 }
 
+/* 빈 표: 머리줄만 남지 않게 빈 줄 하나(어드민과 같은 규칙) */
+tbody:empty::after {
+  content: '—';
+  display: block;
+  padding: 12px 14px;
+  color: var(--dim);
+}
+
 tbody tr:hover > td {
   background: #152035;
 }
