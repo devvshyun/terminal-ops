@@ -85,7 +85,9 @@ export function HomePage() {
         {tickets.error ? <ErrorBox error={tickets.error} /> : null}
         {!tickets.data && !tickets.error ? <p className="muted">불러오는 중…</p> : null}
         {tickets.data && openTickets.length === 0 ? <p className="muted">진행 중인 A/S가 없습니다.</p> : null}
-        {openTickets.map((t) => (
+        {openTickets.map((t) => {
+          const steps = ticketSteps(t);
+          return (
           <Link key={t.id} className="card" to={`/service-tickets/${t.id}`}>
             <div className="card-head">
               <strong>A/S #{t.id}</strong>
@@ -94,10 +96,11 @@ export function HomePage() {
             <div className="muted">
               {t.serialNo} · {t.symptom}
             </div>
-            <StepBar steps={ticketSteps(t)} />
-            <div>지금 단계: {currentStep(ticketSteps(t))}</div>
+            <StepBar steps={steps} />
+            <div>지금 단계: {currentStep(steps)}</div>
           </Link>
-        ))}
+          );
+        })}
       </section>
       </div>
 

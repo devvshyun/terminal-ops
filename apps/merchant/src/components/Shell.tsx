@@ -24,22 +24,22 @@ export function Shell() {
             <small>{me?.displayName}</small>
           </div>
         </div>
-        {/* 메뉴는 위 띠 안에 둔다: 휴대폰에서는 화면 아래에 붙고(position: fixed), 넓은 화면에서는 위 띠 가운데 메뉴가 된다(decisions/0077) */}
-        <nav className="tabs" aria-label="메뉴">
-          <NavLink to="/" end>
-            <HomeIcon />
-            홈
-          </NavLink>
-          <NavLink to="/service-tickets">
-            <ServiceIcon />
-            A/S
-          </NavLink>
-        </nav>
         <LogoutButton />
       </header>
       <main className="page">
         <Outlet />
       </main>
+      {/* 메뉴는 본문 뒤(읽는 순서 = 휴대폰 화면 순서: 위 띠 → 화면 → 아래 탭). 넓은 화면에서는 CSS 그리드로 위 띠와 같은 칸에 겹쳐 가운데 메뉴가 된다(decisions/0077) */}
+      <nav className="tabs" aria-label="메뉴">
+        <NavLink to="/" end>
+          <HomeIcon />
+          홈
+        </NavLink>
+        <NavLink to="/service-tickets">
+          <ServiceIcon />
+          A/S
+        </NavLink>
+      </nav>
     </div>
   );
 }

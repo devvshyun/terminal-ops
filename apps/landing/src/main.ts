@@ -83,12 +83,13 @@ function flap(el: HTMLElement) {
 function motion() {
   gsap.registerPlugin(ScrollTrigger, SplitText);
 
-  // 처음 제목: 줄마다 아래에서 올라온다(열자마자 — 스크롤을 기다리지 않는다)
+  // 처음 제목: 줄마다 아래에서 올라온다(열자마자 — 스크롤을 기다리지 않는다). 끝나면 나눈 줄을 되돌린다(창 크기가 바뀌어도 줄 바꿈이 다시 계산되게)
   const title = document.querySelector('.hero-title')!;
   const split = SplitText.create(title.querySelectorAll('.ht-line'), { type: 'lines', mask: 'lines' });
-  gsap.from(split.lines, { yPercent: 105, duration: 1.1, ease: 'expo.out', stagger: 0.09, delay: 0.1 });
+  document.documentElement.classList.remove('motion-wait');
+  gsap.from(split.lines, { yPercent: 105, duration: 1.1, ease: 'expo.out', stagger: 0.09, delay: 0.1, onComplete: () => split.revert() });
   gsap.from('.hero-lead, .stack, .eyebrow', { y: 18, opacity: 0, duration: 0.9, ease: 'power3.out', delay: 0.55, stagger: 0.08 });
-  gsap.from('.hero-phone', { y: 80, duration: 1.4, ease: 'expo.out', delay: 0.35 });
+  gsap.from('.hero-phone img', { y: 80, duration: 1.4, ease: 'expo.out', delay: 0.35 });
   flap(document.querySelector<HTMLElement>('[data-flap]')!);
 
   // "일생을": 열리면 가는 획에서 굵은 획으로 한 번(가변 글꼴 wght 200 → 800). "기록합니다."는 스크롤에 따라 굵어진다(300 → 700)
@@ -101,7 +102,7 @@ function motion() {
   // 구간 제목: 줄마다 가림막 안에서 올라온다(화면에 들어올 때 한 번)
   document.querySelectorAll<HTMLElement>('.display, .pull p').forEach((h) => {
     const lines = SplitText.create(h.matches('.display') ? h.children : h, { type: 'lines', mask: 'lines' });
-    gsap.from(lines.lines, { yPercent: 105, duration: 1, ease: 'expo.out', stagger: 0.08, scrollTrigger: { trigger: h, start: 'top 85%', once: true } });
+    gsap.from(lines.lines, { yPercent: 105, duration: 1, ease: 'expo.out', stagger: 0.08, scrollTrigger: { trigger: h, start: 'top 85%', once: true }, onComplete: () => lines.revert() });
   });
   gsap.utils.toArray<HTMLElement>('.lead, .roles div, .stat, .record-list li').forEach((el) => {
     gsap.from(el, { y: 28, opacity: 0, duration: 0.9, ease: 'power3.out', scrollTrigger: { trigger: el, start: 'top 90%', once: true } });
@@ -155,10 +156,17 @@ function motion() {
 
 fill();
 bar();
-// 글꼴이 다 온 뒤에 줄을 나눈다(글꼴이 바뀌면 줄 바꿈 자리가 달라진다)
+// 글꼴이 온 뒤에 줄을 나눈다(글꼴이 바뀌면 줄 바꿈 자리가 달라진다). 그동안 처음 화면 글은 숨겨 두고(.motion-wait),
+// 글꼴이 1.5초 안에 오지 않으면 기다리지 않는다(느린 연결에서 빈 화면이 오래가지 않게)
 if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-  void document.fonts.ready.then(() => {
-    motion();
-    ScrollTrigger.refresh();
+  document.documentElement.classList.add('motion-wait');
+  const late = new Promise((done) => setTimeout(done, 1500));
+  void Promise.race([document.fonts.ready, late]).then(() => {
+    try {
+      motion();
+      ScrollTrigger.refresh();
+    } finally {
+      document.documentElement.classList.remove('motion-wait'); // 움직임이 실패해도 글은 보이게
+    }
   });
 }

@@ -443,9 +443,16 @@ a {
   display: flex;
   gap: 18px;
   margin: 0;
-  padding: 0 var(--gutter);
+  padding: 0 var(--gutter) 12px;
   list-style: none;
   counter-reset: stage;
+  /* 기본은 옆으로 미는 목록(움직임이 꺼져 있거나 스크립트가 없어도 아홉 장 모두 닿는다). 고정·가로 이동은 .pinned일 때만 */
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+}
+
+.life-list .stage {
+  scroll-snap-align: start;
 }
 
 .stage {
@@ -544,20 +551,9 @@ a {
 }
 
 /* 휴대폰: 가로로 넘기지 않고 손가락으로 옆으로 민다 */
-@media (max-width: 860px) {
-  .life-list {
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    padding-bottom: 12px;
-  }
-
-  .stage {
-    scroll-snap-align: start;
-  }
-
-  .life-progress {
-    display: none;
-  }
+/* 진행 막대는 고정·가로 이동할 때만 뜻이 있다 */
+.life:not(.pinned) .life-progress {
+  display: none;
 }
 
 /* ───── 3. 세 화면 ───── */
@@ -969,7 +965,17 @@ a {
 
 /* 넓은 화면 + 움직임 켬: 생애주기를 고정해 두고 카드 줄을 가로로 민다(main.ts가 .pinned를 붙인다) */
 .life.pinned .life-list {
+  overflow: visible;
+  scroll-snap-type: none;
   will-change: transform;
+}
+
+/* 움직임이 켜진 동안 처음 화면 글은 등장 애니메이션이 시작할 때까지 숨긴다(글꼴을 기다리다 보였다 사라지는 깜빡임을 막는다, main.ts) */
+.motion-wait .hero-title,
+.motion-wait .hero-lead,
+.motion-wait .stack,
+.motion-wait .hero .eyebrow {
+  visibility: hidden;
 }
 
 @media (prefers-reduced-motion: reduce) {

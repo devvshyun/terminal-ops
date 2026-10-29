@@ -626,23 +626,39 @@ legend {
 }
 
 @media (min-width: 900px) {
+  /* 위 띠·본문·메뉴를 한 그리드에: 메뉴(nav, 마크업은 본문 뒤)를 위 띠와 같은 칸에 겹쳐 가운데에 둔다 */
   .shell {
     max-width: none;
     padding-bottom: 32px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
   }
 
   .top {
+    grid-row: 1;
+    grid-column: 1;
     padding: 12px max(32px, calc((100% - 1120px) / 2));
     gap: 24px;
     flex-wrap: nowrap;
   }
 
+  .page {
+    grid-row: 2;
+  }
+
   .tabs {
-    position: static;
+    grid-row: 1;
+    grid-column: 1;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    align-self: stretch;
+    justify-self: center;
+    align-items: center;
     transform: none;
     width: auto;
     max-width: none;
-    margin-right: auto;
     gap: 4px;
     background: none;
     border: 0;
