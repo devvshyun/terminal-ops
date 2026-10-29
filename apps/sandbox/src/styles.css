@@ -1,0 +1,945 @@
+/*
+ * 시연 도구 전역 CSS 한 장(UI 라이브러리 없음 — decisions/0041·0084). 개발자센터 styles.css에서 시작해(같은 토큰 0077, 위 잉크 막대)
+ * 업체 카드·손잡이·통계 칸을 더했다. 장애가 켜진 업체 카드는 왼쪽 빨간 띠.
+ */
+@import '@fontsource/ibm-plex-sans-kr/400.css';
+@import '@fontsource/ibm-plex-sans-kr/700.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/600.css';
+
+:root {
+  --ink: #16233a;
+  --ink-2: #1d2c47;
+  --ink-3: #24365a;
+  --ink-sub: #a9b6cf;
+  --signal: #2f6bff;
+  --signal-soft: #e8eefc;
+  --fg: #121826;
+  --muted: #586174;
+  --line: #dde2ea;
+  --line-soft: #edf0f4;
+  --bg: #f2f4f7;
+  --panel: #ffffff;
+  --panel-2: #f7f8fa;
+  --danger: #d0342c;
+  --danger-soft: #fdeae8;
+  --ok: #138a4e;
+  --ok-soft: #e3f4ea;
+  --warn: #8a5300;
+  --warn-soft: #fff2dc;
+  --font: 'IBM Plex Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  /* 한국어는 낱말 중간에서 줄을 바꾸지 않는다 */
+  word-break: keep-all;
+}
+
+a {
+  color: var(--signal);
+}
+
+code,
+.mono {
+  font-family: var(--mono);
+}
+
+code {
+  font-size: 0.92em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--line-soft);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ───── 위 막대 ───── */
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  min-height: 56px;
+  padding: 8px 28px;
+  background: var(--ink);
+  color: #fff;
+}
+
+.top .app-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+}
+
+.brand-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--signal);
+  display: grid;
+  place-items: center;
+}
+
+.brand-mark::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.top .menu {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+}
+
+.top .menu a {
+  white-space: nowrap;
+  color: var(--ink-sub);
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 7px;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+
+.top .menu a:hover {
+  color: #fff;
+  background: var(--ink-2);
+}
+
+.top .menu a.active {
+  color: #fff;
+  background: var(--ink-3);
+  font-weight: 700;
+}
+
+.top .who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.top .who small {
+  color: var(--ink-sub);
+}
+
+.top .who button {
+  background: transparent;
+  color: #dbe3f2;
+  border-color: var(--ink-3);
+}
+
+/* ───── 화면 ───── */
+.page {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 24px 28px 64px;
+}
+
+.page.narrow {
+  max-width: 420px;
+}
+
+h1 {
+  font-size: 24px;
+  letter-spacing: -0.01em;
+  margin: 4px 0 6px;
+}
+
+h2 {
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+
+h2 small {
+  font-weight: 400;
+  font-size: 13px;
+}
+
+h3 {
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+
+.lead {
+  max-width: 80ch;
+  margin: 0 0 20px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.block {
+  display: block;
+}
+
+.strong {
+  font-weight: 600;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.back {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--signal);
+}
+
+.partner-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.tag {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--signal-soft);
+  color: #1d4fd1;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.section {
+  margin-top: 28px;
+}
+
+/* 표 + 오른쪽 폼 */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  align-items: start;
+}
+
+.split > * {
+  min-width: 0; /* 격자 칸이 안의 넓은 표만큼 늘어나지 않게(표는 좁은 화면에서 옆으로 민다) */
+}
+
+@media (max-width: 960px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.panel > table {
+  margin: -16px;
+  width: calc(100% + 32px);
+  border: 0;
+}
+
+.panel > .new-key + table,
+.panel > .error + table {
+  margin-top: 0;
+}
+
+.empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* ───── 폼 ───── */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form h2,
+.form h3 {
+  margin: 0;
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.form fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form legend {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.form label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+  font-size: 14px;
+}
+
+.form label.check {
+  align-items: flex-start;
+}
+
+.form label.check input {
+  margin-top: 2px;
+}
+
+.form label.check code {
+  margin-top: 2px;
+  width: fit-content;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.hint {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.hint.bad {
+  color: var(--danger);
+}
+
+input,
+select {
+  font: inherit;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--fg);
+}
+
+input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--signal);
+}
+
+button {
+  font: inherit;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--fg);
+  cursor: pointer;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--signal);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button.primary {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: #fff;
+  font-weight: 700;
+}
+
+button.primary:hover:not(:disabled) {
+  background: #1f58e6;
+}
+
+button.danger {
+  color: var(--danger);
+  border-color: #f0c4c0;
+}
+
+button.danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+button.more {
+  margin-top: 12px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.login {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 64px;
+  padding: 28px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.login label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ───── 표 ───── */
+table {
+  position: relative; /* 안의 .sr-only(absolute)가 표 밖 문서 폭을 늘리지 않게 — 좁은 화면에서 옆으로 밀린 칸 */
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: top;
+}
+
+th {
+  background: var(--panel-2);
+  border-bottom-color: var(--line);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+tbody tr:last-child > td {
+  border-bottom: 0;
+}
+
+tbody tr:hover > td {
+  background: #f8faff;
+}
+
+tbody:empty::after {
+  content: '—';
+  display: block;
+  padding: 14px;
+  color: var(--muted);
+}
+
+td.num,
+th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+td.num {
+  font-family: var(--mono);
+}
+
+td.time {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+td.ago {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+tr.dim > td {
+  color: var(--muted);
+}
+
+.method {
+  display: inline-block;
+  min-width: 40px;
+  font-weight: 600;
+  color: var(--signal);
+}
+
+/* 상태 코드: 2xx 초록 · 4xx 노랑 · 5xx 빨강 */
+.code {
+  display: inline-block;
+  min-width: 42px;
+  padding: 1px 8px;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-weight: 600;
+  text-align: center;
+}
+
+.code-2xx {
+  color: var(--ok);
+  background: var(--ok-soft);
+}
+
+.code-4xx {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.code-5xx {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+/* 키 상태 */
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.state::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.state-active {
+  color: var(--ok);
+}
+
+.state-revoked {
+  color: var(--danger);
+}
+
+.state-expired {
+  color: var(--muted);
+}
+
+/* 방금 발급한 키 — 한 번만 보이는 상자 */
+.new-key {
+  margin: -16px -16px 16px;
+  padding: 16px;
+  background: #fffbea;
+  border-bottom: 1px solid #f1dc9a;
+  border-radius: 12px 12px 0 0;
+}
+
+.new-key p {
+  margin: 4px 0 10px;
+  color: var(--warn);
+}
+
+.raw-key {
+  display: block;
+  padding: 10px 12px;
+  background: var(--ink);
+  border: 0;
+  color: #e9efff;
+  border-radius: 8px;
+  font-size: 13px;
+  word-break: break-all;
+  user-select: all;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.push {
+  margin-left: auto;
+}
+
+.ok-text {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.bad-text {
+  color: var(--danger);
+}
+
+/* ───── 연동 문서 ───── */
+.auth {
+  margin-bottom: 20px;
+}
+
+.auth p {
+  margin: 0;
+}
+
+.op {
+  margin-top: 20px;
+  padding: 18px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.op h2 {
+  overflow-wrap: anywhere; /* 긴 경로는 좁은 화면에서 / 사이에서 끊긴다 */
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+
+.op > p {
+  margin: 0 0 12px;
+}
+
+.op table {
+  margin-bottom: 12px;
+}
+
+/* 문서 표: 이름·모양은 내용만큼, 설명이 남는 폭을 쓴다 */
+.doc-table th:first-child {
+  width: 180px;
+}
+
+.doc-table th:last-child {
+  width: 36%;
+}
+
+.errors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  color: var(--muted);
+}
+
+.err .strong {
+  color: var(--fg);
+}
+
+pre.curl {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--ink);
+  color: #e9efff;
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ───── 알림 ───── */
+.error {
+  margin: 10px 0;
+  padding: 10px 14px;
+  border: 1px solid #f0c4c0;
+  border-left: 4px solid var(--danger);
+  border-radius: 10px;
+  background: var(--danger-soft);
+  color: #7a1d18;
+}
+
+.error-detail {
+  display: block;
+  color: var(--muted);
+}
+
+.logout-error {
+  color: #ffb3b3;
+}
+
+/* 좁은 화면(휴대폰으로 잠깐 볼 때): 표는 줄을 바꾸지 않고 옆으로 민다 — 키 접두사·경로가 글자마다 끊기지 않게 */
+@media (max-width: 760px) {
+  .page {
+    padding: 16px 16px 48px;
+  }
+
+  .top {
+    padding: 8px 16px;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .panel > table {
+    margin: 0;
+    width: 100%;
+  }
+}
+
+/* ───── 시연 도구 ───── */
+.top .note {
+  margin-left: auto;
+  color: var(--ink-sub);
+  font-size: 12.5px;
+}
+
+.head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.head-row h2 {
+  margin: 0;
+}
+
+.small {
+  font-size: 12.5px;
+}
+
+label.inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px 16px;
+}
+
+.card.fault {
+  border-color: #f0c4c0;
+  box-shadow: inset 4px 0 0 var(--danger);
+}
+
+.card > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card h2 {
+  margin: 0;
+}
+
+.card > p {
+  margin: 2px 0 10px;
+}
+
+.state.ok {
+  color: var(--ok);
+}
+
+.state.bad {
+  color: var(--danger);
+}
+
+.state.warn {
+  color: var(--warn);
+}
+
+.knobs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.knobs label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+.knobs label small {
+  margin-left: 4px;
+  color: var(--muted);
+}
+
+.knobs label.check {
+  display: flex;
+}
+
+.knobs input[type='number'] {
+  width: 100%;
+  text-align: right;
+  font-family: var(--mono);
+}
+
+input.bad {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.knobs button {
+  align-self: flex-end;
+  margin-top: 4px;
+}
+
+.messages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.messages li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.messages li:last-child {
+  border-bottom: 0;
+}
+
+.messages .time {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.messages .text {
+  flex: 1;
+  min-width: 200px;
+}
+
+.run {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.stat .label {
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.stat strong {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat.bad {
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+
+.stat.bad strong {
+  color: var(--danger);
+}
+
+.two {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+/* 폼 입력은 칸 폭을 따른다(기본 입력 폭이 격자 칸을 밀어내지 않게) */
+.form input:not([type='checkbox']),
+.form select {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

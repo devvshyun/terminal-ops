@@ -1,8 +1,10 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { type CanActivate, type ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import type { Response } from 'express';
 import type { ApiErrorBody } from '@terminal-ops/contracts';
 import { env } from '../config/env.js';
+import { PartnerCallService } from '../partner/partner-call.service.js';
 import { ACCESS_KEY, type Access } from './access.js';
 import { readCookie, SESSION_COOKIE } from './cookies.js';
 import type { Principal, RequestWithPrincipal } from './principal.js';
@@ -48,6 +50,7 @@ export function testPrincipal(operator: string | undefined, role: string | undef
  * 없음 → 403(기본 거부), public → 통과, roles → 세션 쿠키의 사람이 그 역할이어야(없으면 401, 역할 밖이면 403),
  * device → `X-Device-Key`가 DEVICE_API_KEY와 같아야(없거나 틀리면 401, decisions/0055),
  * partner → 외부 업체 키가 살아 있어야(401) 그리고 그 scope가 있어야(403, decisions/0054).
+ *   키를 알아보면 응답이 끝날 때 호출 기록 한 줄을 건다(scope 검사보다 먼저 — 403도 남는다, decisions/0082).
  */
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -57,6 +60,7 @@ export class AuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly sessions: SessionStore,
     private readonly partnerKeys: PartnerKeyService,
+    private readonly partnerCalls: PartnerCallService,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -89,8 +93,14 @@ export class AuthGuard implements CanActivate {
         return true;
       }
       case 'partner': {
+        const startedAt = performance.now();
         const key = await this.partnerKeys.verify(partnerKeyOf(req.header('authorization'), req.header(PARTNER_KEY_HEADER)));
         if (!key) throw new UnauthorizedException({ statusCode: 401, code: 'UNAUTHENTICATED', message: '외부 업체 키가 없거나, 맞지 않거나, 폐기·만료됐습니다.' } satisfies ApiErrorBody);
+        // 'finish'는 응답을 다 보낸 뒤 한 번 — 상태 코드가 정해진 뒤다. 클라이언트가 먼저 끊으면('close'만) 남지 않는다(0082 결과·대가)
+        const res = ctx.switchToHttp().getResponse<Response>();
+        res.once('finish', () => {
+          this.partnerCalls.record({ partnerId: key.partner.id, keyId: key.id, method: req.method, path: req.path, status: res.statusCode, durationMs: performance.now() - startedAt });
+        });
         if (!key.scopes.includes(access.scope)) {
           throw new ForbiddenException({ statusCode: 403, code: 'FORBIDDEN', message: `이 키에는 ${access.scope} 권한이 없습니다.` } satisfies ApiErrorBody);
         }

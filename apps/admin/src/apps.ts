@@ -27,8 +27,10 @@ export function otherApps(env: Env = import.meta.env): OtherApp[] {
     { key: 'field', label: '현장 화면', who: '현장 작업자', url: pick('VITE_FIELD_APP_URL', 'http://localhost:5175') },
     // 보강 6: 운영 관제 화면 apps/console(:5176, decisions/0074)
     { key: 'ops', label: '운영 관제', who: '관제·개발자', url: pick('VITE_OPS_APP_URL', 'http://localhost:5176') },
-    { key: 'developers', label: '개발자센터', who: '외부 업체 연동(키 발급·폐기)', url: pick('VITE_DEVELOPERS_APP_URL', null) },
-    { key: 'partners', label: '가상 업체 콘솔', who: '세움전자·번개택배·느림보물류·브릿지VAN·톡톡메신저', url: pick('VITE_PARTNERS_CONSOLE_URL', null) },
-    { key: 'simulator', label: '단말기 시뮬레이터', who: '하트비트·펌웨어 보고', url: pick('VITE_SIMULATOR_APP_URL', null) },
+    // 보강 7: 외부 연동 개발자센터 apps/developers(:5178, decisions/0080)
+    { key: 'developers', label: '개발자센터', who: '외부 업체 연동(키 발급·폐기)', url: pick('VITE_DEVELOPERS_APP_URL', 'http://localhost:5178') },
+    // 보강 8: 시연 도구 apps/sandbox(:5179, decisions/0084) 한 앱의 두 화면
+    { key: 'partners', label: '가상 업체 콘솔', who: '세움전자·번개택배·느림보물류·브릿지VAN·톡톡메신저', url: pick('VITE_PARTNERS_CONSOLE_URL', 'http://localhost:5179/partners') },
+    { key: 'simulator', label: '단말기 시뮬레이터', who: '하트비트·펌웨어 보고', url: pick('VITE_SIMULATOR_APP_URL', 'http://localhost:5179/devices') },
   ];
 }

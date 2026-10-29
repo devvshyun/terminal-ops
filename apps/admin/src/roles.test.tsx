@@ -44,7 +44,9 @@ describe('로그인한 사람이 바뀌면 화면 데이터 캐시를 비운다'
       'GET /terminals': () => ({ body: { items: [], total: 0, page: 1, size: 20 } }),
       'GET /terminal-models': () => ({ body: [] }),
       'GET /merchants': () => ({ body: [{ code: `${owner}-CODE`, name: `${owner}의 가맹점`, address: '서울' }] }),
-      'GET /dashboard/summary': () => unauth,
+      // 세션 끝남(401)을 만드는 요청. 단말기 목록이 부르지 않는 것이어야 한다 — 목록은 상태 칩 때문에 /dashboard/summary를 부른다(decisions/0079)
+      'GET /health': () => unauth,
+      'GET /dashboard/summary': () => ({ body: dashboardBody() }),
       'POST /auth/login': () => {
         owner = 'B';
         return { body: me('b') };
@@ -53,7 +55,7 @@ describe('로그인한 사람이 바뀌면 화면 데이터 캐시를 비운다'
     renderPage(<App />, { path: '/*', route: '/terminals' });
     expect(await screen.findByRole('option', { name: 'A의 가맹점' })).toBeInTheDocument();
 
-    await api('/dashboard/summary').catch(() => undefined); // 세션 끝남(401)
+    await api('/health').catch(() => undefined); // 세션 끝남(401)
     await userEvent.type(await screen.findByLabelText('아이디'), 'b');
     await userEvent.type(screen.getByLabelText('비밀번호'), 'pw-1234567890');
     await userEvent.click(screen.getByRole('button', { name: '로그인' }));

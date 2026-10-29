@@ -33,7 +33,10 @@ export function UserBar() {
 
   return (
     <div className="user">
-      <span>
+      <span className="avatar" aria-hidden="true">
+        {me.displayName.slice(0, 1)}
+      </span>
+      <span className="who">
         <strong>{me.displayName}</strong> ({me.loginId}) · <span aria-label="역할">{ROLE_LABEL[me.role]}</span>
         {me.merchantCode ? ` · ${me.merchantCode}` : null}
       </span>

@@ -215,3 +215,13 @@
 - [ ] npm arborist의 peer 의존성 해석 — 선택 peer(`peerDependenciesMeta.optional`)도 매니페스트를 가져오는 이유, `--legacy-peer-deps`가 lock에 남기는 차이 (troubleshooting/0033)
 - [ ] 가변 글꼴 축(`wght`)과 `font-weight` 애니메이션 비용 — 굵기를 바꾸면 줄 바꿈·레이아웃이 다시 계산되나, `font-variation-settings`와 무엇이 다른가 (apps/landing/src/main.ts, decisions/0078)
 - [ ] GSAP ScrollTrigger `pin`·`scrub`·`invalidateOnRefresh`와 `matchMedia` 정리 함수 — 창 크기가 바뀔 때 고정 구간 길이를 다시 재는 방법 (apps/landing/src/main.ts)
+- MySQL 8 윈도 함수 `row_number() over (order by min(id))`를 group by와 함께 쓰는 순서(집계 뒤 윈도) — `apps/api/src/migrations/Migration20261029061906.ts`, decisions/0081
+- Express `res`의 'finish'와 'close' 차이(응답을 다 보냄 vs 연결이 닫힘), Nest 가드·인터셉터·필터 실행 순서와 가드 예외가 인터셉터를 건너뛰는 이유 — `apps/api/src/auth/auth.guard.ts`, decisions/0082
+- `EXPLAIN ANALYZE`의 actual time 두 숫자(첫 행까지·끝까지)와 첫 실행이 느린 이유(버퍼 풀) — docs/experiments/0019
+- absolute 요소의 포함 블록(가장 가까운 positioned 조상, 없으면 초기 포함 블록)과 `overflow: auto` 상자가 absolute 자손을 가두는 조건 — docs/troubleshooting/0034
+- `word-break: keep-all`과 `overflow-wrap: anywhere`의 차이(한국어 낱말 vs 긴 영문 토큰) — `apps/developers/src/styles.css`, docs/troubleshooting/0034
+- class-transformer `@Type`이 JSON 본문에도 적용되는 조건(ValidationPipe `transform: true`)과 `enableImplicitConversion` — `apps/api/src/admin/admin.dto.ts`, docs/reviews/2026-10-29-developer-center-final-review.md
+- MySQL `now()`(세션 시간대)와 `utc_timestamp()`, mysql2 `dateStrings` — `apps/api/src/common/db-datetime.ts`, docs/reviews/2026-10-29-developer-center-final-review.md
+- 격자 칸 `1fr`의 최소 폭(`min-width: auto`)과 `minmax(0, 1fr)` — `apps/sandbox/src/styles.css`(devlog 2026-10-29 보강 8 Task 3), docs/troubleshooting/0034
+- Vite 개발 서버 미들웨어 순서(프록시 → SPA 기본 문서)와 프록시 `bypass` — docs/troubleshooting/0035
+- TanStack Query `setQueryData` 뒤 무효화 다시 읽기가 한 번에 그려질 때(React 일괄 렌더링)와 `key`로 다시 그리기 — `apps/sandbox/src/pages/DevicesPage.test.tsx`, docs/reviews/2026-10-29-sandbox-final-review.md

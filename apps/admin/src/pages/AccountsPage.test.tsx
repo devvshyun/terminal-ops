@@ -64,7 +64,7 @@ describe('계정 화면 (ADMIN, 보강 5)', () => {
     expect(row('admin')).toHaveTextContent('2026-10-29 09:00:00 KST');
     expect(row('gone')).toHaveTextContent('사용 중지');
     expect(within(row('gone')).getByRole('button', { name: '다시 사용' })).toBeInTheDocument();
-    expect(screen.getByLabelText('외부 업체 키')).toHaveTextContent('개발자센터 화면(보강 7)');
+    expect(within(screen.getByLabelText('외부 업체 키')).getByRole('link', { name: '개발자센터' })).toHaveAttribute('href', 'http://localhost:5178');
   });
 
   it('만들기: 아이디 형식·비밀번호 길이를 미리 알리고, 가맹점주는 가맹점을 골라야 만든다. 보낸 뒤 목록을 다시 읽는다', async () => {

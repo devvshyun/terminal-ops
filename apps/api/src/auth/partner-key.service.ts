@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { EntityManager, UniqueConstraintViolationException } from '@mikro-orm/mysql';
 import type { ApiErrorBody, CreatedPartnerKeyView, PartnerKeyView, PartnerScope } from '@terminal-ops/contracts';
+import { Partner } from '../partner/partner.entity.js';
 import { PartnerApiKey } from './partner-key.entity.js';
 
 /** `pk_` + 소문자·숫자 8자 + `_` + base64url 43자(32바이트) */
@@ -19,6 +20,9 @@ export const sha256Hex = (value: string) => createHash('sha256').update(value).d
 export function toPartnerKeyView(k: PartnerApiKey): PartnerKeyView {
   return {
     id: k.id,
+    partnerId: k.partner.id,
+    partnerCode: k.partner.code,
+    partnerName: k.partner.name,
     name: k.name,
     prefix: k.prefix,
     scopes: k.scopes,
@@ -43,24 +47,27 @@ export class PartnerKeyService {
    * 접두사가 이미 있는 키와 겹치면(unique 위반) 새 원문으로 다시 넣는다(최대 CREATE_ATTEMPTS번) — 409 DUPLICATE를 내보내지 않는다(Task 5 보안 리뷰).
    * rawKey를 주면(시연 키 시드) 다시 만들지 않는다.
    */
-  async create(input: { name: string; scopes: PartnerScope[]; expiresAt?: Date | null }, actor: string, rawKey?: string): Promise<CreatedPartnerKeyView> {
+  async create(input: { partnerId: number; name: string; scopes: PartnerScope[]; expiresAt?: Date | null }, actor: string, rawKey?: string): Promise<CreatedPartnerKeyView> {
     if (input.expiresAt && input.expiresAt.getTime() <= Date.now()) {
       throw new BadRequestException({ statusCode: 400, message: 'expiresAt은 지금보다 뒤여야 합니다.' } satisfies ApiErrorBody);
     }
+    const partner = await this.em.fork().findOne(Partner, input.partnerId);
+    if (!partner) throw new NotFoundException(`외부 업체 ${input.partnerId}이(가) 없습니다.`);
     for (let attempt = 1; ; attempt += 1) {
       try {
-        return await this.insert(input, actor, rawKey ?? this.generateKey());
+        return await this.insert({ ...input, partner }, actor, rawKey ?? this.generateKey());
       } catch (error) {
         if (rawKey !== undefined || !(error instanceof UniqueConstraintViolationException) || attempt >= CREATE_ATTEMPTS) throw error;
       }
     }
   }
 
-  private async insert(input: { name: string; scopes: PartnerScope[]; expiresAt?: Date | null }, actor: string, key: string): Promise<CreatedPartnerKeyView> {
+  private async insert(input: { partner: Partner; name: string; scopes: PartnerScope[]; expiresAt?: Date | null }, actor: string, key: string): Promise<CreatedPartnerKeyView> {
     const match = KEY_PATTERN.exec(key);
     if (!match) throw new Error('외부 업체 키 모양이 아닙니다.');
     const em = this.em.fork();
     const row = em.create(PartnerApiKey, {
+      partner: em.getReference(Partner, input.partner.id),
       name: input.name,
       prefix: match[1],
       keyHash: sha256Hex(key),
@@ -69,11 +76,14 @@ export class PartnerKeyService {
       createdBy: actor,
     });
     await em.flush();
+    row.partner = input.partner; // 응답에 업체 코드·이름(참조만 있으면 비어 있다)
     return { ...toPartnerKeyView(row), key };
   }
 
-  async list(): Promise<PartnerKeyView[]> {
-    return (await this.em.fork().find(PartnerApiKey, {}, { orderBy: { id: 'desc' } })).map(toPartnerKeyView);
+  /** 최근 발급부터. partnerId를 주면 그 업체 키만 */
+  async list(filter: { partnerId?: number } = {}): Promise<PartnerKeyView[]> {
+    const where = filter.partnerId ? { partner: filter.partnerId } : {};
+    return (await this.em.fork().find(PartnerApiKey, where, { orderBy: { id: 'desc' }, populate: ['partner'] })).map(toPartnerKeyView);
   }
 
   /** 폐기. 이미 폐기된 키는 그대로 돌려준다(처음 폐기 시각 유지) */
@@ -84,7 +94,7 @@ export class PartnerKeyService {
     row.revokedAt ??= new Date();
     await em.flush();
     // 열이 초 단위(datetime)라 저장된 값은 밀리초가 반올림된다 — 다시 읽어 저장된 값으로 응답한다(두 번째 폐기 응답과 같게)
-    return toPartnerKeyView(await this.em.fork().findOneOrFail(PartnerApiKey, id));
+    return toPartnerKeyView(await this.em.fork().findOneOrFail(PartnerApiKey, id, { populate: ['partner'] }));
   }
 
   /**

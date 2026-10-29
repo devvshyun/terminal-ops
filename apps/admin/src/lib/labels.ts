@@ -64,3 +64,35 @@ export function label(map: Record<string, string>, value: string | null | undefi
   if (value === null || value === undefined) return '-';
   return map[value] ?? value;
 }
+
+/**
+ * 상태를 생애주기 구간으로 묶는다(decisions/0079). 상태 이름표 색과 처음 화면의 생애주기 막대가 쓴다 — 현장·매장 앱과 같은 구간(decisions/0077).
+ * 키가 TerminalStatus라 상태가 늘면 tsc가 빠진 구간을 알려 준다.
+ */
+export type LifeStage = 'intake' | 'stock' | 'move' | 'live' | 'back' | 'bad';
+
+export const STATUS_STAGE: Record<TerminalStatus, LifeStage> = {
+  RECEIVED: 'intake',
+  INSPECTED: 'intake',
+  DEFECTIVE: 'bad',
+  IN_STOCK: 'stock',
+  ALLOCATED: 'move',
+  SHIPPED: 'move',
+  DELIVERED: 'move',
+  IN_SERVICE: 'live',
+  RETURN_REQUESTED: 'back',
+  RETURNING: 'back',
+  RETURNED: 'back',
+  DISPOSED: 'bad',
+};
+
+export const STAGE_LABEL: Record<LifeStage, string> = {
+  intake: '입고·검수',
+  stock: '재고',
+  move: '배정·배송',
+  live: '운영 중',
+  back: '회수',
+  bad: '불량·폐기',
+};
+
+export const STAGES: LifeStage[] = ['intake', 'stock', 'move', 'live', 'back', 'bad'];

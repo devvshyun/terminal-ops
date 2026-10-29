@@ -51,6 +51,38 @@ describe('대시보드 (보강 6)', () => {
     expect(screen.getByRole('columnheader', { name: '최근 15분 완료' })).toBeInTheDocument();
   });
 
+  it('주의: 워커 0·남은 실패·최근 실패·멈춤·응답 없는 의존을 위에 모으고, 그 큐 줄에 표시(troubled), 0인 칸은 흐리게(decisions/0079)', async () => {
+    const queues = queuesView([
+      queue('outbox', { completedRecent: 10 }),
+      queue('device', { counts: { waiting: 0, active: 0, delayed: 0, prioritized: 0, failed: 3, completed: 0 } }),
+      queue('track-bungae', { failedRecent: 2 }),
+      queue('report', { workers: 0, paused: true }),
+    ]);
+    mockApi({ ...ME, ...dashboardApi({ queues, system: systemView({ redis: { ok: false, latencyMs: null, error: 'TIMEOUT' } }) }) });
+    renderApp('/');
+    const warn = within(await screen.findByRole('region', { name: '주의' }));
+    expect(warn.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      'Redis 응답 없음',
+      'device 실패 3건 남음',
+      'track-bungae 최근 실패 2건',
+      'report 큐를 처리하는 워커 없음',
+      'report 큐 멈춤',
+    ]);
+    expect(warn.getByRole('link', { name: '실패 job 보기 →' })).toHaveAttribute('href', '/failed');
+    await waitFor(() => expect(screen.getAllByRole('row')).toHaveLength(5));
+    expect(['outbox', 'device', 'track-bungae', 'report'].map((n) => row(n).classList.contains('troubled'))).toEqual([false, true, true, true]);
+    expect(within(row('outbox')).getAllByRole('cell')[1]).toHaveClass('zero'); // 대기 0
+    expect(within(row('outbox')).getAllByRole('cell')[5]).not.toHaveClass('zero'); // 완료 10
+    expect(screen.getAllByRole('status')).toHaveLength(1); // 주의는 상태·경고 역할을 쓰지 않는다(마지막 갱신 하나뿐)
+  });
+
+  it('문제가 없으면 주의를 그리지 않는다', async () => {
+    mockApi({ ...ME, ...dashboardApi() });
+    renderApp('/');
+    await screen.findByText('worker-a');
+    expect(screen.queryByRole('region', { name: '주의' })).not.toBeInTheDocument();
+  });
+
   it('Outbox: 상태별 수와 가장 오래된 PENDING·QUEUED', async () => {
     mockApi({ ...ME, ...dashboardApi({ outbox: outboxView({ counts: { PENDING: 3, QUEUED: 7, SENT: 120, FAILED: 1 }, oldestPendingAt: minutesAgo(2), oldestQueuedAt: minutesAgo(30) }) }) });
     renderApp('/');

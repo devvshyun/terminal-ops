@@ -2,7 +2,7 @@
 
 > 이 파일은 `node scripts/docs-index.mjs`가 만든다. 손으로 고치지 않는다(decisions/0046). 기록을 더한 뒤 다시 만들고, `--check`로 확인한다.
 
-## 결정 기록 (78)
+## 결정 기록 (85)
 
 - [0001](decisions/0001-인증은-작업자-헤더로.md) 인증은 하지 않고, 작업자는 요청 헤더로 기록한다
 - [0002](decisions/0002-esm-vitest-tsc-빌드.md) ESM + Vitest + tsc 빌드로 API를 만든다
@@ -82,8 +82,15 @@
 - [0076](decisions/0076-관제-화면-자동-새로고침은-10초-탭-숨김이면-멈춤.md) 관제 화면 자동 새로고침은 10초, 탭이 안 보이면 멈추고, 단추로 끈다
 - [0077](decisions/0077-화면-디자인-토큰과-글꼴은-앱에-넣는다.md) 화면 디자인은 CSS 토큰으로 다듬고, 글꼴은 앱에 넣는다(현장 앱부터)
 - [0078](decisions/0078-소개-페이지는-apps-landing-정적-페이지와-GSAP으로.md) 소개 페이지는 `apps/landing` 정적 페이지(Vite + GSAP)로, 숫자는 기록과 테스트로 묶는다
+- [0079](decisions/0079-어드민은-잉크-사이드바와-지금-볼-것-관제는-어두운-화면.md) 어드민은 잉크 사이드바와 "지금 볼 것", 관제는 어두운 화면으로(같은 토큰)
+- [0080](decisions/0080-개발자센터는-ADMIN이-쓰는-별도-앱-apps-developers.md) 개발자센터는 ADMIN이 쓰는 별도 앱 apps/developers로
+- [0081](decisions/0081-외부-업체는-partner-표로-키는-업체-하나에-속한다.md) 외부 업체는 partner 표로, 키는 업체 하나에 속한다
+- [0082](decisions/0082-호출-로그는-MySQL에-가드가-응답이-끝난-뒤-한-줄.md) 호출 로그는 MySQL에, 가드가 응답이 끝난 뒤 한 줄
+- [0083](decisions/0083-연동-문서는-손으로-쓴-OpenAPI와-어긋남-검사-테스트로.md) 연동 문서는 손으로 쓴 OpenAPI와 어긋남 검사 테스트로
+- [0084](decisions/0084-시연-도구는-한-앱-apps-sandbox-로그인-없이.md) 가상 업체 콘솔과 시뮬레이터 화면은 한 앱 apps/sandbox로, 로그인 없이
+- [0085](decisions/0085-업체-서버에-최근-요청-기록-시뮬레이터에-단말기-목록.md) 가상 업체 서버에 최근 요청 기록, 시뮬레이터에 단말기 목록
 
-## 트러블슈팅 (33)
+## 트러블슈팅 (35)
 
 - [0001](troubleshooting/0001-설치-직후-WSL2-미동작.md) 설치 직후 WSL2·Docker가 동작하지 않음
 - [0002](troubleshooting/0002-em-create-optionalprops-타입오류.md) em.create에서 TS2345 "Property 'version' is missing"
@@ -118,8 +125,10 @@
 - [0031](troubleshooting/0031-초-단위-datetime-열은-밀리초를-반올림해-응답과-다시-읽은-값이-다르다.md) 초 단위 datetime 열은 밀리초를 반올림해 응답과 다시 읽은 값이 다르다
 - [0032](troubleshooting/0032-테스트-DB로-마이그레이션을-적용하면-DB-이름의-스냅샷-파일이-생긴다.md) 테스트 DB로 마이그레이션을 적용하면 DB 이름의 스냅샷 파일이 생긴다
 - [0033](troubleshooting/0033-새-앱에서-npm-install이-edgesOut-null로-멈춘다.md) 새 앱에서 `npm install`이 `Cannot read properties of null (reading 'edgesOut')`로 멈춘다
+- [0034](troubleshooting/0034-좁은-화면에서-표를-옆으로-밀게-했는데-문서-폭이-늘어난다.md) 좁은 화면에서 표를 옆으로 밀게 했는데도 문서 폭이 늘어난다
+- [0035](troubleshooting/0035-시연-도구-화면을-새로-열면-화면-대신-업체-서버-JSON이-온다.md) 시연 도구 `/partners`를 새로 열면 화면 대신 업체 서버의 JSON이 온다
 
-## 실험 (18)
+## 실험 (19)
 
 - [0001](experiments/0001-같은-단말기-동시-전이.md) 같은 단말기 동시 전이
 - [0002](experiments/0002-같은-단말기-동시-검수.md) 같은 단말기 동시 검수
@@ -139,3 +148,4 @@
 - [0016](experiments/0016-상태-조건-목록-status-id-인덱스.md) 상태 조건 단말기 목록의 (status, id) 인덱스 — 계획, 읽은 행, 시간, 쓰기 비용
 - [0017](experiments/0017-인증-뒤-하트비트-처리량.md) 인증(전역 가드 + 단말기 키) 뒤 하트비트 처리량
 - [0018](experiments/0018-현장-앱-글꼴을-넣기-전후-첫-화면-전송량.md) 현장 앱에 글꼴을 넣기 전후 첫 화면 전송량
+- [0019](experiments/0019-호출-로그-업체별-목록-인덱스.md) 호출 로그 업체별 목록 — (partner_id, id) 인덱스

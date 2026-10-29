@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api } from '../api/client';
 import { keys } from '../api/query-keys';
+import { otherApps } from '../apps';
 import type { AccountView, CreateAccountRequest, MerchantView, Role, UpdateAccountRequest } from '@terminal-ops/contracts';
 import { ErrorBox } from '../components/ErrorBox';
 import { formatKst } from '../lib/format';
@@ -173,10 +174,11 @@ function AccountRow({ account, me, merchants }: { account: AccountView; me: stri
 
 /**
  * 계정·역할 관리(ADMIN, 보강 5 — api는 보강 2의 /admin/accounts, decisions/0052). 목록·만들기·역할 바꾸기·사용 중지.
- * 외부 업체 키 발급·폐기는 개발자센터 화면(보강 7)이 맡는다(decisions/0069) — 여기서는 안내만.
+ * 외부 업체 키 발급·폐기는 개발자센터 화면(보강 7, apps/developers)이 맡는다(decisions/0069·0080) — 여기서는 그 화면으로 가는 링크만.
  */
 export function AccountsPage() {
   const me = useMe();
+  const developers = otherApps().find((a) => a.key === 'developers');
   const accounts = useQuery({ queryKey: keys.accounts.all, queryFn: () => api<AccountView[]>('/admin/accounts') });
   const merchants = useQuery({ queryKey: keys.merchants, queryFn: () => api<MerchantView[]>('/merchants'), staleTime: Infinity });
   return (
@@ -211,7 +213,17 @@ export function AccountsPage() {
       ) : null}
       <div className="panel" aria-label="외부 업체 키">
         <h3>외부 업체 키</h3>
-        <p className="muted">외부 업체(가상) API 키 발급·폐기는 개발자센터 화면(보강 7)에서 합니다. 그 전까지는 API(<code>POST /admin/partner-keys</code>, <code>POST /admin/partner-keys/:id/revoke</code>)로 합니다.</p>
+        <p className="muted">
+          외부 업체(가상) 등록과 API 키 발급·폐기, 호출 로그는{' '}
+          {developers?.url ? (
+            <a href={developers.url} target="_blank" rel="noreferrer">
+              개발자센터
+            </a>
+          ) : (
+            '개발자센터'
+          )}
+          에서 합니다.
+        </p>
       </div>
     </section>
   );

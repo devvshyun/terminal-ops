@@ -12,3 +12,6 @@
 - 원인(추정): vitest 5.0.4의 선택 peer `@vitest/browser-playwright`를 해석할 때 npm이 최신인 5.0.5 매니페스트를 가져오고, 그 판의 peer(같은 판의 vitest)와 이미 고른 5.0.4가 어긋나는 peer 묶음을 arborist가 처리하다 null 노드를 만난다. arborist 코드로 확인하지는 않았다 — 로그의 마지막 매니페스트와 "5.0.5로 맞추면 된다"는 결과로 본 추정이다
 - 해결: 소개 페이지는 `vitest 5.0.5`를 쓴다(다른 앱은 그대로 5.0.4). `--legacy-peer-deps`는 쓰지 않았다 — 다른 앱과 다른 해석 규칙의 lock이 생긴다
 - 배운 것: 새 앱을 만들 때 lock 파일 없이 정확한 판을 고정하면, 그 판의 선택 peer가 그 사이에 새로 나온 판과 엇갈릴 수 있다. 로그의 마지막 `fetch manifest`가 실마리다 → study/backlog.md
+
+### 보탬 (시연 도구, 2026-10-29)
+- `apps/sandbox`를 새로 만들 때 같은 오류가 다시 났다(lock 없이 vitest 5.0.4). 이번에는 개발자센터 `package-lock.json`을 옮기고 contracts 줄만 빼서 `npm install` → `added 116 packages`. vitest는 다른 앱과 같은 5.0.4로 둘 수 있었다 — lock이 있으면 이 해석을 다시 하지 않는다는 위 확인과 같다

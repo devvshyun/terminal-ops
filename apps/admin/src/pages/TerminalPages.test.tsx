@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { Link, useNavigate } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import type { TerminalDetail, TerminalStatus, TerminalView, TransitionTarget } from '@terminal-ops/contracts';
+import { dashboardBody } from '../test/fixtures';
 import { loginAs, mockApi, renderPage } from '../test/render';
 import { TerminalDetailPage } from './TerminalDetailPage';
 import { TerminalListPage } from './TerminalListPage';
@@ -24,6 +25,28 @@ const reference = {
 };
 
 describe('단말기 목록 (F1)', () => {
+  it('상태 칩: 전체 기준 수(집계)를 보이고 누르면 그 상태로 1쪽부터 거른다. 상태는 생애주기 색 이름표, 가맹점은 이름 + 코드(decisions/0079)', async () => {
+    loginAs('운영1', 'OPERATOR');
+    const { calls } = mockApi({
+      ...reference,
+      'GET /dashboard/summary': () => ({ body: dashboardBody() }),
+      'GET /terminals': () => ({ body: { items: [{ ...row('T-9', 'IN_SERVICE'), merchantCode: 'GANGNAM-KIMBAP' }], total: 1, page: 1, size: 20 } }),
+    });
+    renderPage(<TerminalListPage />, { route: '/terminals?page=2', path: '/terminals' });
+    const chips = within(await screen.findByRole('group', { name: '상태로 거르기' }));
+    expect(chips.getAllByRole('button').map((b) => b.textContent)).toEqual(['전체6', '재고2', '운영 중3', '폐기1']);
+    expect(chips.getByRole('button', { name: '전체6' })).toHaveAttribute('aria-pressed', 'true');
+    expect(chips.getByText(/전체 기준/)).toBeInTheDocument();
+    await userEvent.click(chips.getByRole('button', { name: '운영 중3' }));
+    await waitFor(() => expect(calls.at(-1)?.query.get('status')).toBe('IN_SERVICE'));
+    expect(calls.at(-1)?.query.get('page')).toBe('1');
+    expect(chips.getByRole('button', { name: '운영 중3' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByLabelText('상태')).toHaveValue('IN_SERVICE');
+    const cells = within(screen.getAllByRole('row')[1]).getAllByRole('cell');
+    expect(cells[2].querySelector('.badge')).toHaveClass('stage-live');
+    expect(cells[3]).toHaveTextContent('강남김밥 GANGNAM-KIMBAP');
+  });
+
   it('조건으로 검색하면 1쪽부터 다시 부르고, 다음 쪽은 page=2', async () => {
     const { calls } = mockApi({
       ...reference,
