@@ -95,6 +95,13 @@ const EXPECTED: Record<string, string> = {
   'POST /admin/partner-keys': 'ADMIN',
   'POST /admin/partner-keys/:id/revoke': 'ADMIN',
 
+  // 운영 관제(보강 6, decisions/0070) — 보기는 관제·ADMIN, 관제 작업은 관제만
+  'GET /ops/queues': 'ADMIN,MONITOR',
+  'GET /ops/schedulers': 'ADMIN,MONITOR',
+  'GET /ops/system': 'ADMIN,MONITOR',
+  'GET /ops/outbox': 'ADMIN,MONITOR',
+  'GET /ops/errors': 'ADMIN,MONITOR',
+
   // 외부 업체 키(scope별)
   'GET /partner/v1/terminals/:serialNo': 'partner:terminal-status:read',
   'GET /partner/v1/merchants/:merchantCode/terminals': 'partner:merchant-terminals:read',

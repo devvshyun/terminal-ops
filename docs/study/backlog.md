@@ -204,3 +204,5 @@
 - [ ] Vite env 읽기 규칙 — `envDir`·`.env.[mode]`·`VITE_` 접두사, 프로세스 env와 파일 env의 우선순위, 빌드 때 상수로 박히는 것 (apps/admin/src/apps.ts, decisions/0067)
 - [ ] CSV 수식 주입(= + - @로 시작하는 칸)과 엑셀이 UTF-8 CSV를 읽는 방법(BOM), `data:` URL과 Blob URL(`createObjectURL`·`revokeObjectURL`)의 차이 (apps/admin/src/lib/csv.ts, decisions/0068)
 - [ ] React `key`로 줄 상태 초기화 — 서버 값이 바뀌면 key를 바꿔 다시 마운트하는 방법과 `useEffect`로 맞추는 방법의 차이 (apps/admin/src/pages/AccountsPage.tsx, decisions/0069)
+- [ ] BullMQ metrics의 저장 모양(`meta.count`·`prevTS`·`prevCount`와 분 단위 data)과 갱신 시점 — 왜 "마지막 갱신 분"의 수는 data에 없나 (apps/api/src/ops/queue-metrics.ts, decisions/0071)
+- [ ] Redis `CLIENT LIST`·`CLIENT SETNAME`과 BullMQ `getWorkers` — 블로킹 연결이 살아 있다는 것이 워커가 살아 있다는 것과 어디까지 같나 (apps/api/src/ops/ops-queues.service.ts, decisions/0071)

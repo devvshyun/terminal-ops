@@ -31,5 +31,7 @@ export const PartnerAuth = (scope: PartnerScope) => SetMetadata(ACCESS_KEY, { ki
 export const STAFF = [Role.ADMIN, Role.OPERATOR, Role.MONITOR, Role.FIELD] as const;
 /** 사무실 조회(운영 현황·리포트·이력). 현장 작업자는 쓰지 않는다 */
 export const OFFICE = [Role.ADMIN, Role.OPERATOR, Role.MONITOR] as const;
+/** 운영 관제 보기(보강 6, decisions/0070). 관제 작업(다시 시도·지우기·복구 sweep)은 MONITOR만 */
+export const OPS_VIEW = [Role.ADMIN, Role.MONITOR] as const;
 /** 로그인한 누구나(내 정보, 로그아웃) */
 export const ANY_ROLE = [Role.ADMIN, Role.OPERATOR, Role.MONITOR, Role.FIELD, Role.MERCHANT] as const;
