@@ -14,7 +14,8 @@
     "db:migration:check": "npm run build && node dist/db/migrate.js check",
     "db:migration:down": "npm run build && node dist/db/migrate.js down",
     "db:seed": "npm run build && node dist/db/seed.js",
-    "scheduler:clear": "npm run build && node dist/scheduler/clear-schedulers.js"
+    "scheduler:clear": "npm run build && node dist/scheduler/clear-schedulers.js",
+    "db:seed:scenario": "npm run build && node dist/db/seed-scenario.js"
   },
   "dependencies": {
     "@mikro-orm/core": "^7.2.5",

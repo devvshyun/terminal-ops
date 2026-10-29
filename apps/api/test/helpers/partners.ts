@@ -57,6 +57,8 @@ export interface ToktokSummary {
 export const partners = {
   reset: () => call<unknown>('POST', '/__admin/reset'),
   configure: (patch: Record<string, unknown>) => call<unknown>('POST', '/__admin/config', patch),
+  /** 지금 설정(보강 8 GET /__admin/config) */
+  config: () => call<{ seum: { shortfall: number } } & Record<string, unknown>>('GET', '/__admin/config'),
   stats: () => call<PartnersStats>('GET', '/__admin/stats'),
   toktok: () => call<ToktokSummary>('GET', '/__admin/toktok/messages'),
   /** 톡톡메신저에 올라간 첨부 파일 내용 */

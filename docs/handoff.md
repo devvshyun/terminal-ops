@@ -15,8 +15,9 @@
 
 ### 클라우드 세션이 이어서 한 것(2026-10-29)
 - 디자인 1(현장·매장·소개 페이지)은 보강 6과 합쳐 PR [devvshyun/terminal-ops#1](https://github.com/devvshyun/terminal-ops/pull/1)로 master에 병합했다(번호는 위 안내대로 0077·0078로 바꿈, 작성자는 사용자 결정으로 그대로).
-- 디자인 2(어드민·관제, 0079)와 **보강 7 개발자센터**(`apps/developers` :5178, 0080~0083)는 지정 브랜치 `claude/stoic-tesla-rm7xpo`에 있고 PR [devvshyun/terminal-ops#2](https://github.com/devvshyun/terminal-ops/pull/2)로 올라가 있다. 최종 검토는 [reviews/2026-10-29-developer-center-final-review.md](reviews/2026-10-29-developer-center-final-review.md).
-- **보강 8 시연 도구**(`apps/sandbox` :5179, 0084·0085)도 같은 브랜치에 이어 쌓았다(PR #2). 최종 검토는 [reviews/2026-10-29-sandbox-final-review.md](reviews/2026-10-29-sandbox-final-review.md).
+- 디자인 2(어드민·관제, 0079)와 **보강 7 개발자센터**(`apps/developers` :5178, 0080~0083)는 지정 브랜치 `claude/stoic-tesla-rm7xpo`에서 PR [devvshyun/terminal-ops#2](https://github.com/devvshyun/terminal-ops/pull/2)로 master에 병합됐다. 최종 검토는 [reviews/2026-10-29-developer-center-final-review.md](reviews/2026-10-29-developer-center-final-review.md).
+- **보강 8 시연 도구**(`apps/sandbox` :5179, 0084·0085)도 같은 브랜치에 이어 쌓았다(PR #2, 병합됨). 최종 검토는 [reviews/2026-10-29-sandbox-final-review.md](reviews/2026-10-29-sandbox-final-review.md).
+- **보강 9 시연 묶음**: `docker compose -f docker-compose.demo.yml up -d --build` 하나로 모두 뜨고 시연 데이터까지 들어간다. 화면은 `*.localhost:8080`(앱마다 쿠키 따로), 시나리오는 [demo.md](demo.md). 최종 검토는 [reviews/2026-10-29-docker-demo-final-review.md](reviews/2026-10-29-docker-demo-final-review.md).
 - 클라우드 컨테이너는 재시작되면 dockerd가 꺼진다 — `dockerd`를 띄우고 `docker start terminal-ops-mysql terminal-ops-redis`. Docker Hub가 429를 주면 `mirror.gcr.io`에서 받아 이름을 붙였다.
 
 ### 클라우드 디자인 브랜치를 합칠 때(먼저 할 일)
@@ -29,7 +30,7 @@
 사용자가 원하는 시연: 페르소나별 프로그램을 모두 준비해 시나리오대로 한 번에 시연. 시나리오 점검표는 [보강 5 스펙 2장](specs/2026-10-29-admin-expansion.md).
 1. ~~보강 7 외부 연동 개발자센터~~ — 했다(위 "클라우드 세션이 이어서 한 것", PR #2).
 2. ~~보강 8 가상 업체 콘솔 + 단말기 시뮬레이터 화면~~ — 했다(PR #2). 원래 적은 범위: `apps/partners`(세움·번개·느림보·브릿지VAN·톡톡)가 받은 요청·보낸 메시지를 보고 장애(429·지연·5xx)를 켜고 끄는 화면, `apps/device-sim`의 하트비트·오프라인·펌웨어 실패를 버튼으로 조작하는 화면. 두 서버에는 지금 관리 API(`/__admin/*`)만 있다.
-3. **보강 9 Docker 통합과 시연**: 모든 앱의 Dockerfile + compose(지금 compose는 MySQL·Redis만), 기동 때 마이그레이션·시연 시드 자동, 시연용 시드 데이터(시나리오가 바로 굴러가는 단말기·발주·A/S·배포·이상·VAN 어긋남·지난주 리포트), 시연 시나리오 문서, 처음부터 끝까지 리허설. 같은 사이트 쿠키 공유(0057·0061)는 Docker에서 앱마다 다른 호스트명을 쓰면 풀린다 — 결정 기록.
+3. ~~보강 9 Docker 통합과 시연~~ — 했다(`docker-compose.demo.yml`, `docs/demo.md`, 0086~0089). 원래 적은 범위: 모든 앱의 Dockerfile + compose(지금 compose는 MySQL·Redis만), 기동 때 마이그레이션·시연 시드 자동, 시연용 시드 데이터(시나리오가 바로 굴러가는 단말기·발주·A/S·배포·이상·VAN 어긋남·지난주 리포트), 시연 시나리오 문서, 처음부터 끝까지 리허설. 같은 사이트 쿠키 공유(0057·0061)는 Docker에서 앱마다 다른 호스트명을 쓰면 풀린다 — 결정 기록.
 4. 보강 6에서 남긴 것: 실패 job 지우기의 경합(다시 시도 직후 다른 관제가 지우면 다시 넣은 job이 지워짐, 0072·0073에 대가로 기록), 실패 이유 글은 전화번호·이메일 모양만 가림, 로컬에서는 :5173~5179 앱이 `sid` 쿠키 하나를 함께 씀(한 곳에서 로그아웃하면 모두 로그아웃, 0074 — Docker 묶음에서 호스트 이름을 나누면 풀림). 상세는 [보강 6 최종 리뷰](reviews/2026-10-29-ops-console-final-review.md).
 5. 회고 6장의 이월(선택): CSRF 토큰, 다른 탭 사용자 변경 감지, `MaxListenersExceededWarning`, 회수 뒤 `terminal.merchant` 등.
 

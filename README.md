@@ -35,7 +35,25 @@ terminal-ops/
 └─ docs/                 기록(아래 "기록")
 ```
 
-## 실행
+## 시연 — 명령 하나로(보강 9)
+
+Docker만 있으면 된다. 모든 앱을 띄우고 시연 데이터까지 넣는다. 시나리오(누가·어느 화면에서·무엇을 누르면·무엇이 보이나)는 [docs/demo.md](docs/demo.md).
+
+```bash
+cp .env.example .env                 # DEVICE_API_KEY만 임의의 값(16자 이상, 공백 없는 ASCII)으로 바꾼다
+docker compose -f docker-compose.demo.yml up -d --build
+docker compose -f docker-compose.demo.yml ps     # migrate·demo-seed는 Exited (0), 나머지는 Up
+# → http://admin.localhost:8080 (operator) · merchant · field · console · developers · sandbox.localhost:8080, 소개 http://localhost:8080
+docker compose -f docker-compose.demo.yml down -v  # 처음부터 다시(시연 데이터·로그인 모두 지움)
+```
+
+- 개발용 `docker-compose.yml`과 따로다(프로젝트 이름·볼륨이 달라 개발 DB를 건드리지 않는다, [decisions/0086](docs/decisions/0086-시연-묶음은-따로-된-compose와-앱별-이미지로.md))
+- 바깥에는 웹 하나(`127.0.0.1:8080`)만 열린다. MySQL·Redis·api·가상 업체·시뮬레이터는 묶음 안에서만([0087](docs/decisions/0087-시연-묶음은-웹-하나만-127-0-0-1에-연다.md))
+- 화면마다 호스트 이름이 달라 로그인(쿠키)도 따로다 — 한 브라우저에서 운영자·점주를 나란히 볼 수 있다([0088](docs/decisions/0088-시연-화면은-호스트-이름별로-앱마다-쿠키가-따로.md))
+- 시연 데이터는 실제 HTTP API로 넣는다(운영 중 12대·배송 중·A/S·발주·VAN 어긋남·지난주 리포트·외부 업체, 다시 띄우면 건너뜀 — [0089](docs/decisions/0089-시연-데이터는-실제-HTTP-API로-한-번.md)). 손으로: `cd apps/api && SCENARIO_API_URL=http://127.0.0.1:3000 npm run db:seed:scenario`
+- 프록시 뒤에서 빌드할 때: `docker buildx build --build-arg HTTPS_PROXY=… --secret id=ca,src=<CA 파일> -f apps/api/Dockerfile -t terminal-ops-demo/api .`(web·partners·device-sim도 같은 식) 뒤 `up -d --no-build`
+
+## 실행(개발)
 
 Node 24, Docker Desktop(WSL2)이 필요하다. 명령은 Git Bash 기준.
 
@@ -242,24 +260,24 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 
 이 프로젝트의 산출물은 코드와 기록이다(규칙 `CLAUDE.md`, 양식 `docs/README.md`).
 
-- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 85·트러블슈팅 35·실험 19 (`node scripts/docs-index.mjs`로 만든다)
+- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 89·트러블슈팅 35·실험 19 (`node scripts/docs-index.mjs`로 만든다)
 - 개발일지: [`docs/devlog/`](docs/devlog/)(날짜별, 날마다 "N일차 요약"), 설계 스펙 [`docs/specs/`](docs/specs/), 구현 계획 [`docs/plans/`](docs/plans/), 날마다의 최종 리뷰 [`docs/reviews/`](docs/reviews/)
 - 7일 회고: [`docs/retrospective.md`](docs/retrospective.md) — 날별로 만든 것, 잘 된 것·안 된 것, 반복된 실수, 면접에서 말할 거리, 남은 이월과 그 뒤 보강
 - 공부거리: [`docs/study/backlog.md`](docs/study/backlog.md)
 
 ## 테스트
 
-(보강 8 시연 도구와 그 최종 검토 반영 뒤, 클라우드 컨테이너에서 실제로 돌려 센 값(2026-10-29) — api 코드는 바뀌지 않았지만 e2e가 띄우는 가상 업체 서버가 바뀌어 다시 돌렸다. 보강 7 뒤에는 partners 6/53·device-sim 5/46. api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 6 뒤에는 api 90/603·admin 19/163·console 8/56, 보강 5 뒤에는 api 83/571, 보강 4 뒤에는 api 82/568·admin 14/125, 보강 3 뒤에는 api 80/561·merchant 7/47, 보강 2 뒤에는 api 79/549, 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
+(보강 9 시연 묶음과 그 최종 검토 반영 뒤, 클라우드 컨테이너에서 실제로 돌려 센 값(2026-10-29). 보강 8 뒤에는 api 94/620·sandbox 4/24, 보강 7 뒤에는 partners 6/53·device-sim 5/46. api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 6 뒤에는 api 90/603·admin 19/163·console 8/56, 보강 5 뒤에는 api 83/571, 보강 4 뒤에는 api 82/568·admin 14/125, 보강 3 뒤에는 api 80/561·merchant 7/47, 보강 2 뒤에는 api 79/549, 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
 
 | 앱 | 파일 | 테스트 |
 |---|---|---|
-| api(실험 제외) | 94 | 620 |
+| api(실험 제외) | 95 | 623 |
 | admin | 19 | 165 |
 | merchant | 7 | 47 |
 | field | 8 | 64 |
 | console | 8 | 58 |
 | developers | 9 | 44 |
-| sandbox | 4 | 24 |
+| sandbox | 4 | 26 |
 | landing | 1 | 14 |
 | partners | 7 | 61 |
 | device-sim | 6 | 49 |

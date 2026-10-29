@@ -50,6 +50,7 @@ export function PartnersPage() {
           ))}
         </div>
       ) : null}
+      <DeliveryNote />
       <Requests />
       <Toktok />
     </>
@@ -111,6 +112,64 @@ function PartnerCard({ def, values }: { def: PartnerDef; values: Record<string, 
         </button>
       </form>
       <ErrorBox error={apply.error} />
+    </section>
+  );
+}
+
+interface DeliveryNoteView {
+  poNo: string;
+  modelCode: string;
+  quantity: number;
+  serials: string[];
+}
+
+/**
+ * 세움전자 납품 명세(보강 9 리허설): 공장이 실제로 보낸 시리얼 목록. 현장 작업자가 박스 스캔에 붙여 넣는다 — 시연에서 바코드를 대신한다.
+ * 가상 업체 서버의 공개 API(`/seum/v1/purchase-orders/:poNo/delivery-note`)를 그대로 부른다(api가 입고 대조에 쓰는 것과 같다).
+ */
+function DeliveryNote() {
+  const [poNo, setPoNo] = useState('');
+  const [copied, setCopied] = useState(false);
+  const note = useMutation({
+    mutationFn: (no: string) => call<DeliveryNoteView>('partners', `/seum/v1/purchase-orders/${encodeURIComponent(no)}/delivery-note`),
+    onMutate: () => setCopied(false),
+  });
+  const text = note.data?.serials.join('\n') ?? '';
+  return (
+    <section className="section" aria-label="세움전자 납품 명세">
+      <h2>
+        세움전자 납품 명세 <small className="muted">발주번호는 어드민 "발주 입고 대조"에 있다 · 현장 박스 스캔에 붙여 넣는다</small>
+      </h2>
+      <form
+        className="toolbar"
+        onSubmit={(e) => {
+          e.preventDefault();
+          note.mutate(poNo.trim());
+        }}
+      >
+        <input aria-label="발주번호" className="mono" placeholder="SE…" value={poNo} onChange={(e) => setPoNo(e.target.value)} />
+        <button type="submit" disabled={!poNo.trim() || note.isPending}>
+          보기
+        </button>
+      </form>
+      <ErrorBox error={note.error} />
+      {note.data ? (
+        <div className="panel note">
+          <p>
+            <strong>
+              발주 {note.data.quantity}대 · 명세 {note.data.serials.length}대
+            </strong>{' '}
+            <span className="muted">{note.data.modelCode}</span>
+          </p>
+          <textarea aria-label="납품 시리얼" className="mono" readOnly rows={Math.min(10, note.data.serials.length)} value={text} />
+          <div className="row">
+            <button type="button" onClick={() => void navigator.clipboard.writeText(text).then(() => setCopied(true))}>
+              시리얼 복사
+            </button>
+            {copied ? <span className="ok-text">복사했습니다</span> : null}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

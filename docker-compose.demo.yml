@@ -1,0 +1,164 @@
+# 시연용 묶음(보강 9, decisions/0086~0089): 모든 앱을 명령 하나로.
+#   cp .env.example .env   # DEVICE_API_KEY만 임의 값으로 바꾼다(README)
+#   docker compose -f docker-compose.demo.yml up -d --build
+#   → http://admin.localhost:8080 (계정·비밀번호는 apps/api/src/db/seed-accounts.ts — 로컬 시연 전용 값), 시나리오는 docs/demo.md
+# 개발용 docker-compose.yml(MySQL·Redis만)과 프로젝트 이름·볼륨이 따로다 — 개발 DB를 건드리지 않는다.
+# 바깥에는 웹 하나(127.0.0.1:8080)만 연다. MySQL·Redis·가상 업체·시뮬레이터·api는 이 묶음 안에서만 부른다(decisions/0087).
+# 처음부터 다시: docker compose -f docker-compose.demo.yml down -v (시연 데이터·로그인이 모두 지워진다)
+name: terminal-ops-demo
+
+x-api-env: &api-env
+  MYSQL_HOST: mysql
+  MYSQL_PORT: "3306"
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  PARTNERS_URL: http://partners:4010
+  # 시연: 택배 수집·알림이 빨리 보이게(기본값보다 짧게)
+  SWEEP_INTERVAL_MS: "15000"
+
+x-api: &api
+  image: terminal-ops-demo/api
+  build:
+    context: .
+    dockerfile: apps/api/Dockerfile
+  env_file: .env
+  restart: unless-stopped
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: Asia/Seoul
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
+    volumes:
+      - demo-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7.4
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - demo-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  partners:
+    image: terminal-ops-demo/partners
+    build:
+      context: .
+      dockerfile: apps/partners/Dockerfile
+    environment:
+      PARTNERS_HOST: 0.0.0.0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4010/__admin/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  device-sim:
+    image: terminal-ops-demo/device-sim
+    build:
+      context: .
+      dockerfile: apps/device-sim/Dockerfile
+    env_file: .env
+    environment:
+      DEVICE_SIM_HOST: 0.0.0.0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4020/__admin/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # 마이그레이션 + 기준 데이터·시연 계정·시연 키(한 번 돌고 끝난다)
+  migrate:
+    <<: *api
+    restart: "no"
+    environment: *api-env
+    command: ["sh", "-c", "node dist/db/migrate.js up && node dist/db/seed.js"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  api:
+    <<: *api
+    environment:
+      <<: *api-env
+      RUN_WORKERS: "0"
+      RUN_SCHEDULERS: "1"
+    command: ["node", "dist/main.js"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      partners:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  worker:
+    <<: *api
+    environment:
+      <<: *api-env
+      RUN_SCHEDULERS: "0"
+      WORKER_NAME: worker-1
+    command: ["node", "dist/worker.js"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      partners:
+        condition: service_healthy
+
+  # 시연 데이터(실제 HTTP API로, 이미 있으면 건너뛴다 — decisions/0089). 한 번 돌고 끝난다
+  demo-seed:
+    <<: *api
+    restart: "no"
+    environment:
+      <<: *api-env
+      SCENARIO_API_URL: http://api:3000
+      SCENARIO_SIM_URL: http://device-sim:4020
+      SCENARIO_SIM_TARGET_URL: http://api:3000
+    command: ["node", "dist/db/seed-scenario.js"]
+    depends_on:
+      api:
+        condition: service_healthy
+      device-sim:
+        condition: service_healthy
+      worker:
+        condition: service_started
+
+  web:
+    image: terminal-ops-demo/web
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+      args:
+        WEB_PORT: "8080"
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  demo-mysql:
+  demo-redis:
