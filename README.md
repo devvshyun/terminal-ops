@@ -19,7 +19,7 @@ terminal-ops/
 ├─ docker-compose.yml    MySQL 8.4, Redis 7.4
 ├─ apps/
 │  ├─ api/               Nest.js 12 — HTTP API와 큐 워커(실행 모드로 분리: RUN_WORKERS, RUN_SCHEDULERS), 로그인·역할(보강 2)
-│  ├─ admin/             React 19 + Vite 8 + TanStack Query 어드민(Vite 프록시 /api → api)
+│  ├─ admin/             React 19 + Vite 8 + TanStack Query 어드민(Vite 프록시 /api → api) — 운영 업무 전부·계정 관리·다른 화면 바로가기(보강 5)
 │  ├─ merchant/          매장(가맹점주) 화면 — 휴대폰 폭, 어드민과 같은 스택·같은 판(Vite 프록시 /api → api, 보강 3)
 │  ├─ field/             현장 작업자 화면 — 휴대폰·PDA 폭, 바코드 스캐너(키보드 웨지) 입력, 점주 앱과 같은 스택·같은 판(Vite 프록시 /api → api, 보강 4)
 │  ├─ partners/          가상 업체 서버(node:http, 포트 4010): 세움전자·번개택배·느림보물류·브릿지VAN·톡톡메신저
@@ -99,7 +99,7 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 
 - 외부 업체 키: 발급·폐기는 ADMIN의 `POST /admin/partner-keys`(원문은 그 응답에서 한 번만)·`POST /admin/partner-keys/:id/revoke`. DB에는 접두사와 SHA-256만([decisions/0054](docs/decisions/0054-외부-업체-키는-해시-저장과-scope.md)). 시연 키는 시드에 고정한 값이다.
 - 단말기 키: `.env`의 `DEVICE_API_KEY`(16자 이상, 공백 없는 ASCII). `.env.example`의 자리표시자(`change-me…`)나 규칙에 맞지 않는 값이면 api와 device-sim 모두 시작할 때 멈춘다. 하트비트·펌웨어 보고는 `X-Device-Key`로 이 값을 보내야 한다(없거나 틀리면 401). device-sim이 같은 env를 읽는다([decisions/0055](docs/decisions/0055-단말기는-공유-단말기-키로.md)).
-- 계정 관리(`/admin/accounts`)·키 관리 화면은 아직 없다(Bundle 7) — API만. 역할·가맹점·비밀번호를 바꾸거나 사용 중지하면 그 계정의 세션이 모두 끊긴다. 마지막 활성 ADMIN은 사용 중지·강등할 수 없다(409 `LAST_ADMIN`).
+- 계정 관리는 어드민 "계정" 화면(ADMIN, 보강 5 — [decisions/0069](docs/decisions/0069-계정-화면은-어드민에-외부-업체-키-화면은-개발자센터로.md)). 외부 업체 키 화면은 아직 없다(개발자센터, 보강 7) — API만. 역할·가맹점·비밀번호를 바꾸거나 사용 중지하면 그 계정의 세션이 모두 끊긴다. 마지막 활성 ADMIN은 사용 중지·강등할 수 없다(409 `LAST_ADMIN`).
 - 마이그레이션 `down`(`npm run db:migration:down`, 테스트 DB에서만 열려 있다)으로 보강 2의 두 마이그레이션을 되돌리면 `user_account`·`partner_api_key` 표가 지워져 **시연 계정·시연 키도 사라진다**. 개발 DB에서 다른 방법으로 되돌렸다면 다시 `db:migrate` 뒤 `db:seed`로 넣는다.
 - 테스트는 `X-Operator`·`X-Test-Role` 헤더로 사람을 흉내 낸다 — `NODE_ENV=test`이고 `AUTH_TEST_HEADERS=1`일 때만 켜진다(운영 실행에서는 401).
 
@@ -123,6 +123,16 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 - api 클라이언트·세션 코드는 점주 앱 사본이고 `src/copies.test.ts`가 코드가 같은지 본다([decisions/0062](docs/decisions/0062-세-번째-화면도-복사와-사본-검사-테스트로.md))
 - 시연 팁: 어드민(:5173)·매장(:5174)·현장(:5175)은 localhost에서 쿠키(`sid`) 하나를 함께 쓴다 — 동시에 다른 계정으로 보려면 브라우저 프로필을 나눈다
 
+## 통합 어드민(보강 5)
+
+시연 시나리오를 어드민 화면만으로 끝까지 돌릴 수 있게 운영자·ADMIN 화면을 채웠다(단계별 점검표는 [스펙](docs/specs/2026-10-29-admin-expansion.md) 2장).
+
+- 단말기 등록(운영자): 한 대(시리얼·모델), 엑셀 일괄(.xlsx, 1행 머리글 `serialNo`·`modelCode`, 5,000행·2MB) → 행별 결과·실패한 행만·결과 CSV
+- 펌웨어 배포(운영자 쓰기): "펌웨어 등록"(모델·버전), "새 배포 만들기"(모델 → 등록 버전, 단계 비율·실패 임계치·최소 표본·단계 시간 제한, 확인 뒤 시작). 버전 선택지는 `GET /firmware`([decisions/0066](docs/decisions/0066-어드민-확장은-있는-API를-쓰고-새-API는-펌웨어-목록-하나.md))
+- 발주는 "발주 입고 대조" 화면 그대로(발주하기·대조·마감, [decisions/0068](docs/decisions/0068-운영자-쓰기-화면은-새-메뉴-하나와-기존-화면-안의-폼으로.md))
+- 계정(ADMIN): 목록·만들기·역할 바꾸기·사용 중지([decisions/0069](docs/decisions/0069-계정-화면은-어드민에-외부-업체-키-화면은-개발자센터로.md))
+- 왼쪽 아래 "다른 화면": 매장(:5174)·현장(:5175) 새 탭, 이후 화면(관제·개발자센터·업체 콘솔·시뮬레이터)은 준비 중. 주소는 `apps/admin/src/apps.ts` 한 곳 — 바꿀 때는 `VITE_MERCHANT_APP_URL`·`VITE_FIELD_APP_URL` 같은 env를 주고 어드민을 다시 띄운다([decisions/0067](docs/decisions/0067-다른-화면-바로가기-주소는-apps-ts-한-곳과-Vite-env로.md))
+
 ## 기능
 
 | ID | 기능 | 코드 |
@@ -140,7 +150,7 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 | F11 | 주간 운영 리포트(xlsx → 톡톡), 대시보드(Redis 캐시) | `apps/api/src/report/`, `apps/api/src/dashboard/` |
 | F12 | 택배사 어댑터(JSON·XML → 같은 이벤트) | `apps/api/src/carrier/` |
 | F13 | 검수 체크리스트와 불합격 통계 | `apps/api/src/inspection/` |
-| 어드민 | 처음 화면(운영 현황), 단말기 목록·상세, 박스 스캔, A/S, 펌웨어 배포, 이상·VAN·입고 대조·주간 리포트, 배치 실행 이력 | `apps/admin/src/pages/` |
+| 어드민 | 처음 화면(운영 현황), 단말기 목록·상세, 단말기 등록(한 대·엑셀, 보강 5), 박스 스캔, A/S, 펌웨어 배포(등록·배포 만들기, 보강 5), 이상·VAN·입고 대조·주간 리포트, 배치 실행 이력, 계정(ADMIN, 보강 5), 다른 화면 바로가기 | `apps/admin/src/pages/`, `apps/admin/src/apps.ts` |
 | 공유 타입(보강 1) | api 응답·요청 모양·상태 값·오류 코드를 한 곳에. api가 어기면 tsc 실패(view 반환 타입, DTO implements, enum ↔ 유니온 단언), 어드민은 그 타입을 import | `packages/contracts/`, `apps/api/src/common/contract-assertions.ts`, `apps/api/test/unit/contract-drift.spec.ts` |
 | 로그인·권한(보강 2) | 서버 세션(Redis)·httpOnly 쿠키, 역할 다섯과 엔드포인트 표(기본 거부, 전수 검사 테스트), 가맹점주 /me 범위, 외부 업체 키·scope, 단말기 키 | `apps/api/src/auth/`, `src/me/`, `src/admin/`, `src/partner-api/`, `apps/admin/src/session.ts`·`components/AuthGate.tsx` |
 | 매장 화면(보강 3) | 점주 홈(오고 있는 단말기·진행 중 A/S·사용 중 단말기 접속·회수), 단말기 상세, 고장 접수, A/S 진행 단계·설치 확인. `/me` 점주용 응답·보이는 상태·내 매장·접수 상세 | `apps/merchant/src/`, `apps/api/src/me/` |
@@ -188,19 +198,19 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 
 이 프로젝트의 산출물은 코드와 기록이다(규칙 `CLAUDE.md`, 양식 `docs/README.md`).
 
-- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 65·트러블슈팅 32·실험 17 (`node scripts/docs-index.mjs`로 만든다)
+- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 69·트러블슈팅 32·실험 17 (`node scripts/docs-index.mjs`로 만든다)
 - 개발일지: [`docs/devlog/`](docs/devlog/)(날짜별, 날마다 "N일차 요약"), 설계 스펙 [`docs/specs/`](docs/specs/), 구현 계획 [`docs/plans/`](docs/plans/), 날마다의 최종 리뷰 [`docs/reviews/`](docs/reviews/)
 - 7일 회고: [`docs/retrospective.md`](docs/retrospective.md) — 날별로 만든 것, 잘 된 것·안 된 것, 반복된 실수, 면접에서 말할 거리, 남은 이월과 그 뒤 보강
 - 공부거리: [`docs/study/backlog.md`](docs/study/backlog.md)
 
 ## 테스트
 
-(보강 4 현장 화면 뒤 실제로 돌려 센 값(2026-10-28). api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 3 뒤에는 api 80/561·merchant 7/47, 보강 2 뒤에는 api 79/549, 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
+(보강 5 통합 어드민 확장 뒤 실제로 돌려 센 값(2026-10-29). api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 4 뒤에는 api 82/568·admin 14/125, 보강 3 뒤에는 api 80/561·merchant 7/47, 보강 2 뒤에는 api 79/549, 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
 
 | 앱 | 파일 | 테스트 |
 |---|---|---|
-| api(실험 제외) | 82 | 568 |
-| admin | 14 | 125 |
+| api(실험 제외) | 83 | 571 |
+| admin | 19 | 163 |
 | merchant | 7 | 47 |
 | field | 7 | 60 |
 | partners | 6 | 53 |
