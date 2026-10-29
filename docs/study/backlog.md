@@ -207,3 +207,4 @@
 - [ ] BullMQ metrics의 저장 모양(`meta.count`·`prevTS`·`prevCount`와 분 단위 data)과 갱신 시점 — 왜 "마지막 갱신 분"의 수는 data에 없나 (apps/api/src/ops/queue-metrics.ts, decisions/0071)
 - [ ] Redis `CLIENT LIST`·`CLIENT SETNAME`과 BullMQ `getWorkers` — 블로킹 연결이 살아 있다는 것이 워커가 살아 있다는 것과 어디까지 같나 (apps/api/src/ops/ops-queues.service.ts, decisions/0071)
 - [ ] TanStack Query `focusManager`와 `refetchIntervalInBackground` — "문서가 숨었다"를 무엇으로 아나(visibilitychange), 가려진 창은? (apps/console/src/lib/refresh.ts, decisions/0076)
+- [ ] BullMQ `Job.retry`의 `resetAttemptsMade`·`resetAttemptsStarted`, 실패 job이 다시 처리될 때 backoff는 어디서부터인가 (apps/api/src/ops/ops-jobs.service.ts, decisions/0072)

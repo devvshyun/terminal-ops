@@ -10,6 +10,7 @@ import type { PARTNER_SCOPES } from '../auth/partner-key.entity.js';
 import type { Role } from '../auth/role.js';
 import type { Carrier, CarrierEventCode } from '../carrier/carrier.types.js';
 import type { RolloutStatus } from '../firmware/firmware.entities.js';
+import type { OPS_ACTIONS } from '../ops/ops-action-log.entity.js';
 import type { OutboxStatus } from '../outbox/outbox-event.entity.js';
 import type { QueueName } from '../queue/queue-names.js';
 import type { PurchaseOrderStatus } from '../purchase-order/purchase-order.entity.js';
@@ -50,4 +51,5 @@ export type ContractEnumAssertions = [
   Assert<Same<(typeof PARTNER_SCOPES)[number], C.PartnerScope>>,
   Assert<Same<QueueName, C.OpsQueueName>>,
   Assert<Same<`${OutboxStatus}`, C.OpsOutboxStatus>>,
+  Assert<Same<(typeof OPS_ACTIONS)[number], C.OpsActionKind>>,
 ];

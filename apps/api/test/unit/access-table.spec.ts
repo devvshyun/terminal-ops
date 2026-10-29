@@ -101,6 +101,11 @@ const EXPECTED: Record<string, string> = {
   'GET /ops/system': 'ADMIN,MONITOR',
   'GET /ops/outbox': 'ADMIN,MONITOR',
   'GET /ops/errors': 'ADMIN,MONITOR',
+  'GET /ops/queues/:name/failed': 'ADMIN,MONITOR',
+  'GET /ops/actions': 'ADMIN,MONITOR',
+  'POST /ops/queues/:name/jobs/:id/retry': 'MONITOR',
+  'POST /ops/queues/:name/jobs/:id/remove': 'MONITOR',
+  'POST /ops/outbox/requeue': 'MONITOR',
 
   // 외부 업체 키(scope별)
   'GET /partner/v1/terminals/:serialNo': 'partner:terminal-status:read',

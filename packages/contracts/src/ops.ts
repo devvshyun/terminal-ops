@@ -122,3 +122,67 @@ export interface OpsErrorView {
   /** 그 행에 남은 오류 글(500자까지) */
   message: string;
 }
+
+/**
+ * 실패한 job 하나(GET /ops/queues/:name/failed). Redis에 남은 실패만 보인다 — 끝나면 지우는 job(removeOnFail: true)의 실패는
+ * 업무 기록(outbox FAILED, 수집 기록 ERROR, 주간 리포트 lastError)으로 본다(GET /ops/errors, decisions/0072).
+ */
+export interface OpsFailedJobView {
+  queue: OpsQueueName;
+  /** BullMQ job id(주기 job은 `repeat:<id>:<시각>`) */
+  id: string;
+  name: string;
+  /** job data — 비밀·개인정보처럼 보이는 이름의 값은 '[가림]', 긴 글자는 자른다(decisions/0072) */
+  data: Record<string, unknown>;
+  /** 마지막 실패 이유(500자까지). 스택은 보내지 않는다 */
+  failedReason: string;
+  attemptsMade: number;
+  /** job 옵션의 최대 시도 수(없으면 1) */
+  maxAttempts: number;
+  createdAt: string;
+  failedAt: string | null;
+}
+
+/** 실패 job 목록 한 쪽(최근 실패부터 start번째부터 limit개). total = 이 큐의 실패 job 수 */
+export interface OpsFailedJobsPage {
+  items: OpsFailedJobView[];
+  total: number;
+  start: number;
+  limit: number;
+}
+
+/** 관제 작업 종류(감사 기록, decisions/0073) */
+export type OpsActionKind = 'RETRY_JOB' | 'REMOVE_JOB' | 'REQUEUE_OUTBOX';
+
+/** 관제 작업 한 건의 감사 기록(GET /ops/actions, 최근부터 beforeId 키셋) */
+export interface OpsActionView {
+  id: number;
+  action: OpsActionKind;
+  /** 로그인 아이디와 그때의 역할 */
+  actor: string;
+  actorRole: string;
+  queue: OpsQueueName | null;
+  jobId: string | null;
+  jobName: string | null;
+  /** 작업 때의 사정(job의 실패 이유·시도 수, sweep 결과 수) */
+  detail: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+/** POST /ops/queues/:name/jobs/:id/retry·remove 응답 */
+export interface OpsJobActionResult {
+  queue: OpsQueueName;
+  jobId: string;
+  action: 'RETRY_JOB' | 'REMOVE_JOB';
+  /** 남긴 감사 기록 id */
+  actionId: number;
+}
+
+/** POST /ops/outbox/requeue — 멈춘 QUEUED 복구 sweep을 지금 한 번(주기 작업 outbox-requeue와 같은 일, decisions/0042) */
+export interface OpsRequeueResult {
+  /** 본 QUEUED 행 수(최대 100) */
+  checked: number;
+  /** notify job이 없어 다시 넣은 outbox id */
+  requeued: number[];
+  actionId: number;
+}

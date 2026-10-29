@@ -1,5 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { getQueueToken } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
+import { OpsActionLog } from '../src/ops/ops-action-log.entity.js';
 import { OUTBOX_TYPE, OutboxEvent, OutboxStatus } from '../src/outbox/outbox-event.entity.js';
+import { idempotencyKeyOf } from '../src/outbox/outbox.service.js';
+import { QUEUE } from '../src/queue/queue-names.js';
 import { WeeklyReport, WeeklyReportStatus } from '../src/report/weekly-report.entity.js';
 import { SyncRun } from '../src/shipment/shipment.entities.js';
 import { VanReconciliationRun, VanRunStatus, VanRunTrigger } from '../src/van/van.entities.js';
@@ -10,11 +15,13 @@ const MONITOR = { 'X-Operator': 'mon', 'X-Test-Role': 'MONITOR' };
 const ADMIN = { 'X-Operator': 'adm', 'X-Test-Role': 'ADMIN' };
 
 /**
- * Outbox 요약과 최근 업무 오류(보강 6, decisions/0070·0042).
+ * Outbox 요약·복구 sweep 수동 실행과 최근 업무 오류(보강 6, decisions/0070·0042·0073).
  * 워커 없는 앱이라 행을 직접 넣는다 — 만든 시각을 정해 두고 상태별 수·가장 오래된 행·오류 순서를 본다.
+ * 넣은 notify job은 waiting에 그대로 남는다 — 행만 QUEUED로 넣어 "job이 사라진 QUEUED 행"을 만든다(outbox-requeue 테스트와 같은 방법).
  */
-describe('Outbox 요약 /ops/outbox, 최근 업무 오류 /ops/errors (보강 6)', () => {
+describe('Outbox 요약·복구 sweep /ops/outbox, 최근 업무 오류 /ops/errors (보강 6)', () => {
   let t: TestApp;
+  let queue: Queue;
   const em = () => t.orm.em.fork();
   const now = Date.now();
   /** 만든 시각을 정해 행을 넣는다(datetime(0) 열이 있어 초 단위로 맞춘다) */
@@ -25,6 +32,7 @@ describe('Outbox 요약 /ops/outbox, 최근 업무 오류 /ops/errors (보강 6)
     t = await createTestApp();
     await resetDatabase(t.orm);
     await resetQueues(t.app);
+    queue = t.app.get<Queue>(getQueueToken(QUEUE.OUTBOX));
     const e = em();
     const payload = { serialNo: 'OPS-1', fromStatus: 'IN_STOCK', toStatus: 'ALLOCATED', actor: 'kim', reason: 'r' };
     const row = (status: OutboxStatus, createdAt: Date, extra: Partial<OutboxEvent> = {}) =>
@@ -68,6 +76,22 @@ describe('Outbox 요약 /ops/outbox, 최근 업무 오류 /ops/errors (보강 6)
       oldestQueuedAt: minutesAgo(5).toISOString(),
       requeueAfterMs: 60_000,
     });
+  });
+
+  it('복구 sweep 수동 실행은 관제만: 만든 지 1분 지난 QUEUED 중 job이 없는 행에 같은 jobId로 다시 넣고 감사 기록을 남긴다', async () => {
+    expect((await t.http(ADMIN).post('/ops/outbox/requeue')).status).toBe(403);
+    expect((await t.http({ 'X-Operator': 'op', 'X-Test-Role': 'OPERATOR' }).post('/ops/outbox/requeue')).status).toBe(403);
+
+    const res = await t.http(MONITOR).post('/ops/outbox/requeue');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ checked: 2, requeued: [ids.queuedOld, ids.queuedOld + 1], actionId: expect.any(Number) });
+    expect(await queue.getJobState(idempotencyKeyOf(ids.queuedOld))).toBe('waiting');
+    // 다시 누르면 job이 있으니 넣지 않는다 — 그래도 누른 기록은 남는다
+    expect((await t.http(MONITOR).post('/ops/outbox/requeue')).body).toMatchObject({ checked: 2, requeued: [] });
+    const actions = (await t.http(MONITOR).get('/ops/actions')).body.items;
+    expect(actions.map((a: { action: string }) => a.action)).toEqual(['REQUEUE_OUTBOX', 'REQUEUE_OUTBOX']);
+    expect(actions[1]).toMatchObject({ actor: 'mon', actorRole: 'MONITOR', queue: null, jobId: null, detail: { checked: 2, requeuedCount: 2, requeued: [ids.queuedOld, ids.queuedOld + 1] } });
+    expect(await em().count(OpsActionLog)).toBe(2);
   });
 
   it('최근 업무 오류: 수집 실패·VAN 대조 실패·주간 리포트 lastError·알림 실패를 시각 순으로 한 목록에(오류가 아닌 행은 빠진다)', async () => {

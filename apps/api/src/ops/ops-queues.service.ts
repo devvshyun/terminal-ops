@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
@@ -50,6 +50,12 @@ export class OpsQueuesService {
       [QUEUE.DEVICE]: device,
       [QUEUE.REPORT]: report,
     };
+  }
+
+  /** 이름으로 큐. 없는 이름은 404(경로 :name) */
+  queue(name: string): Queue {
+    if (!(ALL_QUEUES as string[]).includes(name)) throw new NotFoundException(`없는 큐입니다: ${name}`);
+    return this.queues[name as QueueName];
   }
 
   async summary(now = Date.now()): Promise<OpsQueuesView> {
