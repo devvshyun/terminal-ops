@@ -211,7 +211,7 @@ export function AccountsPage() {
       ) : null}
       <div className="panel" aria-label="외부 업체 키">
         <h3>외부 업체 키</h3>
-        <p className="muted">외부 업체(가상) API 키 발급·폐기는 개발자센터 화면(보강 7)에서 합니다. 그 전까지는 API(`POST /admin/partner-keys`, `POST /admin/partner-keys/:id/revoke`)로 합니다.</p>
+        <p className="muted">외부 업체(가상) API 키 발급·폐기는 개발자센터 화면(보강 7)에서 합니다. 그 전까지는 API(<code>POST /admin/partner-keys</code>, <code>POST /admin/partner-keys/:id/revoke</code>)로 합니다.</p>
       </div>
     </section>
   );

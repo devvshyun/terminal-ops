@@ -20,10 +20,19 @@ export function importResultCsv(view: TerminalImportView): string {
   ]);
 }
 
+/** 내려받기용 Blob. 앞에 BOM을 붙여 엑셀이 UTF-8 한글을 바로 읽게 한다 */
+export function csvBlob(csv: string): Blob {
+  return new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' });
+}
+
 /**
- * 내려받기 링크 주소(data: URL). 앞에 BOM을 붙여 엑셀이 UTF-8 한글을 바로 읽게 한다.
- * Blob URL(URL.createObjectURL)은 해제 시점을 따로 관리해야 해서, 수천 행 정도인 이 결과는 data: URL로 충분하다
+ * 클릭할 때 Blob URL을 만들어 내려받고 바로 해제한다(렌더마다 인코딩하지 않는다, 5,000행 CSV도 data: URL 길이 상한에 걸리지 않는다 — decisions/0068)
  */
-export function csvDataUrl(csv: string): string {
-  return `data:text/csv;charset=utf-8,${encodeURIComponent(`﻿${csv}`)}`;
+export function downloadCsv(csv: string, fileName: string): void {
+  const url = URL.createObjectURL(csvBlob(csv));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
 }

@@ -20,6 +20,8 @@ const importBody: TerminalImportView = {
   ],
 };
 
+const readBlob = async (blob: Blob) => new TextDecoder('utf-8', { ignoreBOM: true }).decode(await blob.arrayBuffer());
+
 const xlsx = (name = '입고-1028.xlsx', size = 10) => new File([new Uint8Array(size)], name, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
 describe('단말기 등록 — 한 대 (F1, 보강 5)', () => {
@@ -133,6 +135,13 @@ describe('단말기 등록 — 엑셀 일괄 (F1, 보강 5)', () => {
   });
 
   it('올리면 파일을 multipart file 필드로 보내고, 행별 결과·요약·실패한 행만·CSV 내려받기를 보인다', async () => {
+    const createObjectURL = vi.fn((_blob: Blob) => 'blob:csv-1');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL }));
+    const clicked: HTMLAnchorElement[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      clicked.push(this);
+    });
     const { calls } = mockApi({ ...MODELS, 'POST /terminals/imports': () => ({ status: 201, body: importBody }) });
     loginAs();
     renderPage(<RegistrationPage />);
@@ -154,9 +163,19 @@ describe('단말기 등록 — 엑셀 일괄 (F1, 보강 5)', () => {
       '4bad형식 오류serialNo는 대문자·숫자·하이픈 4~32자입니다.',
     ]);
 
-    const link = within(result).getByRole('link', { name: '결과 내려받기(CSV)' });
-    expect(link).toHaveAttribute('download', '입고-1028-결과.csv');
-    const csv = decodeURIComponent(link.getAttribute('href')!.replace('data:text/csv;charset=utf-8,', ''));
+    // 내려받기는 클릭할 때만 Blob URL을 만들고 바로 해제한다(렌더마다 인코딩하지 않는다)
+    expect(createObjectURL).not.toHaveBeenCalled();
+    await userEvent.click(within(result).getByLabelText('실패한 행만')); // 다시 그려도 만들지 않는다
+    expect(createObjectURL).not.toHaveBeenCalled();
+    await userEvent.click(within(result).getByRole('button', { name: '결과 내려받기(CSV)' }));
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    const blob = createObjectURL.mock.calls[0][0];
+    expect(blob.type).toBe('text/csv;charset=utf-8');
+    expect(clicked).toHaveLength(1);
+    expect(clicked[0].download).toBe('입고-1028-결과.csv');
+    expect(clicked[0].href).toBe('blob:csv-1');
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:csv-1');
+    const csv = await readBlob(blob);
     expect(csv.split('\r\n')).toEqual([
       '﻿row,serialNo,result,결과,이유',
       '2,XL-0001,CREATED,등록됨,',

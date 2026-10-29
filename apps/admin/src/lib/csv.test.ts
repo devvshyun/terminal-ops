@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { csvCell, csvDataUrl, toCsv } from './csv';
+import { csvBlob, csvCell, toCsv } from './csv';
 
 describe('CSV (보강 5 엑셀 등록 결과 내려받기)', () => {
   it('쉼표·따옴표·줄바꿈이 있는 칸만 따옴표로 감싸고, 안의 따옴표는 두 번', () => {
@@ -19,7 +19,15 @@ describe('CSV (보강 5 엑셀 등록 결과 내려받기)', () => {
     expect(csvCell('\r=1')).toBe('"\'\r=1"');
   });
 
-  it('내려받기 주소는 BOM을 붙인 UTF-8 data URL', () => {
-    expect(decodeURIComponent(csvDataUrl('가,나').replace('data:text/csv;charset=utf-8,', ''))).toBe('﻿가,나');
+  it('내려받기 Blob은 BOM을 붙인 UTF-8 text/csv', async () => {
+    const blob = csvBlob('가,나');
+    expect(blob.type).toBe('text/csv;charset=utf-8');
+    const text = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsText(blob);
+    });
+    expect(new Uint8Array(await blob.arrayBuffer()).slice(0, 3)).toEqual(new Uint8Array([0xef, 0xbb, 0xbf])); // UTF-8 BOM
+    expect(text.replace(/^﻿/, '')).toBe('가,나');
   });
 });

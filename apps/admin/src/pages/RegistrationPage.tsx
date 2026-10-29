@@ -5,7 +5,7 @@ import { api } from '../api/client';
 import { keys } from '../api/query-keys';
 import type { RegisterTerminalRequest, RowResultCode, TerminalImportView, TerminalModelView, TerminalView } from '@terminal-ops/contracts';
 import { ErrorBox } from '../components/ErrorBox';
-import { csvDataUrl, importResultCsv } from '../lib/csv';
+import { downloadCsv, importResultCsv } from '../lib/csv';
 import { label, ROW_RESULT_LABEL, TERMINAL_STATUS_LABEL } from '../lib/labels';
 
 /** 서버 규칙과 같은 시리얼 형식(api terminal/bulk-rows.ts SERIAL_NO_PATTERN) — 화면은 미리 알려 줄 뿐, 최종 판단은 서버 */
@@ -126,9 +126,9 @@ export function RegistrationPage() {
               <label>
                 <input type="checkbox" checked={onlyFailed} onChange={(e) => setOnlyFailed(e.target.checked)} /> 실패한 행만
               </label>
-              <a href={csvDataUrl(importResultCsv(result))} download={`${result.fileName.replace(/\.xlsx$/i, '')}-결과.csv`}>
+              <button type="button" onClick={() => downloadCsv(importResultCsv(result), `${result.fileName.replace(/.xlsx$/i, '')}-결과.csv`)}>
                 결과 내려받기(CSV)
-              </a>
+              </button>
             </div>
             <table>
               <thead>
