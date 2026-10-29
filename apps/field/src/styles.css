@@ -782,6 +782,46 @@ ul.queue li + li {
   }
 }
 
+/* 넓은 화면 안내: 가운데 한 줄 왼쪽 빈 곳에. 그 폭이 안 되면 숨긴다 */
+.wide-note {
+  display: none;
+}
+
+@media (min-width: 1180px) {
+  .wide-note {
+    display: grid;
+    gap: 10px;
+    position: fixed;
+    top: 50%;
+    right: calc(50% + 280px + 48px);
+    width: 260px;
+    transform: translateY(-50%);
+    color: #c9d3e6;
+    font-size: 14px;
+    line-height: 1.6;
+    word-break: keep-all;
+  }
+
+  .wide-note strong {
+    color: #fff;
+    font-size: 16px;
+  }
+
+  .wide-note p {
+    margin: 0;
+  }
+
+  .wide-note a {
+    color: #8fb2ff;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .wide-note a:hover {
+    text-decoration: underline;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
