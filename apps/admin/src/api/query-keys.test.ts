@@ -20,6 +20,7 @@ describe('쿼리 키 팩토리 (Day 6 최종 리뷰 Minor 4, decisions/0041 Day 
     expect(startsWith(keys.serviceTicket.one(7), keys.serviceTicket.all)).toBe(true);
     expect(startsWith(keys.anomalies.list('OFFLINE_TOO_LONG', 'true'), keys.anomalies.all)).toBe(true);
     expect(startsWith(keys.vanRun.items(3, '', ''), keys.vanRun.all)).toBe(true);
+    expect(startsWith(keys.firmware.byModel('SN-100'), keys.firmware.all)).toBe(true);
   });
 
   it('목록 묶음(복수)과 한 건 묶음(단수)의 첫 칸이 서로 다르다 — 한쪽 무효화가 다른 쪽을 대신하지 않는다는 것을 이름으로 드러낸다', () => {
