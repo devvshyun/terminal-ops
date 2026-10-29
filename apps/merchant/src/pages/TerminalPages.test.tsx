@@ -60,6 +60,9 @@ describe('홈 (보강 3, decisions/0060)', () => {
     expect(inService.getByText(/연결됨 · 마지막 접속 2분 전/)).toBeInTheDocument();
     expect(inService.getByText(/연결 끊김 · 마지막 접속 2시간 전/)).toBeInTheDocument();
     expect(inService.getAllByRole('link')[0]).toHaveAttribute('href', '/terminals/SN-0001');
+    // 연결이 끊긴 단말기만 카드째 표시, 오고 있는 단말기는 큰 카드(decisions/0070)
+    expect(inService.getAllByRole('link').map((a) => a.classList.contains('offline'))).toEqual([false, true]);
+    expect(coming.getByRole('link')).toHaveClass('hero');
 
     const returns = within(screen.getByRole('region', { name: '회수' }));
     expect(returns.getByText('회수 준비 중')).toBeInTheDocument();
