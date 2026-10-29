@@ -204,3 +204,5 @@
 - [ ] Vite env 읽기 규칙 — `envDir`·`.env.[mode]`·`VITE_` 접두사, 프로세스 env와 파일 env의 우선순위, 빌드 때 상수로 박히는 것 (apps/admin/src/apps.ts, decisions/0067)
 - [ ] CSV 수식 주입(= + - @로 시작하는 칸)과 엑셀이 UTF-8 CSV를 읽는 방법(BOM), `data:` URL과 Blob URL(`createObjectURL`·`revokeObjectURL`)의 차이 (apps/admin/src/lib/csv.ts, decisions/0068)
 - [ ] React `key`로 줄 상태 초기화 — 서버 값이 바뀌면 key를 바꿔 다시 마운트하는 방법과 `useEffect`로 맞추는 방법의 차이 (apps/admin/src/pages/AccountsPage.tsx, decisions/0069)
+- [ ] 웹 글꼴 `unicode-range` 조각 나누기와 `font-display: swap`(FOUT) — 한글 글꼴은 왜 조각이 100개가 넘나, `@font-face` 규칙이 많으면 CSS가 렌더링을 얼마나 막나, 굵기를 빼면 브라우저가 어떤 굵기로 대신 그리나(font matching) (apps/field/src/styles.css, decisions/0070, experiments/0018)
+- [ ] CSS 카운터(`counter-reset`·`counter-increment`)와 `list-style: none` 뒤 목록의 접근성(Safari가 list 역할을 지우는 경우) (apps/field/src/styles.css `.box-list`)

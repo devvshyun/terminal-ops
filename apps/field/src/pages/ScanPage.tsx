@@ -178,8 +178,9 @@ export function ScanPage() {
         {serials.map((serial, i) => {
           const row = result?.results[i];
           const problem = problems[i];
+          const rejected = row ? !SUCCESS.has(row.result) : problem !== null;
           return (
-            <li key={`${serial}-${i}`}>
+            <li key={`${serial}-${i}`} className={rejected ? 'rejected' : undefined}>
               <span className="serial">{serial}</span>
               {row ? (
                 <span className={SUCCESS.has(row.result) ? 'badge ok' : 'badge danger'} title={row.message}>
@@ -221,13 +222,14 @@ export function ScanPage() {
       <div className="actions">
         <button
           type="button"
-          className="primary"
+          className={sealed ? undefined : 'primary'}
           disabled={serials.length === 0 || serials.length > MAX_BOX || (kind === 'RECEIVE' && !poNo) || scan.isPending || result !== undefined}
           onClick={send}
         >
           {scanId && scan.isError ? '같은 박스 다시 보내기' : '보내기'}
         </button>
-        <button ref={newBox} type="button" disabled={scan.isPending} onClick={nextBox}>
+        {/* 결과를 받은 박스는 다음이 새 박스뿐이라 새 박스를 주 버튼 모양으로(초점도 그리로 간다) */}
+        <button ref={newBox} type="button" className={sealed ? 'primary' : undefined} disabled={scan.isPending} onClick={nextBox}>
           새 박스
         </button>
       </div>

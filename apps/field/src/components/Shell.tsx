@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router';
 import { useMe } from '../session';
+import { HomeIcon, InspectIcon, ScanIcon } from './icons';
 import { LogoutButton } from './LogoutButton';
 
 /**
@@ -11,9 +12,12 @@ export function Shell() {
   return (
     <div className="shell">
       <header className="top">
-        <div>
-          <strong className="app-name">단말온 현장</strong>
-          <small>{me?.displayName}</small>
+        <div className="brand">
+          <span className="brand-mark" aria-hidden="true" />
+          <div>
+            <strong className="app-name">단말온 현장</strong>
+            <small>{me?.displayName}</small>
+          </div>
         </div>
         <LogoutButton />
       </header>
@@ -22,10 +26,17 @@ export function Shell() {
       </main>
       <nav className="tabs" aria-label="메뉴">
         <NavLink to="/" end>
+          <HomeIcon />
           홈
         </NavLink>
-        <NavLink to="/scan">박스 스캔</NavLink>
-        <NavLink to="/inspections">검수</NavLink>
+        <NavLink to="/scan">
+          <ScanIcon />
+          박스 스캔
+        </NavLink>
+        <NavLink to="/inspections">
+          <InspectIcon />
+          검수
+        </NavLink>
       </nav>
     </div>
   );
