@@ -51,7 +51,35 @@ body {
   flex-direction: column;
   padding: 8px;
   border-right: 1px solid var(--line);
+  gap: 16px;
+}
+
+.side .menu {
+  display: flex;
+  flex-direction: column;
   gap: 2px;
+}
+
+/* 다른 화면 바로가기(보강 5) */
+.other-apps {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.other-apps h2 {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 8px 4px;
+}
+
+.other-apps li {
+  margin: 0 0 6px;
+}
+
+.other-apps li > span,
+.other-apps .hint {
+  padding: 0 8px;
+  font-size: 12px;
 }
 
 .side a {

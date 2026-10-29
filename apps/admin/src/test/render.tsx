@@ -38,7 +38,8 @@ export function mockApi(handlers: Record<string, Handler>) {
       method: init?.method ?? 'GET',
       path: url.pathname.replace(/^\/api/, ''),
       query: url.searchParams,
-      body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined,
+      // JSON 본문은 읽어 두고, 파일 올리기(FormData)는 그대로 둔다 — 테스트가 call.body.get('file')로 본다(보강 5)
+      body: typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body instanceof FormData ? init.body : undefined,
       headers: (init?.headers ?? {}) as Record<string, string>,
     };
     calls.push(call);

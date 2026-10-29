@@ -26,7 +26,9 @@ export class ApiError extends Error {
 export type Query = Record<string, string | number | boolean | null | undefined>;
 
 export interface RequestOptions {
-  method?: 'GET' | 'POST';
+  /** PATCH는 계정 바꾸기(PATCH /admin/accounts/:id, 보강 5) */
+  method?: 'GET' | 'POST' | 'PATCH';
+  /** 보통은 JSON으로 보낸다. FormData(엑셀 파일 올리기)면 그대로 보내고 Content-Type은 브라우저가 경계(boundary)와 함께 붙인다(보강 5) */
   body?: unknown;
   query?: Query;
 }
@@ -58,11 +60,12 @@ const LOGIN_PATH = '/auth/login';
  */
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
-  if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+  const isForm = options.body instanceof FormData;
+  if (options.body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
   const res = await fetch(`${API_BASE}${path}${toQueryString(options.query)}`, {
     method: options.method ?? 'GET',
     headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body: options.body === undefined ? undefined : isForm ? (options.body as FormData) : JSON.stringify(options.body),
   });
   const text = await res.text();
   let body: unknown = null;

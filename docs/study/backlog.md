@@ -201,3 +201,4 @@
 - [ ] HTML `<input>` 값 정리(줄바꿈 지우기)와 붙여 넣기 이벤트(`clipboardData.getData('text')`, `preventDefault`) — 여러 줄 붙여 넣기가 한 덩어리가 됨 (apps/field/src/pages/ScanPage.tsx, decisions/0064)
 - [ ] 바코드 스캐너 키보드 웨지의 접미사(Enter·Tab)·접두사 설정과 브라우저 `BarcodeDetector` 지원 범위(안드로이드 Chrome 등) (decisions/0064)
 - [ ] TypeScript 클래스 메서드 이름 겹침(TS2393)과 Nest 라우트 — 같은 컨트롤러에 `list`가 둘이면? 데코레이터 메타데이터는 어느 쪽에 남나 (apps/api/src/firmware/firmware.controller.ts, decisions/0066)
+- [ ] Vite env 읽기 규칙 — `envDir`·`.env.[mode]`·`VITE_` 접두사, 프로세스 env와 파일 env의 우선순위, 빌드 때 상수로 박히는 것 (apps/admin/src/apps.ts, decisions/0067)
