@@ -206,3 +206,4 @@
 - [ ] React `key`로 줄 상태 초기화 — 서버 값이 바뀌면 key를 바꿔 다시 마운트하는 방법과 `useEffect`로 맞추는 방법의 차이 (apps/admin/src/pages/AccountsPage.tsx, decisions/0069)
 - [ ] BullMQ metrics의 저장 모양(`meta.count`·`prevTS`·`prevCount`와 분 단위 data)과 갱신 시점 — 왜 "마지막 갱신 분"의 수는 data에 없나 (apps/api/src/ops/queue-metrics.ts, decisions/0071)
 - [ ] Redis `CLIENT LIST`·`CLIENT SETNAME`과 BullMQ `getWorkers` — 블로킹 연결이 살아 있다는 것이 워커가 살아 있다는 것과 어디까지 같나 (apps/api/src/ops/ops-queues.service.ts, decisions/0071)
+- [ ] TanStack Query `focusManager`와 `refetchIntervalInBackground` — "문서가 숨었다"를 무엇으로 아나(visibilitychange), 가려진 창은? (apps/console/src/lib/refresh.ts, decisions/0076)

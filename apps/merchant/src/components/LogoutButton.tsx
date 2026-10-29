@@ -3,7 +3,7 @@ import { api, ApiError } from '../api/client';
 import { setLoggedOut } from '../session';
 import { describeError } from './ErrorBox';
 
-// 현장 앱 `apps/field/src/components/LogoutButton.tsx`에 사본이 있다 — 같이 고친다(decisions/0062, 현장 `src/copies.test.ts`가 코드 차이를 본다)
+// 현장 앱 `apps/field/src/components/LogoutButton.tsx`·관제 앱 `apps/console/src/components/LogoutButton.tsx`에 사본이 있다 — 같이 고친다(decisions/0062·0075, 두 앱의 `src/copies.test.ts`가 코드 차이를 본다)
 /** 로그아웃: 서버 세션을 끊은 뒤 화면 쪽 로그인 정보를 비운다(캐시는 SessionCacheSync가 비운다). 어드민 UserBar와 같은 규칙 */
 export function LogoutButton() {
   const [busy, setBusy] = useState(false);
