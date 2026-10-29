@@ -60,10 +60,36 @@ export interface UpdateAccountRequest {
 /** 외부 업체 키가 할 수 있는 일(decisions/0054) */
 export type PartnerScope = 'terminal-status:read' | 'merchant-terminals:read';
 
+/** GET /admin/partners 한 줄 — 외부 업체(보강 7, decisions/0081) */
+export interface PartnerView {
+  id: number;
+  /** 업체 코드(대문자·숫자·`-` 2~20자, unique) */
+  code: string;
+  name: string;
+  memo: string | null;
+  /** 폐기·만료되지 않은 키 수 */
+  activeKeys: number;
+  totalKeys: number;
+  /** 이 업체 키들의 lastUsedAt 중 가장 늦은 것 */
+  lastUsedAt: string | null;
+  createdBy: string;
+  createdAt: string;
+}
+
+/** POST /admin/partners */
+export interface CreatePartnerRequest {
+  code: string;
+  name: string;
+  memo?: string | null;
+}
+
 /** GET /admin/partner-keys 한 줄. 키 원문은 없다(만들 때 한 번만 준다) */
 export interface PartnerKeyView {
   id: number;
-  /** 업체 이름(표시용) */
+  partnerId: number;
+  partnerCode: string;
+  partnerName: string;
+  /** 키 이름표(어디에 쓰는 키인지, 예: 운영 서버). 보강 7 전에는 업체 이름을 적던 칸 */
   name: string;
   /** 키 앞부분(`pk_` + 8자). 어느 키인지 알아보는 용도 */
   prefix: string;
@@ -82,10 +108,27 @@ export interface CreatedPartnerKeyView extends PartnerKeyView {
 
 /** POST /admin/partner-keys */
 export interface CreatePartnerKeyRequest {
+  /** 어느 업체의 키인가(보강 7부터 필수) */
+  partnerId: number;
   name: string;
   scopes: PartnerScope[];
   /** ISO 시각. 없으면 만료 없음 */
   expiresAt?: string | null;
+}
+
+/** GET /admin/partner-calls 한 줄 — 외부용 API 호출 기록(보강 7, decisions/0082). 키를 알아본 호출만 남는다(401은 없다) */
+export interface PartnerCallView {
+  id: number;
+  partnerId: number;
+  partnerCode: string;
+  keyId: number;
+  keyPrefix: string;
+  method: string;
+  /** 쿼리를 뺀 경로 */
+  path: string;
+  status: number;
+  durationMs: number;
+  createdAt: string;
 }
 
 /** GET /partner/v1/terminals/:serialNo, GET /partner/v1/merchants/:code/terminals 한 줄 */

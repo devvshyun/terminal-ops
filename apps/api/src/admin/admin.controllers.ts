@@ -1,11 +1,12 @@
-import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
-import type { AccountView, CreatedPartnerKeyView, PartnerKeyView } from '@terminal-ops/contracts';
+import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
+import type { AccountView, CreatedPartnerKeyView, PartnerKeyView, PartnerView } from '@terminal-ops/contracts';
 import { Roles } from '../auth/access.js';
 import { AccountService } from '../auth/account.service.js';
 import { PartnerKeyService } from '../auth/partner-key.service.js';
 import { Role } from '../auth/role.js';
 import { Operator } from '../common/operator.decorator.js';
-import { CreateAccountDto, CreatePartnerKeyDto, UpdateAccountDto } from './admin.dto.js';
+import { PartnerService } from '../partner/partner.service.js';
+import { CreateAccountDto, CreatePartnerDto, CreatePartnerKeyDto, PartnerKeysQuery, UpdateAccountDto } from './admin.dto.js';
 
 /** 계정·역할 관리(ADMIN만, decisions/0052). 화면은 Bundle 7 이후 — 지금은 API와 테스트까지 */
 @Controller('admin/accounts')
@@ -32,22 +33,40 @@ export class AdminAccountsController {
   }
 }
 
-/** 외부 업체 키 발급·폐기(ADMIN만, decisions/0054). 개발자센터 화면은 Bundle 7 */
+/** 외부 업체 목록·등록(ADMIN만, 보강 7, decisions/0081). 개발자센터 화면이 부른다 */
+@Controller('admin/partners')
+export class AdminPartnersController {
+  constructor(private readonly partners: PartnerService) {}
+
+  @Get()
+  @Roles(Role.ADMIN)
+  list(): Promise<PartnerView[]> {
+    return this.partners.list();
+  }
+
+  @Post()
+  @Roles(Role.ADMIN)
+  create(@Body() dto: CreatePartnerDto, @Operator() actor: string): Promise<PartnerView> {
+    return this.partners.create(dto, actor);
+  }
+}
+
+/** 외부 업체 키 발급·폐기(ADMIN만, decisions/0054). 키는 업체 하나에 속한다(보강 7, 0081) */
 @Controller('admin/partner-keys')
 export class AdminPartnerKeysController {
   constructor(private readonly keys: PartnerKeyService) {}
 
   @Get()
   @Roles(Role.ADMIN)
-  list(): Promise<PartnerKeyView[]> {
-    return this.keys.list();
+  list(@Query() query: PartnerKeysQuery): Promise<PartnerKeyView[]> {
+    return this.keys.list({ partnerId: query.partnerId });
   }
 
   /** 응답의 key(원문)는 이번 한 번만 — 저장하지 않는다 */
   @Post()
   @Roles(Role.ADMIN)
   create(@Body() dto: CreatePartnerKeyDto, @Operator() actor: string): Promise<CreatedPartnerKeyView> {
-    return this.keys.create({ name: dto.name, scopes: dto.scopes, expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null }, actor);
+    return this.keys.create({ partnerId: dto.partnerId, name: dto.name, scopes: dto.scopes, expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null }, actor);
   }
 
   @Post(':id/revoke')

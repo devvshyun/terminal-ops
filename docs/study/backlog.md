@@ -215,3 +215,4 @@
 - [ ] npm arborist의 peer 의존성 해석 — 선택 peer(`peerDependenciesMeta.optional`)도 매니페스트를 가져오는 이유, `--legacy-peer-deps`가 lock에 남기는 차이 (troubleshooting/0033)
 - [ ] 가변 글꼴 축(`wght`)과 `font-weight` 애니메이션 비용 — 굵기를 바꾸면 줄 바꿈·레이아웃이 다시 계산되나, `font-variation-settings`와 무엇이 다른가 (apps/landing/src/main.ts, decisions/0078)
 - [ ] GSAP ScrollTrigger `pin`·`scrub`·`invalidateOnRefresh`와 `matchMedia` 정리 함수 — 창 크기가 바뀔 때 고정 구간 길이를 다시 재는 방법 (apps/landing/src/main.ts)
+- MySQL 8 윈도 함수 `row_number() over (order by min(id))`를 group by와 함께 쓰는 순서(집계 뒤 윈도) — `apps/api/src/migrations/Migration20261029061906.ts`, decisions/0081

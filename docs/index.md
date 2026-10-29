@@ -2,7 +2,7 @@
 
 > 이 파일은 `node scripts/docs-index.mjs`가 만든다. 손으로 고치지 않는다(decisions/0046). 기록을 더한 뒤 다시 만들고, `--check`로 확인한다.
 
-## 결정 기록 (79)
+## 결정 기록 (81)
 
 - [0001](decisions/0001-인증은-작업자-헤더로.md) 인증은 하지 않고, 작업자는 요청 헤더로 기록한다
 - [0002](decisions/0002-esm-vitest-tsc-빌드.md) ESM + Vitest + tsc 빌드로 API를 만든다
@@ -83,6 +83,8 @@
 - [0077](decisions/0077-화면-디자인-토큰과-글꼴은-앱에-넣는다.md) 화면 디자인은 CSS 토큰으로 다듬고, 글꼴은 앱에 넣는다(현장 앱부터)
 - [0078](decisions/0078-소개-페이지는-apps-landing-정적-페이지와-GSAP으로.md) 소개 페이지는 `apps/landing` 정적 페이지(Vite + GSAP)로, 숫자는 기록과 테스트로 묶는다
 - [0079](decisions/0079-어드민은-잉크-사이드바와-지금-볼-것-관제는-어두운-화면.md) 어드민은 잉크 사이드바와 "지금 볼 것", 관제는 어두운 화면으로(같은 토큰)
+- [0080](decisions/0080-개발자센터는-ADMIN이-쓰는-별도-앱-apps-developers.md) 개발자센터는 ADMIN이 쓰는 별도 앱 apps/developers로
+- [0081](decisions/0081-외부-업체는-partner-표로-키는-업체-하나에-속한다.md) 외부 업체는 partner 표로, 키는 업체 하나에 속한다
 
 ## 트러블슈팅 (33)
 
