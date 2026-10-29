@@ -596,15 +596,12 @@ a {
   width: 100%;
 }
 
+/* 좁은 화면은 움직임이 없어 엇갈리면 정렬이 틀어져 보인다 — 두 대를 같은 높이에 둔다(엇갈림은 넓은 화면에서만) */
 .shot-field,
 .shot-merchant {
   width: 100%;
   max-width: 240px;
   margin-top: -12%;
-}
-
-.shot-merchant {
-  margin-top: -4%;
 }
 
 .shot-field img,
