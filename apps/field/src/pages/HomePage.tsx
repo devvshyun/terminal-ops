@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import { useToday } from '../api/queries';
 import { ErrorBox } from '../components/ErrorBox';
+import { InspectIcon, ScanIcon } from '../components/icons';
 
 /**
  * 처음 화면: 오늘(KST) 내가 한 일과 큰 버튼 둘(박스 스캔·검수). 숫자는 서버가 센다(GET /field/today, decisions/0063) —
@@ -15,7 +16,7 @@ export function HomePage() {
       <ErrorBox error={today.error} />
       {t ? (
         <>
-          <p className="muted">{t.date} (KST 0시부터)</p>
+          <p className="muted date">{t.date} (KST 0시부터)</p>
           <dl className="stats">
             <div>
               <dt>처리한 박스</dt>
@@ -34,7 +35,7 @@ export function HomePage() {
               <dd>{t.inspections.total}대</dd>
             </div>
           </dl>
-          <p className="muted">
+          <p className="muted stats-note">
             검수 합격 {t.inspections.passed} · 불합격 {t.inspections.failed}
             {t.scans.rejected > 0 ? ` · 거절된 줄 ${t.scans.rejected}` : ''}
           </p>
@@ -44,9 +45,11 @@ export function HomePage() {
       ) : null}
       <div className="big-actions">
         <Link className="big-button" to="/scan">
+          <ScanIcon />
           박스 스캔
         </Link>
-        <Link className="big-button" to="/inspections">
+        <Link className="big-button alt" to="/inspections">
+          <InspectIcon />
           검수
         </Link>
       </div>

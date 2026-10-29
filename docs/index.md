@@ -2,7 +2,7 @@
 
 > 이 파일은 `node scripts/docs-index.mjs`가 만든다. 손으로 고치지 않는다(decisions/0046). 기록을 더한 뒤 다시 만들고, `--check`로 확인한다.
 
-## 결정 기록 (76)
+## 결정 기록 (78)
 
 - [0001](decisions/0001-인증은-작업자-헤더로.md) 인증은 하지 않고, 작업자는 요청 헤더로 기록한다
 - [0002](decisions/0002-esm-vitest-tsc-빌드.md) ESM + Vitest + tsc 빌드로 API를 만든다
@@ -80,8 +80,10 @@
 - [0074](decisions/0074-운영-관제-화면은-별도-앱-apps-console.md) 운영 관제 화면은 별도 앱 apps/console
 - [0075](decisions/0075-네-번째-화면도-점주-사본과-사본-검사로.md) 네 번째 화면 앱도 점주 앱 사본과 사본 검사로
 - [0076](decisions/0076-관제-화면-자동-새로고침은-10초-탭-숨김이면-멈춤.md) 관제 화면 자동 새로고침은 10초, 탭이 안 보이면 멈추고, 단추로 끈다
+- [0077](decisions/0077-화면-디자인-토큰과-글꼴은-앱에-넣는다.md) 화면 디자인은 CSS 토큰으로 다듬고, 글꼴은 앱에 넣는다(현장 앱부터)
+- [0078](decisions/0078-소개-페이지는-apps-landing-정적-페이지와-GSAP으로.md) 소개 페이지는 `apps/landing` 정적 페이지(Vite + GSAP)로, 숫자는 기록과 테스트로 묶는다
 
-## 트러블슈팅 (32)
+## 트러블슈팅 (33)
 
 - [0001](troubleshooting/0001-설치-직후-WSL2-미동작.md) 설치 직후 WSL2·Docker가 동작하지 않음
 - [0002](troubleshooting/0002-em-create-optionalprops-타입오류.md) em.create에서 TS2345 "Property 'version' is missing"
@@ -115,8 +117,9 @@
 - [0030](troubleshooting/0030-다른-브랜치가-쓴-테스트-DB에서-schema-refresh가-merchant를-못-지운다.md) 다른 브랜치가 쓴 테스트 DB에서 schema.refresh가 merchant를 못 지운다
 - [0031](troubleshooting/0031-초-단위-datetime-열은-밀리초를-반올림해-응답과-다시-읽은-값이-다르다.md) 초 단위 datetime 열은 밀리초를 반올림해 응답과 다시 읽은 값이 다르다
 - [0032](troubleshooting/0032-테스트-DB로-마이그레이션을-적용하면-DB-이름의-스냅샷-파일이-생긴다.md) 테스트 DB로 마이그레이션을 적용하면 DB 이름의 스냅샷 파일이 생긴다
+- [0033](troubleshooting/0033-새-앱에서-npm-install이-edgesOut-null로-멈춘다.md) 새 앱에서 `npm install`이 `Cannot read properties of null (reading 'edgesOut')`로 멈춘다
 
-## 실험 (17)
+## 실험 (18)
 
 - [0001](experiments/0001-같은-단말기-동시-전이.md) 같은 단말기 동시 전이
 - [0002](experiments/0002-같은-단말기-동시-검수.md) 같은 단말기 동시 검수
@@ -135,3 +138,4 @@
 - [0015](experiments/0015-대시보드-캐시-전후.md) 대시보드 캐시 전후 — p50/p95, 동시 요청의 MySQL 쿼리 수
 - [0016](experiments/0016-상태-조건-목록-status-id-인덱스.md) 상태 조건 단말기 목록의 (status, id) 인덱스 — 계획, 읽은 행, 시간, 쓰기 비용
 - [0017](experiments/0017-인증-뒤-하트비트-처리량.md) 인증(전역 가드 + 단말기 키) 뒤 하트비트 처리량
+- [0018](experiments/0018-현장-앱-글꼴을-넣기-전후-첫-화면-전송량.md) 현장 앱에 글꼴을 넣기 전후 첫 화면 전송량

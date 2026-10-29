@@ -26,7 +26,7 @@ export function TerminalDetailPage() {
     <>
       <h1>{t.modelName}</h1>
       <p>
-        <StatusBadge status={t.status} /> <span className="muted">{t.serialNo}</span>
+        <StatusBadge status={t.status} /> <span className="muted serial">{t.serialNo}</span>
       </p>
 
       {t.connectivity ? (
@@ -54,7 +54,7 @@ export function TerminalDetailPage() {
             <dt>택배사</dt>
             <dd>{CARRIER_LABEL[t.shipment.carrier]}</dd>
             <dt>운송장</dt>
-            <dd>{t.shipment.trackingNo}</dd>
+            <dd className="serial">{t.shipment.trackingNo}</dd>
             {t.shipment.ticketId ? (
               <>
                 <dt>A/S</dt>

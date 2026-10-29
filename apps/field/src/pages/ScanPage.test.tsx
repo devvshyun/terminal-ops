@@ -41,6 +41,8 @@ describe('박스 스캔 — 스캐너 입력 (보강 4, decisions/0064)', () => 
     await scanBarcode('SN-0001');
     await scanBarcode('bad');
     expect(rows().map((r) => r.textContent)).toEqual(['SN-0001빼기', 'SN-0002빼기', 'SN-0001중복빼기', 'bad형식 오류빼기']);
+    // 거절될 줄은 줄째 표시(왼쪽 빨간 띠 — decisions/0077)
+    expect(rows().map((r) => r.classList.contains('rejected'))).toEqual([false, false, true, true]);
     expect(field).toHaveValue('');
     expect(field).toHaveFocus();
     expect(screen.getByText('4개')).toBeInTheDocument();
@@ -109,6 +111,7 @@ describe('박스 스캔 — 보내기와 멱등 (decisions/0020, 어드민 ScanP
 
     expect(await screen.findByRole('status')).toHaveTextContent('발주 SE0003 입고: 성공 1 · 거절 1');
     expect(rows().map((r) => r.textContent)).toEqual(['SN-0001입고됨', 'SN-0002납품 명세에 없음납품 명세에 없는 시리얼입니다.']);
+    expect(rows().map((r) => r.classList.contains('rejected'))).toEqual([false, true]);
     const body = bodyOf(posts(calls)[0]);
     expect(body).toEqual({ scanId: expect.stringMatching(/^BOX-[0-9a-f-]{36}$/), kind: 'RECEIVE', poNo: 'SE0003', serials: ['SN-0001', 'SN-0002'] });
     expect(screen.getByLabelText('scanId')).toHaveTextContent(body.scanId);
@@ -253,6 +256,9 @@ describe('박스 스캔 — 초점과 잠긴 박스 안내 (Task 3 리뷰 반영
     await userEvent.click(screen.getByRole('button', { name: '보내기' }));
     await screen.findByRole('status');
     expect(screen.getByRole('button', { name: '새 박스' })).toHaveFocus();
+    // 결과를 받으면 주 버튼 모양이 보내기에서 새 박스로 옮겨 간다(decisions/0077)
+    expect(screen.getByRole('button', { name: '새 박스' })).toHaveClass('primary');
+    expect(screen.getByRole('button', { name: '보내기' })).not.toHaveClass('primary');
     expect(screen.getByRole('note')).toHaveTextContent('새 박스를 눌러야 다음을 찍을 수 있습니다');
     await userEvent.click(screen.getByRole('button', { name: '새 박스' }));
     expect(screen.queryByRole('note')).not.toBeInTheDocument();

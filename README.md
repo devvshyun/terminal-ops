@@ -23,6 +23,7 @@ terminal-ops/
 │  ├─ merchant/          매장(가맹점주) 화면 — 휴대폰 폭, 어드민과 같은 스택·같은 판(Vite 프록시 /api → api, 보강 3)
 │  ├─ field/             현장 작업자 화면 — 휴대폰·PDA 폭, 바코드 스캐너(키보드 웨지) 입력, 점주 앱과 같은 스택·같은 판(Vite 프록시 /api → api, 보강 4)
 │  ├─ console/           운영 관제 화면 — 큐·워커·주기 작업·Outbox·업무 오류 보기, 실패 job 다시 시도·지우기(Vite 프록시 /api → api, 보강 6)
+│  ├─ landing/           소개 페이지 — api 없이 뜨는 정적 페이지(Vite + GSAP), 숫자는 실험 기록과 같은지 테스트가 본다(decisions/0078)
 │  ├─ partners/          가상 업체 서버(node:http, 포트 4010): 세움전자·번개택배·느림보물류·브릿지VAN·톡톡메신저
 │  └─ device-sim/        단말기 시뮬레이터(하트비트, 펌웨어 업데이트 결과 보고)
 ├─ packages/
@@ -40,7 +41,7 @@ Node 24, Docker Desktop(WSL2)이 필요하다. 명령은 Git Bash 기준.
 cp .env.example .env                 # 로컬 개발 전용 값. DEVICE_API_KEY는 자리표시자다 — 임의의 값(16자 이상, 공백 없는 ASCII)으로 바꿔 쓴다
                                      # (보강 2 뒤 .env가 이미 있으면 .env.example의 "# 보강 2" 아래 줄들을 덧붙인다 — DEVICE_API_KEY가 없으면 api가 뜨지 않는다)
 docker compose up -d --wait          # MySQL·Redis, healthcheck가 healthy가 될 때까지 기다린다(첫 실행은 MySQL 초기화에 수십 초)
-for a in api admin merchant field console partners device-sim; do (cd apps/$a && npm ci); done   # api·admin·merchant·field·console은 packages/contracts를 링크한다(따로 설치하지 않는다)
+for a in api admin merchant field console landing partners device-sim; do (cd apps/$a && npm ci); done   # api·admin·merchant·field·console은 packages/contracts를 링크한다(따로 설치하지 않는다)
 cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB 스키마와 기준 데이터(모델·가맹점·검수 항목)와 시연 계정 7개·시연 외부 업체 키(NODE_ENV=production·SEED_DEMO=0이면 기준 데이터만)
 
 # 필요한 것만 터미널마다 하나씩(또는 백그라운드 — 끌 때는 PID로)
@@ -51,12 +52,13 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 (cd apps/merchant && npm run dev)                      # :5174 → 휴대폰 크기로 http://localhost:5174/login (가맹점 계정)
 (cd apps/field && npm run dev)                         # :5175 → 휴대폰 크기로 http://localhost:5175/login (현장 작업자 계정 field)
 (cd apps/console && npm run dev)                       # :5176 → 넓은 화면으로 http://localhost:5176/login (관제 계정 monitor, ADMIN은 보기만)
+(cd apps/landing && npm run dev)                       # :5177 → 소개 페이지(api 필요 없음)
 (cd apps/device-sim && npm run build && node --env-file=../../.env dist/main.js)   # 선택: 단말기 시뮬레이터(:4020) — api와 같은 .env의 DEVICE_API_KEY를 X-Device-Key로 보낸다(api는 .env를 스스로 읽고, 시뮬레이터는 --env-file로)
 ```
 
 - 워커 프로세스를 띄우는 실험(0005·0014)은 먼저 `cd apps/api && npm run build` — `dist/worker.js`를 자식 프로세스로 띄우므로, 빌드하지 않으면 멈추고("먼저 npm run build 하세요"), 소스만 고치고 빌드를 잊으면 옛 워커로 잰다(경고 없음).
 - 테스트: 각 앱 폴더에서 `npm test`. api 테스트는 테스트 DB(`terminal_ops_test`)와 Redis 테스트 접두사(`test-`)만 쓰고, 가상 업체 서버를 테스트 포트(4011)에 직접 띄운다 — api 테스트를 두 개 동시에 돌리지 않는다. 실험은 `EXPERIMENTS=1 npx vitest run test/experiments/<파일> --silent=false`.
-- 타입 검사: vitest는 타입을 보지 않는다. api `npm run typecheck`(또는 `npm run build`), admin·merchant·field·console `npm run build`(tsc 포함) — api·화면이 `packages/contracts`와 어긋나면 여기서 실패한다([decisions/0048](docs/decisions/0048-계약은-반환-타입-implements-enum-단언으로-강제한다.md)).
+- 타입 검사: vitest는 타입을 보지 않는다. api `npm run typecheck`(또는 `npm run build`), admin·merchant·field·console·landing `npm run build`(tsc 포함) — api·화면이 `packages/contracts`와 어긋나면 여기서 실패한다([decisions/0048](docs/decisions/0048-계약은-반환-타입-implements-enum-단언으로-강제한다.md)).
 - 미리보기(화면 확인)는 `infra/preview.env`(주기 작업을 등록하지 않음)를 저장소 `.env` 뒤에 읽는다. 띄우기 전 점검(빌드, 남은 주기 작업 `npm run scheduler:clear`, 같은 접두사의 다른 워커)은 그 파일 주석에 있다.
 - 주기 작업은 Redis에 남는다(BullMQ job scheduler). 지우려면 `cd apps/api && npm run scheduler:clear`(이 접두사의 주기 작업만 — Redis 전체를 비우지 않는다).
 
@@ -122,6 +124,7 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 - 홈: 오늘(KST) 내가 처리한 박스·입고·회수 입고·검수 수(`GET /field/today`, [decisions/0063](docs/decisions/0063-현장-API는-오늘-내-작업-하나만.md))와 큰 버튼 둘
 - 박스 스캔: 발주분 입고(열린 발주 고르기)·회수 입고. 바코드 스캐너(키보드 웨지 — 시리얼 + Enter)나 손 입력·붙여 넣기로 목록에 쌓이고, 중복·형식 오류는 그 줄에 바로 보인다. 보낸 박스는 잠기고, 응답을 못 받으면 같은 박스 번호(scanId)로 다시 보낸다(어드민과 같은 멱등 규칙). 카메라 바코드는 없다([decisions/0064](docs/decisions/0064-현장-입력은-키보드-웨지-카메라는-생략.md))
 - 검수: 검수 대기(새 입고·회수 입고, 오래 기다린 순), 시리얼 스캔으로 바로 찾기, 항목마다 합격/불합격(+ 불합격 메모), 저장 → 합격/불량
+- 넓은 화면(1180px 이상)에서는 왼쪽에 "휴대폰·PDA용 — 어드민 박스 스캔 열기" 안내가 보인다. 어드민 주소는 `VITE_ADMIN_APP_URL`(없으면 `http://localhost:5173`, [decisions/0077](docs/decisions/0077-화면-디자인-토큰과-글꼴은-앱에-넣는다.md))
 - api 클라이언트·세션 코드는 점주 앱 사본이고 `src/copies.test.ts`가 코드가 같은지 본다([decisions/0062](docs/decisions/0062-세-번째-화면도-복사와-사본-검사-테스트로.md))
 - 시연 팁: 어드민(:5173)·매장(:5174)·현장(:5175)은 localhost에서 쿠키(`sid`) 하나를 함께 쓴다 — 동시에 다른 계정으로 보려면 브라우저 프로필을 나눈다
 
@@ -226,7 +229,8 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 | api(실험 제외) | 90 | 603 |
 | admin | 19 | 163 |
 | merchant | 7 | 47 |
-| field | 7 | 60 |
+| field | 8 | 64 |
 | console | 8 | 56 |
+| landing | 1 | 14 |
 | partners | 6 | 53 |
 | device-sim | 5 | 46 |

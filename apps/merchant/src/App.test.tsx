@@ -33,7 +33,12 @@ describe('로그인 문과 화면 틀 (보강 3, decisions/0057)', () => {
     await userEvent.click(screen.getByRole('button', { name: '로그인' }));
     expect(await screen.findByText('강남김밥')).toBeInTheDocument();
     expect(calls.find((c) => c.path === '/auth/login')?.body).toEqual({ loginId: 'merchant-gangnam', password: 'pw' });
-    expect(screen.getByRole('navigation', { name: '메뉴' })).toBeInTheDocument();
+    const nav = screen.getByRole('navigation', { name: '메뉴' });
+    // 읽는 순서 = 휴대폰 화면 순서: 위 띠(로그아웃) → 화면 → 아래 탭. 넓은 화면의 위 메뉴 배치는 CSS가 한다(decisions/0077)
+    const logout = screen.getByRole('button', { name: '로그아웃' });
+    expect(nav.closest('header')).toBeNull();
+    expect(logout.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('main').compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('틀린 비밀번호는 점주 안내 문구로', async () => {
