@@ -1,0 +1,278 @@
+/*
+ * 운영 관제 화면 전역 CSS 한 장(어드민·점주·현장 앱과 같은 방식, decisions/0041·0074).
+ * 넓은 모니터에 띄워 두고 보는 화면이라 데스크톱 우선(최대 1280px). 숫자는 고정폭 숫자(tabular-nums)로 줄이 흔들리지 않게.
+ */
+:root {
+  --fg: #1f2328;
+  --muted: #656d76;
+  --line: #d0d7de;
+  --bg: #f6f8fa;
+  --card: #ffffff;
+  --accent: #24292f;
+  --danger: #cf222e;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+  font-family: system-ui, 'Malgun Gothic', sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  padding: 8px 24px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.top .app-name {
+  font-size: 17px;
+}
+
+.top .menu {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.top .menu a {
+  color: #d0d7de;
+  text-decoration: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.top .menu a.active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.top .who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.top .who small {
+  color: #d0d7de;
+}
+
+.page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 16px 24px 48px;
+}
+
+.page.narrow {
+  max-width: 420px;
+}
+
+h1 {
+  font-size: 20px;
+  margin: 8px 0 12px;
+}
+
+h2 {
+  font-size: 16px;
+  margin: 24px 0 8px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.card h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.card .big {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0 8px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid currentColor;
+}
+
+.badge.ok {
+  color: var(--ok);
+}
+
+.badge.bad {
+  color: var(--danger);
+}
+
+.badge.warn {
+  color: var(--warn);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+
+th,
+td {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+td.num,
+th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+td.alert {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+pre {
+  margin: 4px 0 0;
+  padding: 8px;
+  background: var(--bg);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 13px;
+}
+
+button {
+  font: inherit;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.top button.toggle {
+  background: transparent;
+  color: #d0d7de;
+  border-color: #57606a;
+}
+
+.top button.toggle.on {
+  color: #fff;
+  border-color: #fff;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 8px 0;
+}
+
+.login {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 64px;
+}
+
+.login label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+input,
+select {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.error {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  background: #ffebe9;
+  color: var(--danger);
+}
+
+.error-detail {
+  display: block;
+  color: var(--muted);
+}
+
+.notice {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--ok);
+  border-radius: 6px;
+  background: #dafbe1;
+}
+
+.logout-error {
+  color: #ffb3b3;
+}
+
+.top button.link {
+  background: transparent;
+  color: #fff;
+  border-color: #57606a;
+}

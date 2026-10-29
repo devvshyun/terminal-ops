@@ -1,10 +1,11 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { UnrecoverableError, type Job } from 'bullmq';
 import { QUEUE } from '../queue/queue-names.js';
+import { WORKER_OBSERVABILITY } from '../queue/worker-options.js';
 import { OutboxService, type NotifyJobData } from './outbox.service.js';
 
 /** outbox 큐: relay·requeue(주기 실행)와 notify(행마다) 세 종류의 job을 처리한다. */
-@Processor(QUEUE.OUTBOX, { concurrency: 5 })
+@Processor(QUEUE.OUTBOX, { ...WORKER_OBSERVABILITY, concurrency: 5 })
 export class OutboxProcessor extends WorkerHost {
   constructor(private readonly outbox: OutboxService) {
     super();

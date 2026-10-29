@@ -28,6 +28,7 @@ import { MeModule } from './me/me.module.js';
 import { FieldModule } from './field/field.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { PartnerApiModule } from './partner-api/partner-api.module.js';
+import { OpsModule } from './ops/ops.module.js';
 
 export interface AppOptions {
   /** 큐 job을 처리할지(RUN_WORKERS) */
@@ -62,6 +63,7 @@ export interface AppOptions {
     FieldModule,
     AdminModule,
     PartnerApiModule,
+    OpsModule,
   ],
   controllers: [HealthController],
   providers: [
