@@ -2,7 +2,7 @@
 
 > 이 파일은 `node scripts/docs-index.mjs`가 만든다. 손으로 고치지 않는다(decisions/0046). 기록을 더한 뒤 다시 만들고, `--check`로 확인한다.
 
-## 결정 기록 (70)
+## 결정 기록 (71)
 
 - [0001](decisions/0001-인증은-작업자-헤더로.md) 인증은 하지 않고, 작업자는 요청 헤더로 기록한다
 - [0002](decisions/0002-esm-vitest-tsc-빌드.md) ESM + Vitest + tsc 빌드로 API를 만든다
@@ -74,8 +74,9 @@
 - [0068](decisions/0068-운영자-쓰기-화면은-새-메뉴-하나와-기존-화면-안의-폼으로.md) 운영자 쓰기 화면은 새 메뉴 하나(단말기 등록)와 기존 화면 안의 폼으로
 - [0069](decisions/0069-계정-화면은-어드민에-외부-업체-키-화면은-개발자센터로.md) 계정 화면은 어드민에, 외부 업체 키 화면은 개발자센터(보강 7)로
 - [0070](decisions/0070-화면-디자인-토큰과-글꼴은-앱에-넣는다.md) 화면 디자인은 CSS 토큰으로 다듬고, 글꼴은 앱에 넣는다(현장 앱부터)
+- [0071](decisions/0071-소개-페이지는-apps-landing-정적-페이지와-GSAP으로.md) 소개 페이지는 `apps/landing` 정적 페이지(Vite + GSAP)로, 숫자는 기록과 테스트로 묶는다
 
-## 트러블슈팅 (32)
+## 트러블슈팅 (33)
 
 - [0001](troubleshooting/0001-설치-직후-WSL2-미동작.md) 설치 직후 WSL2·Docker가 동작하지 않음
 - [0002](troubleshooting/0002-em-create-optionalprops-타입오류.md) em.create에서 TS2345 "Property 'version' is missing"
@@ -109,6 +110,7 @@
 - [0030](troubleshooting/0030-다른-브랜치가-쓴-테스트-DB에서-schema-refresh가-merchant를-못-지운다.md) 다른 브랜치가 쓴 테스트 DB에서 schema.refresh가 merchant를 못 지운다
 - [0031](troubleshooting/0031-초-단위-datetime-열은-밀리초를-반올림해-응답과-다시-읽은-값이-다르다.md) 초 단위 datetime 열은 밀리초를 반올림해 응답과 다시 읽은 값이 다르다
 - [0032](troubleshooting/0032-테스트-DB로-마이그레이션을-적용하면-DB-이름의-스냅샷-파일이-생긴다.md) 테스트 DB로 마이그레이션을 적용하면 DB 이름의 스냅샷 파일이 생긴다
+- [0033](troubleshooting/0033-새-앱에서-npm-install이-edgesOut-null로-멈춘다.md) 새 앱에서 `npm install`이 `Cannot read properties of null (reading 'edgesOut')`로 멈춘다
 
 ## 실험 (18)
 

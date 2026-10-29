@@ -206,3 +206,6 @@
 - [ ] React `key`로 줄 상태 초기화 — 서버 값이 바뀌면 key를 바꿔 다시 마운트하는 방법과 `useEffect`로 맞추는 방법의 차이 (apps/admin/src/pages/AccountsPage.tsx, decisions/0069)
 - [ ] 웹 글꼴 `unicode-range` 조각 나누기와 `font-display: swap`(FOUT) — 한글 글꼴은 왜 조각이 100개가 넘나, `@font-face` 규칙이 많으면 CSS가 렌더링을 얼마나 막나, 굵기를 빼면 브라우저가 어떤 굵기로 대신 그리나(font matching) (apps/field/src/styles.css, decisions/0070, experiments/0018)
 - [ ] CSS 카운터(`counter-reset`·`counter-increment`)와 `list-style: none` 뒤 목록의 접근성(Safari가 list 역할을 지우는 경우) (apps/field/src/styles.css `.box-list`)
+- [ ] npm arborist의 peer 의존성 해석 — 선택 peer(`peerDependenciesMeta.optional`)도 매니페스트를 가져오는 이유, `--legacy-peer-deps`가 lock에 남기는 차이 (troubleshooting/0033)
+- [ ] 가변 글꼴 축(`wght`)과 `font-weight` 애니메이션 비용 — 굵기를 바꾸면 줄 바꿈·레이아웃이 다시 계산되나, `font-variation-settings`와 무엇이 다른가 (apps/landing/src/main.ts, decisions/0071)
+- [ ] GSAP ScrollTrigger `pin`·`scrub`·`invalidateOnRefresh`와 `matchMedia` 정리 함수 — 창 크기가 바뀔 때 고정 구간 길이를 다시 재는 방법 (apps/landing/src/main.ts)

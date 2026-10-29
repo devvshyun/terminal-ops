@@ -22,6 +22,7 @@ terminal-ops/
 │  ├─ admin/             React 19 + Vite 8 + TanStack Query 어드민(Vite 프록시 /api → api) — 운영 업무 전부·계정 관리·다른 화면 바로가기(보강 5)
 │  ├─ merchant/          매장(가맹점주) 화면 — 휴대폰 폭, 어드민과 같은 스택·같은 판(Vite 프록시 /api → api, 보강 3)
 │  ├─ field/             현장 작업자 화면 — 휴대폰·PDA 폭, 바코드 스캐너(키보드 웨지) 입력, 점주 앱과 같은 스택·같은 판(Vite 프록시 /api → api, 보강 4)
+│  ├─ landing/           소개 페이지 — api 없이 뜨는 정적 페이지(Vite + GSAP), 숫자는 실험 기록과 같은지 테스트가 본다(decisions/0071)
 │  ├─ partners/          가상 업체 서버(node:http, 포트 4010): 세움전자·번개택배·느림보물류·브릿지VAN·톡톡메신저
 │  └─ device-sim/        단말기 시뮬레이터(하트비트, 펌웨어 업데이트 결과 보고)
 ├─ packages/
@@ -39,7 +40,7 @@ Node 24, Docker Desktop(WSL2)이 필요하다. 명령은 Git Bash 기준.
 cp .env.example .env                 # 로컬 개발 전용 값. DEVICE_API_KEY는 자리표시자다 — 임의의 값(16자 이상, 공백 없는 ASCII)으로 바꿔 쓴다
                                      # (보강 2 뒤 .env가 이미 있으면 .env.example의 "# 보강 2" 아래 줄들을 덧붙인다 — DEVICE_API_KEY가 없으면 api가 뜨지 않는다)
 docker compose up -d --wait          # MySQL·Redis, healthcheck가 healthy가 될 때까지 기다린다(첫 실행은 MySQL 초기화에 수십 초)
-for a in api admin merchant field partners device-sim; do (cd apps/$a && npm ci); done   # api·admin·merchant·field는 packages/contracts를 링크한다(따로 설치하지 않는다)
+for a in api admin merchant field landing partners device-sim; do (cd apps/$a && npm ci); done   # api·admin·merchant·field는 packages/contracts를 링크한다(따로 설치하지 않는다)
 cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB 스키마와 기준 데이터(모델·가맹점·검수 항목)와 시연 계정 7개·시연 외부 업체 키(NODE_ENV=production·SEED_DEMO=0이면 기준 데이터만)
 
 # 필요한 것만 터미널마다 하나씩(또는 백그라운드 — 끌 때는 PID로)
@@ -49,6 +50,7 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 (cd apps/admin && npm run dev)                         # :5173 → 브라우저 http://localhost:5173/login
 (cd apps/merchant && npm run dev)                      # :5174 → 휴대폰 크기로 http://localhost:5174/login (가맹점 계정)
 (cd apps/field && npm run dev)                         # :5175 → 휴대폰 크기로 http://localhost:5175/login (현장 작업자 계정 field)
+(cd apps/landing && npm run dev)                       # :5176 → 소개 페이지(api 필요 없음)
 (cd apps/device-sim && npm run build && node --env-file=../../.env dist/main.js)   # 선택: 단말기 시뮬레이터(:4020) — api와 같은 .env의 DEVICE_API_KEY를 X-Device-Key로 보낸다(api는 .env를 스스로 읽고, 시뮬레이터는 --env-file로)
 ```
 
