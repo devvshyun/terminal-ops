@@ -22,10 +22,11 @@ terminal-ops/
 │  ├─ admin/             React 19 + Vite 8 + TanStack Query 어드민(Vite 프록시 /api → api) — 운영 업무 전부·계정 관리·다른 화면 바로가기(보강 5)
 │  ├─ merchant/          매장(가맹점주) 화면 — 휴대폰 폭, 어드민과 같은 스택·같은 판(Vite 프록시 /api → api, 보강 3)
 │  ├─ field/             현장 작업자 화면 — 휴대폰·PDA 폭, 바코드 스캐너(키보드 웨지) 입력, 점주 앱과 같은 스택·같은 판(Vite 프록시 /api → api, 보강 4)
+│  ├─ console/           운영 관제 화면 — 큐·워커·주기 작업·Outbox·업무 오류 보기, 실패 job 다시 시도·지우기(Vite 프록시 /api → api, 보강 6)
 │  ├─ partners/          가상 업체 서버(node:http, 포트 4010): 세움전자·번개택배·느림보물류·브릿지VAN·톡톡메신저
 │  └─ device-sim/        단말기 시뮬레이터(하트비트, 펌웨어 업데이트 결과 보고)
 ├─ packages/
-│  └─ contracts/         api·어드민·매장·현장 화면이 함께 보는 HTTP 계약(응답·요청 모양, 상태 값, 오류 코드, 로그인·계정·키 타입). 타입만, 각 앱이 file: 의존
+│  └─ contracts/         api·어드민·매장·현장·관제 화면이 함께 보는 HTTP 계약(응답·요청 모양, 상태 값, 오류 코드, 로그인·계정·키 타입). 타입만, 각 앱이 file: 의존
 ├─ infra/                MySQL 초기화(테스트 DB), 미리보기 env
 ├─ scripts/              기록 색인 생성
 └─ docs/                 기록(아래 "기록")
@@ -39,7 +40,7 @@ Node 24, Docker Desktop(WSL2)이 필요하다. 명령은 Git Bash 기준.
 cp .env.example .env                 # 로컬 개발 전용 값. DEVICE_API_KEY는 자리표시자다 — 임의의 값(16자 이상, 공백 없는 ASCII)으로 바꿔 쓴다
                                      # (보강 2 뒤 .env가 이미 있으면 .env.example의 "# 보강 2" 아래 줄들을 덧붙인다 — DEVICE_API_KEY가 없으면 api가 뜨지 않는다)
 docker compose up -d --wait          # MySQL·Redis, healthcheck가 healthy가 될 때까지 기다린다(첫 실행은 MySQL 초기화에 수십 초)
-for a in api admin merchant field partners device-sim; do (cd apps/$a && npm ci); done   # api·admin·merchant·field는 packages/contracts를 링크한다(따로 설치하지 않는다)
+for a in api admin merchant field console partners device-sim; do (cd apps/$a && npm ci); done   # api·admin·merchant·field·console은 packages/contracts를 링크한다(따로 설치하지 않는다)
 cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB 스키마와 기준 데이터(모델·가맹점·검수 항목)와 시연 계정 7개·시연 외부 업체 키(NODE_ENV=production·SEED_DEMO=0이면 기준 데이터만)
 
 # 필요한 것만 터미널마다 하나씩(또는 백그라운드 — 끌 때는 PID로)
@@ -49,12 +50,13 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 (cd apps/admin && npm run dev)                         # :5173 → 브라우저 http://localhost:5173/login
 (cd apps/merchant && npm run dev)                      # :5174 → 휴대폰 크기로 http://localhost:5174/login (가맹점 계정)
 (cd apps/field && npm run dev)                         # :5175 → 휴대폰 크기로 http://localhost:5175/login (현장 작업자 계정 field)
+(cd apps/console && npm run dev)                       # :5176 → 넓은 화면으로 http://localhost:5176/login (관제 계정 monitor, ADMIN은 보기만)
 (cd apps/device-sim && npm run build && node --env-file=../../.env dist/main.js)   # 선택: 단말기 시뮬레이터(:4020) — api와 같은 .env의 DEVICE_API_KEY를 X-Device-Key로 보낸다(api는 .env를 스스로 읽고, 시뮬레이터는 --env-file로)
 ```
 
 - 워커 프로세스를 띄우는 실험(0005·0014)은 먼저 `cd apps/api && npm run build` — `dist/worker.js`를 자식 프로세스로 띄우므로, 빌드하지 않으면 멈추고("먼저 npm run build 하세요"), 소스만 고치고 빌드를 잊으면 옛 워커로 잰다(경고 없음).
 - 테스트: 각 앱 폴더에서 `npm test`. api 테스트는 테스트 DB(`terminal_ops_test`)와 Redis 테스트 접두사(`test-`)만 쓰고, 가상 업체 서버를 테스트 포트(4011)에 직접 띄운다 — api 테스트를 두 개 동시에 돌리지 않는다. 실험은 `EXPERIMENTS=1 npx vitest run test/experiments/<파일> --silent=false`.
-- 타입 검사: vitest는 타입을 보지 않는다. api `npm run typecheck`(또는 `npm run build`), admin·merchant·field `npm run build`(tsc 포함) — api·화면이 `packages/contracts`와 어긋나면 여기서 실패한다([decisions/0048](docs/decisions/0048-계약은-반환-타입-implements-enum-단언으로-강제한다.md)).
+- 타입 검사: vitest는 타입을 보지 않는다. api `npm run typecheck`(또는 `npm run build`), admin·merchant·field·console `npm run build`(tsc 포함) — api·화면이 `packages/contracts`와 어긋나면 여기서 실패한다([decisions/0048](docs/decisions/0048-계약은-반환-타입-implements-enum-단언으로-강제한다.md)).
 - 미리보기(화면 확인)는 `infra/preview.env`(주기 작업을 등록하지 않음)를 저장소 `.env` 뒤에 읽는다. 띄우기 전 점검(빌드, 남은 주기 작업 `npm run scheduler:clear`, 같은 접두사의 다른 워커)은 그 파일 주석에 있다.
 - 주기 작업은 Redis에 남는다(BullMQ job scheduler). 지우려면 `cd apps/api && npm run scheduler:clear`(이 접두사의 주기 작업만 — Redis 전체를 비우지 않는다).
 
@@ -66,7 +68,7 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 
 - **ADMIN**: 계정·역할·외부 업체 키 관리(`/admin/*`)와 읽기. 업무 쓰기는 하지 않는다
 - **OPERATOR**: 운영자 — 어드민의 모든 업무 쓰기(등록·전이·배정·출고·A/S·배포 …)
-- **MONITOR**: 관제·개발자 — 읽기와 관제 작업(이상 찾기·VAN 대조·주간 리포트 실행)
+- **MONITOR**: 관제·개발자 — 읽기와 관제 작업(이상 찾기·VAN 대조·주간 리포트 실행). 화면은 어드민과 운영 관제 `apps/console`(:5176, 보강 6 — [decisions/0074](docs/decisions/0074-운영-관제-화면은-별도-앱-apps-console.md)): 큐·워커·주기 작업·Outbox·오류 보기, 실패 job 다시 시도·지우기·Outbox 복구(감사 기록)
 - **FIELD**: 현장 작업자 — 박스 스캔·검수와 그에 필요한 조회. 화면은 현장 화면 `apps/field`(:5175, 보강 4 — [decisions/0061](docs/decisions/0061-현장-화면은-별도-앱-apps-field.md)). 어드민의 박스 스캔·검수도 그대로 쓸 수 있다
 - **MERCHANT**: 가맹점주 — `/me/*`로 자기 가맹점의 단말기·A/S만([decisions/0053](docs/decisions/0053-가맹점주-범위는-me-전용-엔드포인트와-서비스-scope.md)). 화면은 매장 화면 `apps/merchant`(:5174, 보강 3 — [decisions/0057](docs/decisions/0057-점주-화면은-별도-앱-apps-merchant.md)). 어드민은 안내와 로그아웃만
 
@@ -131,7 +133,18 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 - 펌웨어 배포(운영자 쓰기): "펌웨어 등록"(모델·버전), "새 배포 만들기"(모델 → 등록 버전, 단계 비율·실패 임계치·최소 표본·단계 시간 제한, 확인 뒤 시작). 버전 선택지는 `GET /firmware`([decisions/0066](docs/decisions/0066-어드민-확장은-있는-API를-쓰고-새-API는-펌웨어-목록-하나.md))
 - 발주는 "발주 입고 대조" 화면 그대로(발주하기·대조·마감, [decisions/0068](docs/decisions/0068-운영자-쓰기-화면은-새-메뉴-하나와-기존-화면-안의-폼으로.md))
 - 계정(ADMIN): 목록·만들기·역할 바꾸기·사용 중지([decisions/0069](docs/decisions/0069-계정-화면은-어드민에-외부-업체-키-화면은-개발자센터로.md))
-- 왼쪽 아래 "다른 화면": 매장(:5174)·현장(:5175) 새 탭, 이후 화면(관제·개발자센터·업체 콘솔·시뮬레이터)은 준비 중. 주소는 `apps/admin/src/apps.ts` 한 곳 — 바꿀 때는 `VITE_MERCHANT_APP_URL`·`VITE_FIELD_APP_URL` 같은 env를 주고 어드민을 다시 띄운다([decisions/0067](docs/decisions/0067-다른-화면-바로가기-주소는-apps-ts-한-곳과-Vite-env로.md))
+- 왼쪽 아래 "다른 화면": 매장(:5174)·현장(:5175)·관제(:5176, 보강 6) 새 탭, 이후 화면(개발자센터·업체 콘솔·시뮬레이터)은 준비 중. 주소는 `apps/admin/src/apps.ts` 한 곳 — 바꿀 때는 `VITE_MERCHANT_APP_URL`·`VITE_FIELD_APP_URL` 같은 env를 주고 어드민을 다시 띄운다([decisions/0067](docs/decisions/0067-다른-화면-바로가기-주소는-apps-ts-한-곳과-Vite-env로.md))
+
+## 운영 관제(보강 6)
+
+관제·개발자가 시스템 상태를 보는 화면이다. `http://localhost:5176/login`에 `monitor` 계정으로 들어간다(ADMIN은 보기만, 다른 역할은 안내와 로그아웃만). 10초마다 다시 읽고, 탭이 안 보이면 멈추며, 위 막대 단추로 끈다([decisions/0076](docs/decisions/0076-관제-화면-자동-새로고침은-10초-탭-숨김이면-멈춤.md)).
+
+- 대시보드: api 버전·기동 시각, MySQL·Redis 응답 시간, 큐를 처리하는 워커 프로세스(이름 = `WORKER_NAME`), 큐 여섯의 대기·처리 중·지연·남은 실패·최근 15분 완료/실패·가장 오래 기다린 job·워커 수, Outbox 상태별 수와 가장 오래된 PENDING/QUEUED, "멈춘 QUEUED 복구 sweep 지금 실행"(관제만)
+- 실패 job: Redis에 남은 실패(주기 작업·VAN 대조 job — 알림·택배 추적은 끝나면 지워져 "최근 오류"로 본다), data는 비밀처럼 보이는 이름을 가림, 다시 시도(시도 수 0부터)·지우기(확인창, 관제만) — [decisions/0072](docs/decisions/0072-실패-job은-Redis에-남은-것만-data는-가리고-다시-시도는-시도-수를-되돌린다.md)
+- 주기 작업(주기·등록 여부·다음 실행), 최근 오류(수집·VAN 대조·주간 리포트·알림 실패를 한 목록, [decisions/0070](docs/decisions/0070-운영-관제-API는-ops-아래-그때그때-읽기와-관제만의-작업.md)), 작업 기록(관제 작업의 누가·언제·무엇, [decisions/0073](docs/decisions/0073-관제-작업-감사-기록은-새-표-ops_action_log.md))
+- api: `GET /ops/queues·schedulers·system·outbox·errors·queues/:name/failed·actions`(관제·ADMIN), `POST /ops/queues/:name/jobs/:id/retry·remove`, `POST /ops/outbox/requeue`(관제만). 워커 생존은 BullMQ 워커 연결, 처리량은 워커 metrics([decisions/0071](docs/decisions/0071-워커-생존은-BullMQ-워커-연결과-이름-처리량은-워커-metrics.md))
+- api 클라이언트·세션 코드는 점주 앱 사본이고 `src/copies.test.ts`가 코드가 같은지 본다([decisions/0075](docs/decisions/0075-네-번째-화면도-점주-사본과-사본-검사로.md))
+- 시연 팁: 네 화면(어드민·매장·현장·관제)은 localhost에서 쿠키(`sid`) 하나를 함께 쓴다 — 동시에 다른 계정으로 보려면 브라우저 프로필을 나눈다
 
 ## 기능
 
@@ -155,6 +168,7 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 | 로그인·권한(보강 2) | 서버 세션(Redis)·httpOnly 쿠키, 역할 다섯과 엔드포인트 표(기본 거부, 전수 검사 테스트), 가맹점주 /me 범위, 외부 업체 키·scope, 단말기 키 | `apps/api/src/auth/`, `src/me/`, `src/admin/`, `src/partner-api/`, `apps/admin/src/session.ts`·`components/AuthGate.tsx` |
 | 매장 화면(보강 3) | 점주 홈(오고 있는 단말기·진행 중 A/S·사용 중 단말기 접속·회수), 단말기 상세, 고장 접수, A/S 진행 단계·설치 확인. `/me` 점주용 응답·보이는 상태·내 매장·접수 상세 | `apps/merchant/src/`, `apps/api/src/me/` |
 | 현장 화면(보강 4) | 오늘 내 작업, 박스 스캔(스캐너 입력·중복·형식 표시·scanId 멱등·줄마다 결과), 검수 대기·시리얼 찾기·체크리스트. `GET /field/today` | `apps/field/src/`, `apps/api/src/field/` |
+| 운영 관제(보강 6) | 큐 요약(최근 15분 처리량·워커), 프로세스·의존 상태, 주기 작업, Outbox 요약·복구 sweep, 최근 업무 오류, 실패 job 다시 시도·지우기(data 가림), 감사 기록, 자동 새로고침 | `apps/console/src/`, `apps/api/src/ops/`, `apps/api/src/queue/worker-options.ts` |
 
 ## 실험 결과
 
@@ -198,20 +212,21 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 
 이 프로젝트의 산출물은 코드와 기록이다(규칙 `CLAUDE.md`, 양식 `docs/README.md`).
 
-- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 69·트러블슈팅 32·실험 17 (`node scripts/docs-index.mjs`로 만든다)
+- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 76·트러블슈팅 32·실험 17 (`node scripts/docs-index.mjs`로 만든다)
 - 개발일지: [`docs/devlog/`](docs/devlog/)(날짜별, 날마다 "N일차 요약"), 설계 스펙 [`docs/specs/`](docs/specs/), 구현 계획 [`docs/plans/`](docs/plans/), 날마다의 최종 리뷰 [`docs/reviews/`](docs/reviews/)
 - 7일 회고: [`docs/retrospective.md`](docs/retrospective.md) — 날별로 만든 것, 잘 된 것·안 된 것, 반복된 실수, 면접에서 말할 거리, 남은 이월과 그 뒤 보강
 - 공부거리: [`docs/study/backlog.md`](docs/study/backlog.md)
 
 ## 테스트
 
-(보강 5 통합 어드민 확장 뒤 실제로 돌려 센 값(2026-10-29). api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 4 뒤에는 api 82/568·admin 14/125, 보강 3 뒤에는 api 80/561·merchant 7/47, 보강 2 뒤에는 api 79/549, 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
+(보강 6 운영 관제 뒤 실제로 돌려 센 값(2026-10-29). api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 5 뒤에는 api 83/571, 보강 4 뒤에는 api 82/568·admin 14/125, 보강 3 뒤에는 api 80/561·merchant 7/47, 보강 2 뒤에는 api 79/549, 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
 
 | 앱 | 파일 | 테스트 |
 |---|---|---|
-| api(실험 제외) | 83 | 571 |
+| api(실험 제외) | 89 | 600 |
 | admin | 19 | 163 |
 | merchant | 7 | 47 |
 | field | 7 | 60 |
+| console | 8 | 52 |
 | partners | 6 | 53 |
 | device-sim | 5 | 46 |
