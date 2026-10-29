@@ -4,14 +4,14 @@ import { otherApps } from './apps';
 const urls = (env: Record<string, unknown>) => Object.fromEntries(otherApps(env).map((a) => [a.key, a.url]));
 
 describe('다른 화면 주소 — 한 곳(apps.ts)과 env (보강 5, decisions/0067)', () => {
-  it('env가 없으면 로컬 개발 서버 주소, 아직 없는 화면(가상 업체 콘솔·시뮬레이터)은 null', () => {
+  it('env가 없으면 로컬 개발 서버 주소(보강 8로 여섯 화면 모두 있다)', () => {
     expect(urls({})).toEqual({
       merchant: 'http://localhost:5174',
       field: 'http://localhost:5175',
       ops: 'http://localhost:5176',
       developers: 'http://localhost:5178',
-      partners: null,
-      simulator: null,
+      partners: 'http://localhost:5179/partners',
+      simulator: 'http://localhost:5179/devices',
     });
   });
 
