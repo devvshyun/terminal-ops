@@ -33,15 +33,15 @@
       <section class="hero" aria-labelledby="hero-title">
         <p class="hero-serial" aria-hidden="true" data-flap>SN100-2610-00412</p>
         <div class="hero-in">
-          <p class="eyebrow">가상 결제단말기 운영사 · 사내 시스템 · 학습 프로젝트</p>
+          <p class="eyebrow">학습 프로젝트 · 가상 결제단말기 운영사</p>
           <h1 id="hero-title" class="hero-title">
-            <span class="ht-line ht-light">결제단말기 한 대의</span>
-            <span class="ht-line ht-heavy" data-weight>일생을</span>
-            <span class="ht-line ht-light" data-weight-scroll>기록합니다.</span>
+            <span class="ht-line ht-light">결제단말기</span>
+            <span class="ht-line ht-heavy" data-weight>운영 시스템</span>
+            <span class="ht-line ht-light" data-weight-scroll>단말온.</span>
           </h1>
           <p class="hero-lead">
-            발주한 단말기가 창고에 들어와 검수를 받고, 가맹점으로 배송돼 결제를 하다가, 고장 나 돌아오기까지.
-            단말온은 그 모든 상태 변화를 <strong>전이 서비스 한 곳</strong>에서 바꾸고, 바뀐 이유를 남깁니다.
+            단말기가 발주돼 창고에 들어오고, 가맹점에서 쓰이다 고장 나 돌아오기까지 상태를 관리합니다.
+            상태는 <strong>전이 서비스 한 곳</strong>에서만 바꾸고, 바꿀 때마다 이유를 남깁니다.
           </p>
           <ul class="stack" aria-label="쓴 기술">
             <li>Nest.js</li>
@@ -59,7 +59,7 @@
         <figure class="hero-phone">
           <!-- 바깥 figure는 스크롤로, 안쪽 img는 등장으로 움직인다(같은 y를 두 애니메이션이 다투지 않게) -->
           <img src="./shots/field-scan.png" width="375" height="812" alt="현장 화면의 박스 스캔. 다섯 줄 중 두 줄이 빨간 띠로 거절 표시돼 있다" />
-          <figcaption>현장 PDA — 박스 하나를 찍으면 줄마다 결과가 온다</figcaption>
+          <figcaption>현장 PDA에서 박스 하나를 찍으면 줄마다 결과가 옵니다</figcaption>
         </figure>
       </section>
 
@@ -71,7 +71,7 @@
             <span class="ht-light">입고부터 회수까지,</span>
             <span class="ht-heavy">아홉 개의 상태.</span>
           </h2>
-          <p class="lead">상태는 한 곳에서만 바뀝니다. 누가 어느 화면에서 바꿔도 같은 규칙 표를 지나고, 이력과 알림(Outbox)이 같은 트랜잭션에 남습니다.</p>
+          <p class="lead">누가 어느 화면에서 바꿔도 같은 규칙 표를 지나고, 이력과 알림(Outbox)이 같은 트랜잭션에 남습니다.</p>
         </div>
         <div class="life-track">
           <ol class="life-list" data-lifecycle aria-label="단말기 생애주기"></ol>
@@ -84,8 +84,8 @@
         <div class="screens-head">
           <p class="eyebrow dark">apps/admin · apps/field · apps/merchant</p>
           <h2 id="screens-title" class="display">
-            <span class="ht-light">같은 단말기,</span>
-            <span class="ht-heavy">세 개의 화면.</span>
+            <span class="ht-light">역할마다</span>
+            <span class="ht-heavy">다른 화면.</span>
           </h2>
         </div>
         <div class="screens-stage">
@@ -102,22 +102,22 @@
         <dl class="roles">
           <div>
             <dt>운영자 · 관제</dt>
-            <dd>어드민. 발주·배정·출고·A/S·펌웨어 단계 배포, 이상 단말기와 VAN 대조, 주간 리포트.</dd>
+            <dd>어드민에서 발주와 출고, A/S, 펌웨어 단계 배포를 처리하고 이상 단말기와 VAN 대조 결과를 봅니다.</dd>
           </div>
           <div>
             <dt>현장 작업자</dt>
-            <dd>PDA. 바코드 스캐너로 박스를 찍고 검수한다. 같은 박스를 두 번 보내도 한 번만 처리된다.</dd>
+            <dd>PDA로 박스를 찍어 입고하고 검수합니다. 같은 박스를 두 번 보내도 한 번만 처리됩니다.</dd>
           </div>
           <div>
             <dt>가맹점주</dt>
-            <dd>휴대폰. 오고 있는 단말기와 A/S 진행 단계, 사용 중인 단말기의 연결 상태.</dd>
+            <dd>휴대폰으로 오고 있는 단말기와 A/S 진행 단계를 보고, 고장을 접수합니다.</dd>
           </div>
         </dl>
         <figure class="ops-shot">
           <img src="./shots/console-dash.png" width="1280" height="800" loading="lazy" alt="운영 관제 대시보드. 어두운 화면 위쪽에 주의 3건, 아래에 큐별 대기·실패·워커 수 표. 실패가 있는 큐는 왼쪽에 빨간 띠" />
-          <figcaption><strong>그리고 네 번째 화면.</strong> 관제·개발자가 큐와 워커를 보는 운영 관제(apps/console). 오래 띄워 두는 화면이라 어둡게.</figcaption>
+          <figcaption>관제·개발자는 큐와 워커를 <strong>운영 관제</strong>(apps/console)에서 봅니다. 오래 띄워 두는 화면이라 어두운 색입니다.</figcaption>
         </figure>
-        <p class="note">화면 사진은 시연용 예시 데이터입니다. 업체·택배사·VAN은 모두 가상입니다.</p>
+        <p class="note">화면 사진은 시연용 예시 데이터입니다.</p>
       </section>
 
       <!-- 4. 숫자: 실험 기록에 적힌 값만 -->
@@ -125,8 +125,8 @@
         <div class="numbers-head">
           <p class="eyebrow">docs/experiments</p>
           <h2 id="numbers-title" class="display light">
-            <span class="ht-light">짐작하지 않고</span>
-            <span class="ht-heavy">재 봤다.</span>
+            <span class="ht-light">실험으로</span>
+            <span class="ht-heavy">잰 숫자.</span>
           </h2>
         </div>
         <ul class="stat-list" data-stats></ul>
@@ -135,8 +135,8 @@
       <!-- 5. 기록 -->
       <section class="records" id="records" aria-labelledby="records-title">
         <blockquote class="pull">
-          <p>기록 없이 끝난 작업은<br /><em>끝난 것이 아니다.</em></p>
-          <cite>CLAUDE.md — 작업 규칙</cite>
+          <p>코드와 함께<br /><em>기록을 적었습니다.</em></p>
+          <cite>기록 규칙: CLAUDE.md</cite>
         </blockquote>
         <h2 id="records-title" class="sr-only">기록</h2>
         <!-- 수는 빌드 때 채운다(vite.config의 record-counts, counts.node.ts) -->
@@ -145,7 +145,7 @@
           <div><dt>트러블슈팅</dt><dd data-count="troubleshooting">–</dd></div>
           <div><dt>실험</dt><dd data-count="experiments">–</dd></div>
         </dl>
-        <p class="lead">고른 것과 버린 것, 막힌 곳과 원인, 잰 숫자를 그때그때 적었습니다. 몇 개만 골랐습니다.</p>
+        <p class="lead">아래는 그중 몇 개입니다. 전체 목록은 기록 색인에 있습니다.</p>
         <ul class="record-list" data-records></ul>
       </section>
     </main>
