@@ -21,6 +21,9 @@ x-api: &api
   build:
     context: .
     dockerfile: apps/api/Dockerfile
+    args:
+      # 운영 관제 대시보드의 api 버전(decisions/0090). 커밋을 보이려면: APP_VERSION=$(git rev-parse --short HEAD) docker compose -f docker-compose.demo.yml up -d --build
+      APP_VERSION: ${APP_VERSION:-demo}
   env_file: .env
   restart: unless-stopped
 

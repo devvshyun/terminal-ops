@@ -145,7 +145,7 @@ export async function runScenario(opts: ScenarioOptions): Promise<ScenarioResult
   }
   log(`운영 중 ${inService.length}대`);
 
-  // 2) 재고 3(그중 하나는 A/S 교체품), 입고(검수 전) 2, 배정 1, 배송 중 2(번개·느림보 — 워커의 택배 수집이 시간이 지나며 배송 완료로)
+  // 2) 재고 3, 입고(검수 전) 2, 배정 1, 배송 중 2(번개·느림보 — 워커의 택배 수집이 시간이 지나며 배송 완료로). 재고 첫 대는 3)에서 A/S 교체품으로 나간다
   const inStock = [next(), next(), next()];
   for (const s of inStock) await stock(s);
   const received = [next(), next()];
@@ -162,7 +162,6 @@ export async function runScenario(opts: ScenarioOptions): Promise<ScenarioResult
     await allocate(s, 'YEOKSAM-CAFE');
     await ship(s, carrier);
   }
-  log(`재고 ${inStock.length} · 입고 ${received.length} · 배정 1 · 배송 중 ${shipping.length}`);
 
   // 3) A/S: 강남김밥 접수 1(그대로), 역삼카페 접수 → 원격 점검(해결 안 됨) → 교체 출고(재고 첫 대)
   const gangnam = inService[0];
@@ -172,6 +171,9 @@ export async function runScenario(opts: ScenarioOptions): Promise<ScenarioResult
   await op.call('POST', `/service-tickets/${ticket.id}/remote-checks`, { resolved: false, note: '원격 점검: 프린터 헤드 응답 없음 — 교체' });
   await op.call('POST', `/service-tickets/${ticket.id}/replacements`, { replacementSerialNo: inStock[0], carrier: 'BUNGAE' });
   log('A/S 접수 1 · 교체 출고 1');
+  // 개수는 교체 출고 뒤에 센다 — 교체품은 재고에서 배송 중으로 옮겨 갔다(2026-10-30 리허설: 진행 줄이 출고 전 "재고 3 · 배송 중 2"였다)
+  const counts = { inStock: inStock.length - 1, received: received.length, allocated: 1, shipping: shipping.length + 1 };
+  log(`재고 ${counts.inStock} · 입고 ${counts.received} · 배정 ${counts.allocated} · 배송 중 ${counts.shipping}(교체품 포함)`);
 
   // 4) 발주: 세움전자가 2대 덜 보내게 해 두고 10대 → 되돌림(발주가 실패해도 — 다른 시연 단계에 남지 않게)
   await partnerAdmin('/__admin/config', { seum: { shortfall: 2 } });
@@ -203,7 +205,7 @@ export async function runScenario(opts: ScenarioOptions): Promise<ScenarioResult
   return {
     skipped: false,
     inService,
-    summary: { inService: inService.length, inStock: inStock.length - 1, received: received.length, allocated: 1, shipping: shipping.length, poNo: po.poNo, vanRegistrations: registrations },
+    summary: { inService: inService.length, ...counts, poNo: po.poNo, vanRegistrations: registrations },
   };
 }
 

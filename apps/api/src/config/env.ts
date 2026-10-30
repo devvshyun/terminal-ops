@@ -149,7 +149,7 @@ export const env = {
   deviceApiKey: resolveDeviceApiKey(process.env.DEVICE_API_KEY),
   /** 테스트 전용 인증 헤더(X-Operator·X-Test-Role). NODE_ENV=test가 아니면 켜지지 않고 던진다(decisions/0056) */
   authTestHeaders: resolveAuthTestHeaders(process.env.AUTH_TEST_HEADERS, process.env.NODE_ENV),
-  /** 운영 관제에 보이는 앱 버전(보강 6, decisions/0071). 띄우는 쪽(이후 Docker)이 넣는다 — 없으면 dev */
+  /** 운영 관제에 보이는 앱 버전(보강 6, decisions/0071). 띄우는 쪽이 넣는다(시연 묶음은 api 이미지 빌드 인자, 기본 demo — decisions/0090) — 없으면 dev */
   appVersion: process.env.APP_VERSION ?? 'dev',
   /** SyncRun에 남길 작업 프로세스 이름(워커 2개 실험에서 구분용). 워커 연결 이름에도 붙어 운영 관제가 어느 프로세스가 큐를 처리하는지 본다(decisions/0071) */
   workerName: process.env.WORKER_NAME ?? `pid-${process.pid}`,
