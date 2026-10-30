@@ -229,3 +229,5 @@
 - [ ] MySQL 한 표 UPDATE의 SET이 왼쪽부터 계산되고 뒤 식이 바뀐 값을 보는 것(다중 표 UPDATE는 보장 안 됨) — `apps/api/src/db/scenario-past.ts`, decisions/0091
 - [ ] `INSERT IGNORE`가 중복 키 말고도 경고로 바꿔 넘기는 오류들(형 변환·NOT NULL 등) — `apps/api/src/db/scenario-past.ts`, decisions/0091
 - [ ] vitest globalSetup 오류가 vite module-runner 소스맵 변환에서 다른 TypeError로 가려지는 경우 — docs/troubleshooting/0038
+- TanStack Query `clear()`·`removeQueries`·`resetQueries`·`invalidateQueries`가 떠 있는 관찰자에게 하는 일의 차이 — docs/troubleshooting/0039
+- React `key`로 하위 트리를 새로 마운트하기(상태를 버리는 리셋) — `apps/demo-home/src/components/Shell.tsx`, docs/troubleshooting/0039

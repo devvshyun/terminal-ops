@@ -20,6 +20,7 @@
 - **보강 9 시연 묶음**: `docker compose -f docker-compose.demo.yml up -d --build` 하나로 모두 뜨고 시연 데이터까지 들어간다. 화면은 `*.localhost:8080`(앱마다 쿠키 따로), 시나리오는 [demo.md](demo.md). 최종 검토는 [reviews/2026-10-29-docker-demo-final-review.md](reviews/2026-10-29-docker-demo-final-review.md).
 - **시연 리허설 반영(2026-10-30)**: 로컬 컨트롤러가 Windows에서 14단계를 모두 돌린 결과로 `docs/demo.md`(8단계 DM-0004, 429 켜기를 7번 출고 바로 앞 6번으로, 시연 데이터 표, Chrome·Edge 권장), 시연 데이터 요약(troubleshooting/0036), api 버전 빌드 인자(0090)를 고쳤다. 기록은 [devlog 2026-10-30](devlog/2026-10-30.md).
 - 2026-10-30 시연 데이터 "지난 일"(decisions/0091): 띄운 직후 처음 화면의 장기 오프라인·배송 완료 후 미설치·열린 이상·진행 중 배포가 0이 아니게 — DM-0021·0022 두 대만 시각을 옮기고 찾기를 한 번, SN-200 배포 하나를 멈춰 둔다. 시연 문서 [demo.md](demo.md) 1장 표.
+- **보강 10 시연 홈**(`apps/demo-home`, `demo.localhost:8080`·개발 :5180, 0092): 시나리오 7막을 단계마다 설명 + 실행 + 결과로. 스펙 [specs/2026-10-30-demo-home.md](specs/2026-10-30-demo-home.md)
 - 클라우드 컨테이너는 재시작되면 dockerd가 꺼진다 — `dockerd`를 띄우고 `docker start terminal-ops-mysql terminal-ops-redis`. Docker Hub가 429를 주면 `mirror.gcr.io`에서 받아 이름을 붙였다.
 
 ### 클라우드 디자인 브랜치를 합칠 때(먼저 할 일)
@@ -48,6 +49,6 @@
 - 커밋되는 파일은 LF(autocrlf). CR이 섞이면 diff가 통째로 바뀐다(보강 5 최종 리뷰 Minor 1).
 
 ## 5. 환경 메모
-- Node 24, MySQL 8.4·Redis 7.4(docker compose), 포트: api 3000, partners 4010, device-sim 4020, admin 5173, merchant 5174, field 5175, console 5176(미리보기 4176), landing 5177(4177), developers 5178(4178), sandbox 5179(4179), 테스트용 partners 4011.
+- Node 24, MySQL 8.4·Redis 7.4(docker compose), 포트: api 3000, partners 4010, device-sim 4020, admin 5173, merchant 5174, field 5175, console 5176(미리보기 4176), landing 5177(4177), developers 5178(4178), sandbox 5179(4179), demo-home 5180(4180), 테스트용 partners 4011.
 - 로컬 PC 전용 사정(클라우드에는 해당 없을 수 있음): Windows Git Bash에서 heredoc 따옴표가 깨짐(troubleshooting/0024), python3 호출이 멈춤, `.claude/launch.json`은 이 PC 절대 경로라 커밋하지 않음.
 - 클라우드 환경에 Docker가 없으면 MySQL·Redis 기반 api 테스트를 돌릴 수 없다 — 그 경우 화면(Vitest)·타입 검사 위주로 하고, 서버 쪽 변경은 테스트 실행 여부를 devlog에 정직하게 적는다.
