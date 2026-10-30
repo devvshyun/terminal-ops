@@ -1,4 +1,5 @@
 import type { Carrier } from '@terminal-ops/contracts';
+import { PAST_DELIVERED_SERIAL, PAST_OFFLINE_SERIAL, writePast, type PastWriter } from './scenario-past.js';
 import { DEMO_ACCOUNTS } from './seed-accounts.js';
 
 /**
@@ -10,6 +11,9 @@ import { DEMO_ACCOUNTS } from './seed-accounts.js';
  * 첫 단말기나 그 업체만 있고 키가 없으면(도중에 멈춘 실행) 멈추고 볼륨을 지우라고 알린다 — 반쯤 들어간 데이터에 덧붙이지 않는다.
  * 건너뛸 때도 메모리에만 있는 상태(브릿지VAN 등록, 시뮬레이터 설정·시작)는 다시 맞춘다 — 묶음을 down/up하면 두 서버가 비어 있다(최종 검토).
  * 세움전자 발주(납품 명세)는 다시 만들 수 없다(발주번호가 업체 서버 메모리에만 있다) — 시나리오 문서가 "새 발주"를 안내한다.
+ *
+ * 예외 하나 — "지난 일"(decisions/0090): 단말기 두 대(DM-0021·0022)는 API로 만든 뒤 시각만 며칠 앞으로 옮기고(scenario-past.ts, 직접 SQL),
+ * 이상 단말기 찾기를 API로 한 번 돌린다. 띄운 직후 처음 화면의 오래 오프라인·배송 뒤 설치 안 됨이 0이 아니게.
  */
 export interface ScenarioOptions {
   /** api 주소(예 http://api:3000) */
@@ -22,6 +26,8 @@ export interface ScenarioOptions {
   simTargetUrl?: string;
   /** 시연 계정 대신 쓸 로그인(테스트가 자기 계정으로) — 역할별 아이디·비밀번호 */
   logins?: Partial<Record<'admin' | 'operator', { loginId: string; password: string }>>;
+  /** 지난 일(시각 옮기기)을 쓸 손. 없으면 건너뛴다 — 이상 단말기 찾기는 그래도 돌지만 걸리는 것이 없다(decisions/0090) */
+  past?: PastWriter;
   log?: (line: string) => void;
 }
 
@@ -33,6 +39,12 @@ export const demoSerial = (n: number) => `DM-${String(n).padStart(4, '0')}`;
 export const IN_SERVICE_COUNT = 12;
 const MERCHANTS = ['GANGNAM-KIMBAP', 'YEOKSAM-CAFE', 'PANGYO-BUNSIK'];
 const SN100_PASS = ['POWER', 'NETWORK', 'CARD_READER', 'PRINTER'].map((itemCode) => ({ itemCode, passed: true }));
+const SN200_PASS = ['POWER', 'LTE', 'CARD_READER', 'BATTERY'].map((itemCode) => ({ itemCode, passed: true }));
+/** 멈춰 둔 배포: SN-200 2.1.0(운영 중 SN-200은 오래 오프라인인 DM-0021 한 대 — 시연 9·10단계의 SN-100 배포와 모델이 달라 막지 않는다) */
+export const PAUSED_ROLLOUT = { modelCode: 'SN-200', version: '2.1.0' };
+/** 지난 일 단말기의 가맹점 */
+const PAST_OFFLINE_MERCHANT = 'YEOKSAM-CAFE';
+const PAST_DELIVERED_MERCHANT = 'PANGYO-BUNSIK';
 /** 다 끝났다는 표시(마지막에 만든다) */
 export const SCENARIO_DONE_PARTNER = 'HANOL-POS';
 
@@ -118,14 +130,14 @@ export async function runScenario(opts: ScenarioOptions): Promise<ScenarioResult
   }
 
   const version = async (serialNo: string) => (await op.call<{ version: number }>('GET', `/terminals/${serialNo}`)).body.version;
-  const register = (serialNo: string) => op.call('POST', '/terminals', { serialNo, modelCode: 'SN-100' });
-  const inspect = (serialNo: string) => op.call('POST', `/terminals/${serialNo}/inspections`, { results: SN100_PASS });
+  const register = (serialNo: string, modelCode = 'SN-100') => op.call('POST', '/terminals', { serialNo, modelCode });
+  const inspect = (serialNo: string, results = SN100_PASS) => op.call('POST', `/terminals/${serialNo}/inspections`, { results });
   const transition = async (serialNo: string, to: string, reason: string) => op.call('POST', `/terminals/${serialNo}/transitions`, { to, reason, expectedVersion: await version(serialNo) });
   const allocate = async (serialNo: string, merchantCode: string) => op.call('POST', `/terminals/${serialNo}/allocations`, { merchantCode, expectedVersion: await version(serialNo) });
   const ship = async (serialNo: string, carrier: Carrier) => op.call('POST', '/shipments', { serialNo, carrier, expectedVersion: await version(serialNo) });
-  const stock = async (serialNo: string) => {
-    await register(serialNo);
-    await inspect(serialNo);
+  const stock = async (serialNo: string, modelCode = 'SN-100') => {
+    await register(serialNo, modelCode);
+    await inspect(serialNo, modelCode === 'SN-200' ? SN200_PASS : SN100_PASS);
     await transition(serialNo, 'IN_STOCK', '재고 편입(시연 데이터)');
   };
 
@@ -164,6 +176,22 @@ export async function runScenario(opts: ScenarioOptions): Promise<ScenarioResult
   }
   log(`재고 ${inStock.length} · 입고 ${received.length} · 배정 1 · 배송 중 ${shipping.length}`);
 
+  // 2-1) 지난 일 단말기 둘(시각은 8번에서 옮긴다). VAN 대조(6번)보다 먼저 — 운영 중인 DM-0021은 브릿지VAN에도 등록해 둔다(rearm)
+  //      DM-0021: SN-200, 역삼카페 운영 중(시뮬레이터에서 꺼 둠). DM-0022: SN-100, 판교분식 배송 완료(설치 안 함)
+  const pastOffline = next();
+  const pastDelivered = next();
+  if (pastOffline !== PAST_OFFLINE_SERIAL || pastDelivered !== PAST_DELIVERED_SERIAL) throw new Error(`지난 일 시리얼이 어긋남: ${pastOffline}, ${pastDelivered}`);
+  for (const [s, modelCode, merchantCode, to] of [
+    [pastOffline, 'SN-200', PAST_OFFLINE_MERCHANT, 'IN_SERVICE'],
+    [pastDelivered, 'SN-100', PAST_DELIVERED_MERCHANT, 'DELIVERED'],
+  ] as const) {
+    await stock(s, modelCode);
+    await allocate(s, merchantCode);
+    await ship(s, 'BUNGAE');
+    await transition(s, 'DELIVERED', '배송 완료(시연 데이터)');
+    if (to === 'IN_SERVICE') await transition(s, 'IN_SERVICE', '설치 확인(시연 데이터)');
+  }
+
   // 3) A/S: 강남김밥 접수 1(그대로), 역삼카페 접수 → 원격 점검(해결 안 됨) → 교체 출고(재고 첫 대)
   const gangnam = inService[0];
   const yeoksam = inService[1];
@@ -195,6 +223,18 @@ export async function runScenario(opts: ScenarioOptions): Promise<ScenarioResult
   // 7) 지난주 주간 리포트 → 톡톡메신저(첨부)
   await op.call('POST', '/reports/weekly', {});
 
+  // 8) 지난 일(decisions/0090): DM-0021·0022의 시각을 며칠 앞으로(직접 SQL, 이 두 대만) → 이상 단말기 찾기(API) → 열린 이상 둘
+  //    그리고 SN-200 펌웨어 배포 하나를 시작해 멈춰 둔다(처음 화면 "진행 중 배포"). 대상은 DM-0021 하나 — 보고하지 않아 단계가 넘어가지 않는다
+  const backdated = opts.past ? await writePast(opts.past) : false;
+  const scan = (await op.call<{ detected: number; open: Record<string, number> }>('POST', '/anomaly-scans')).body;
+  log(`지난 일 ${backdated ? '씀' : '건너뜀'} · 이상 단말기 찾기: 새로 ${scan.detected} ${JSON.stringify(scan.open)}`);
+  await op.call('POST', '/firmware', PAUSED_ROLLOUT);
+  const rollout = (
+    await op.call<{ id: number }>('POST', '/firmware-rollouts', { ...PAUSED_ROLLOUT, stages: [10, 50, 100], failureThreshold: 0.2, minSamples: 2 })
+  ).body;
+  await op.call('POST', `/firmware-rollouts/${rollout.id}/pause`);
+  log(`펌웨어 배포 #${rollout.id} ${PAUSED_ROLLOUT.modelCode} ${PAUSED_ROLLOUT.version} 멈춤`);
+
   // 9) 마지막: 외부 업체와 키 하나(원문은 출력하지 않는다 — 시연 키는 DEMO 업체 아래 시드에 있다). 이 업체가 "다 끝났다" 표시
   const partner = (await admin.call<{ id: number }>('POST', '/admin/partners', { code: SCENARIO_DONE_PARTNER, name: '한올POS(가상)', memo: '가맹점 POS에서 단말기 상태 조회' })).body;
   await admin.call('POST', '/admin/partner-keys', { partnerId: partner.id, name: '운영 서버', scopes: ['terminal-status:read'] });
@@ -203,7 +243,17 @@ export async function runScenario(opts: ScenarioOptions): Promise<ScenarioResult
   return {
     skipped: false,
     inService,
-    summary: { inService: inService.length, inStock: inStock.length - 1, received: received.length, allocated: 1, shipping: shipping.length, poNo: po.poNo, vanRegistrations: registrations },
+    summary: {
+      inService: inService.length,
+      inStock: inStock.length - 1,
+      received: received.length,
+      allocated: 1,
+      shipping: shipping.length,
+      poNo: po.poNo,
+      vanRegistrations: registrations,
+      openAnomalies: Object.values(scan.open).reduce((a, b) => a + b, 0),
+      pausedRollout: rollout.id,
+    },
   };
 }
 
@@ -211,9 +261,10 @@ export async function runScenario(opts: ScenarioOptions): Promise<ScenarioResult
 const RETURN_REQUESTED = demoSerial(2);
 
 /**
- * 메모리에만 있는 시연 상태를 맞춘다(처음 실행 · 건너뛸 때 모두). 시연 단말기는 늘 DM-0001~0012라 API를 읽지 않고 정한다.
- * - 브릿지VAN 등록: 앞 10대(셋째는 VAN에 다른 가맹점으로), 마지막 둘은 미등록 — 대조하면 어긋남이 생긴다
- * - 시뮬레이터: 운영 중 12대 하트비트 10초마다, 회수 요청된 한 대는 꺼 둔다. 돌던 중이면 그대로 둔다(설정만 맞춤)
+ * 메모리에만 있는 시연 상태를 맞춘다(처음 실행 · 건너뛸 때 모두). 시연 단말기는 늘 DM-0001~0012와 지난 일 DM-0021이라 API를 읽지 않고 정한다.
+ * - 브릿지VAN 등록: 앞 10대(셋째는 VAN에 다른 가맹점으로), 마지막 둘은 미등록 — 대조하면 어긋남이 생긴다.
+ *   오래 오프라인인 DM-0021은 제대로 등록한다(꺼져 있어도 VAN에는 있는 단말기 — 어긋남 수를 바꾸지 않게)
+ * - 시뮬레이터: 운영 중 12대 + DM-0021 하트비트 10초마다, 회수 요청된 한 대와 DM-0021은 꺼 둔다. 돌던 중이면 그대로 둔다(설정만 맞춤)
  * @returns 브릿지VAN 등록 수
  */
 async function rearm(opts: ScenarioOptions, partnerAdmin: (path: string, body: unknown) => Promise<unknown>, log: (line: string) => void): Promise<number> {
@@ -224,15 +275,22 @@ async function rearm(opts: ScenarioOptions, partnerAdmin: (path: string, body: u
     merchantCode: i === 2 ? 'GANGNAM-KIMBAP' : MERCHANTS[i % MERCHANTS.length], // 셋째(판교분식)는 VAN에 강남김밥으로 — 가맹점 다름
     status: 'ACTIVE',
   }));
+  registrations.push({ tid: 'TID00021', serialNo: PAST_OFFLINE_SERIAL, merchantCode: PAST_OFFLINE_MERCHANT, status: 'ACTIVE' });
   await partnerAdmin('/__admin/bridgevan/registrations', { registrations, replace: true });
   if (opts.simUrl) {
     const sim = (path: string, body?: unknown) =>
       fetch(`${opts.simUrl}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }).then(async (r) => {
         if (!r.ok) throw new Error(`시뮬레이터 ${path} → HTTP ${r.status}: ${await r.text()}`);
       });
-    await sim('/__admin/config', { targetUrl: opts.simTargetUrl ?? opts.apiUrl, serials, offlineSerials: [RETURN_REQUESTED], intervalMs: 10_000 });
+    // DM-0021도 목록에 넣어 시연 도구 단말기 표에 "꺼짐"으로 보이게 한다(켜면 오래 오프라인이 풀리는 것을 보일 수 있다)
+    await sim('/__admin/config', {
+      targetUrl: opts.simTargetUrl ?? opts.apiUrl,
+      serials: [...serials, PAST_OFFLINE_SERIAL],
+      offlineSerials: [RETURN_REQUESTED, PAST_OFFLINE_SERIAL],
+      intervalMs: 10_000,
+    });
     await sim('/__admin/start');
-    log(`시뮬레이터 시작(${serials.length}대, 10초마다, ${RETURN_REQUESTED} 꺼 둠)`);
+    log(`시뮬레이터 시작(${serials.length + 1}대, 10초마다, ${RETURN_REQUESTED}·${PAST_OFFLINE_SERIAL} 꺼 둠)`);
   }
   log(`브릿지VAN 등록 ${registrations.length}건`);
   return registrations.length;

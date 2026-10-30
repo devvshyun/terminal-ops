@@ -18,6 +18,7 @@
 - 디자인 2(어드민·관제, 0079)와 **보강 7 개발자센터**(`apps/developers` :5178, 0080~0083)는 지정 브랜치 `claude/stoic-tesla-rm7xpo`에서 PR [devvshyun/terminal-ops#2](https://github.com/devvshyun/terminal-ops/pull/2)로 master에 병합됐다. 최종 검토는 [reviews/2026-10-29-developer-center-final-review.md](reviews/2026-10-29-developer-center-final-review.md).
 - **보강 8 시연 도구**(`apps/sandbox` :5179, 0084·0085)도 같은 브랜치에 이어 쌓았다(PR #2, 병합됨). 최종 검토는 [reviews/2026-10-29-sandbox-final-review.md](reviews/2026-10-29-sandbox-final-review.md).
 - **보강 9 시연 묶음**: `docker compose -f docker-compose.demo.yml up -d --build` 하나로 모두 뜨고 시연 데이터까지 들어간다. 화면은 `*.localhost:8080`(앱마다 쿠키 따로), 시나리오는 [demo.md](demo.md). 최종 검토는 [reviews/2026-10-29-docker-demo-final-review.md](reviews/2026-10-29-docker-demo-final-review.md).
+- 2026-10-30 시연 데이터 "지난 일"(decisions/0090): 띄운 직후 처음 화면의 장기 오프라인·배송 완료 후 미설치·열린 이상·진행 중 배포가 0이 아니게 — DM-0021·0022 두 대만 시각을 옮기고 찾기를 한 번, SN-200 배포 하나를 멈춰 둔다. 시연 문서 [demo.md](demo.md) 1장 표.
 - 클라우드 컨테이너는 재시작되면 dockerd가 꺼진다 — `dockerd`를 띄우고 `docker start terminal-ops-mysql terminal-ops-redis`. Docker Hub가 429를 주면 `mirror.gcr.io`에서 받아 이름을 붙였다.
 
 ### 클라우드 디자인 브랜치를 합칠 때(먼저 할 일)
