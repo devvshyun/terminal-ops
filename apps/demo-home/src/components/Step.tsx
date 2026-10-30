@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { keys } from '../api/query-keys';
 import { type AppKey, appUrl } from '../lib/apps';
 import { markDone, useProgress } from '../lib/progress';
+import { getReplay } from '../replay/runtime';
 import { useMe } from '../session';
 import { ErrorBox } from './ErrorBox';
 
@@ -53,7 +54,17 @@ export function Run({ label, stepKey, onRun, needsLogin = true, markStep = true 
   const can = useCanRun();
   const [message, setMessage] = useState<string | null>(null);
   const run = useMutation({
-    mutationFn: onRun,
+    // 녹화 재생본: 녹화 시계를 이 실행의 시각으로 옮기고, 끝나면(성공·실패 모두) 그 실행이 끝난 때로(decisions/0094)
+    mutationFn: async () => {
+      const replay = getReplay();
+      if (!replay) return onRun();
+      if (!replay.startRun(stepKey, label)) throw new Error('녹화본에서 이 실행은 이미 썼습니다(녹화한 횟수만큼만 누를 수 있어요). 위의 "처음 상태로"를 누르면 처음부터 다시 볼 수 있습니다.');
+      try {
+        return await onRun();
+      } finally {
+        replay.endRun();
+      }
+    },
     onMutate: () => setMessage(null),
     onSuccess: (m) => {
       if (m) setMessage(m);
@@ -74,8 +85,18 @@ export function Run({ label, stepKey, onRun, needsLogin = true, markStep = true 
   );
 }
 
-/** 그 앱 화면을 새 탭으로 */
+/** 그 앱 화면을 새 탭으로. 녹화 재생본에서는 녹화할 때 찍은 그 화면 사진(지금 녹화 시각 이전의 마지막 것)을 연다 */
 export function Open({ app, path = '/', label }: { app: AppKey; path?: string; label: string }) {
+  const replay = getReplay();
+  if (replay) {
+    const shot = replay.shot(`${app}:${path}`);
+    if (!shot) return <small className="muted">{label} — 녹화본에는 이 화면 사진이 없습니다</small>;
+    return (
+      <a className="open" href={`${import.meta.env.BASE_URL}shots/${shot.file}`} target="_blank" rel="noreferrer" title={shot.title}>
+        {label} (녹화 사진) ↗
+      </a>
+    );
+  }
   return (
     <a className="open" href={appUrl(app, path)} target="_blank" rel="noreferrer">
       {label} ↗

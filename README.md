@@ -201,6 +201,16 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 - 같은 막을 여러 번 돌려도 된다: 재고가 없으면 시연용 재고(DM-9001…)를 만들고, 펌웨어는 쓰지 않은 다음 버전을 고른다
 - 끝낸 단계 표시는 이 브라우저(localStorage)에만
 
+## 시연 홈 녹화 재생본(보강 11)
+
+**바로 보기: https://devvshyun.github.io/terminal-ops/** — 서버 없이 브라우저만으로 7막을 눌러 본다(GitHub Pages).
+
+- 시연 묶음을 실제로 돌려 받은 응답을 녹화해 두고, [실행]을 누르면 그 응답을 녹화 순서대로 다시 낸다. 꾸며 낸 응답은 없다([decisions/0093](docs/decisions/0093-시연-홈을-녹화-재생본으로-GitHub-Pages에-올린다.md))
+- 기다리는 단계(배송 완료, 오프라인 판정)는 녹화 시계를 8배로 빨리 감는다. 다른 화면은 녹화할 때 찍은 사진으로 연다([decisions/0094](docs/decisions/0094-녹화-재생은-녹화-시계-하나로-응답을-고른다.md))
+- 녹화본 다시 찍기: 시연 묶음을 `down -v` → `up` 한 뒤 `node apps/demo-home/scripts/record.cjs`(10분 남짓). 재생본 빌드는 `cd apps/demo-home && npm run build:replay && npm run preview:replay`(:4181)
+- 배포: master에 demo-home이 바뀌면 `.github/workflows/pages.yml`이 테스트 → 재생본 빌드 → Pages
+- 만든 과정(요청 → 판단 → 시행착오): [docs/making/2026-10-30-demo-replay.md](docs/making/2026-10-30-demo-replay.md)
+
 ## 기능
 
 | ID | 기능 | 코드 |
@@ -271,7 +281,7 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 
 이 프로젝트의 산출물은 코드와 기록이다(규칙 `CLAUDE.md`, 양식 `docs/README.md`).
 
-- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 92·트러블슈팅 39·실험 19 (`node scripts/docs-index.mjs`로 만든다)
+- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 94·트러블슈팅 40·실험 20 (`node scripts/docs-index.mjs`로 만든다)
 - 개발일지: [`docs/devlog/`](docs/devlog/)(날짜별, 날마다 "N일차 요약"), 설계 스펙 [`docs/specs/`](docs/specs/), 구현 계획 [`docs/plans/`](docs/plans/), 날마다의 최종 리뷰 [`docs/reviews/`](docs/reviews/)
 - 7일 회고: [`docs/retrospective.md`](docs/retrospective.md) — 날별로 만든 것, 잘 된 것·안 된 것, 반복된 실수, 면접에서 말할 거리, 남은 이월과 그 뒤 보강
 - 공부거리: [`docs/study/backlog.md`](docs/study/backlog.md)
@@ -289,7 +299,7 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 | console | 8 | 58 |
 | developers | 9 | 44 |
 | sandbox | 4 | 26 |
-| demo-home | 8 | 44 |
+| demo-home | 10 | 54 |
 | landing | 1 | 14 |
 | partners | 7 | 61 |
 | device-sim | 6 | 49 |

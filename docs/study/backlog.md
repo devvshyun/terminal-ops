@@ -231,3 +231,6 @@
 - [ ] vitest globalSetup 오류가 vite module-runner 소스맵 변환에서 다른 TypeError로 가려지는 경우 — docs/troubleshooting/0038
 - TanStack Query `clear()`·`removeQueries`·`resetQueries`·`invalidateQueries`가 떠 있는 관찰자에게 하는 일의 차이 — docs/troubleshooting/0039
 - React `key`로 하위 트리를 새로 마운트하기(상태를 버리는 리셋) — `apps/demo-home/src/components/Shell.tsx`, docs/troubleshooting/0039
+- [ ] 최상위 await(top-level await)와 빌드 대상(es2022) — 모듈 그래프가 기다리는 방식 (apps/demo-home/src/replay/main.tsx, 보강 11)
+- [ ] 녹화·재생 테스트(record/replay, VCR류)에서 응답을 고르는 규칙 — 순서 기반 vs 시각 기반 (decisions/0094)
+- [ ] GitHub Pages의 Actions 배포(configure-pages·upload-pages-artifact·deploy-pages)와 OIDC id-token 권한 (.github/workflows/pages.yml)

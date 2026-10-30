@@ -102,5 +102,5 @@ export const baseApi = () => ({
   'GET /partners/__admin/config': () => ({ body: { bungae: { force429Rate: 0 } } }),
   'GET /partners/__admin/requests': () => ({ body: { total: 0, items: [] } }),
   'GET /partners/__admin/toktok/messages': () => ({ body: { total: 0, messages: [] } }),
-  'GET /sim/__admin/config': () => ({ body: { offlineSerials: ['DM-0002', 'DM-0021'], firmwareFailRate: 0 } }),
+  'GET /sim/__admin/config': () => ({ body: { serials: [], offlineSerials: ['DM-0002', 'DM-0021'], firmwareFailRate: 0 } }),
 });

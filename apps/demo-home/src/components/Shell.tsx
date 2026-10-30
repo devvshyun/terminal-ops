@@ -1,7 +1,10 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { NavLink, Outlet } from 'react-router';
 import { ACTS, ALL_STEPS } from '../lib/acts';
 import { forgetAll } from '../lib/memo';
 import { resetProgress, useProgress } from '../lib/progress';
+import { ReplayClock, ReplayNotice } from '../replay/ReplayBar';
+import { getReplay } from '../replay/runtime';
 import { useMe } from '../session';
 import { Open } from './Step';
 import { LoginBox } from './LoginBox';
@@ -10,6 +13,8 @@ import { LoginBox } from './LoginBox';
 export function Shell() {
   const done = useProgress();
   const me = useMe();
+  const client = useQueryClient();
+  const replay = getReplay();
   return (
     <>
       <header className="top">
@@ -30,13 +35,19 @@ export function Shell() {
             onClick={() => {
               resetProgress();
               forgetAll();
+              // 녹화 재생본: 녹화 시계도 처음으로 — 결과 패널이 처음 상태를 다시 읽는다
+              if (replay) {
+                replay.reset();
+                void client.invalidateQueries();
+              }
             }}
           >
             처음 상태로
           </button>
         </div>
-        <LoginBox />
+        {replay ? <ReplayClock /> : <LoginBox />}
       </header>
+      <ReplayNotice />
       <div className="layout">
         <aside className="side">
         <nav className="acts" aria-label="막">
