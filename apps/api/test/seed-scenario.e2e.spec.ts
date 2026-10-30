@@ -56,6 +56,9 @@ describe('시연 데이터 시나리오', () => {
     expect([await status(16), await status(17)]).toEqual(['RECEIVED', 'RECEIVED']);
     expect(await status(18)).toBe('ALLOCATED');
     expect([await status(19), await status(20)]).toEqual(['SHIPPED', 'SHIPPED']);
+    // 진행 줄과 마지막 요약이 실제 상태와 같다 — 교체품(DM-0013)은 재고가 아니라 배송 중(2026-10-30 리허설: 진행 줄 "재고 3 · 배송 중 2", 요약 shipping 2)
+    expect(result.summary).toMatchObject({ inService: 12, inStock: 2, received: 2, allocated: 1, shipping: 3 });
+    expect(lines).toContain('재고 2 · 입고 2 · 배정 1 · 배송 중 3(교체품 포함)');
 
     const tickets = (await withCookie(t, op).get('/service-tickets')).body.items as { status: string }[];
     expect(tickets.map((x) => x.status).sort()).toEqual(['OPEN', 'REPLACING']);
@@ -68,7 +71,7 @@ describe('시연 데이터 시나리오', () => {
     expect(lines.join('\n')).not.toMatch(/pk_[a-z0-9]{8}_/); // 키 원문을 출력하지 않는다
   }, 120_000);
 
-  it('지난 일(decisions/0090): 처음 화면의 오래 오프라인·배송 뒤 설치 안 됨·열린 이상·진행 중 배포가 띄운 직후 0이 아니다', async () => {
+  it('지난 일(decisions/0091): 처음 화면의 오래 오프라인·배송 뒤 설치 안 됨·열린 이상·진행 중 배포가 띄운 직후 0이 아니다', async () => {
     const op = await login(t, 'scn-op');
     const terminal = async (s: string) => (await withCookie(t, op).get(`/terminals/${s}`)).body as { status: string; statusChangedAt: string };
     const daysAgo = (iso: string) => (Date.now() - new Date(iso).getTime()) / 86_400_000;

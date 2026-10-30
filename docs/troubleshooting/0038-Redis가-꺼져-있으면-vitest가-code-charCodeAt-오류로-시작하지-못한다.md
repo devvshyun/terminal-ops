@@ -1,6 +1,6 @@
-# 0036. Redis가 꺼져 있으면 vitest가 `code.charCodeAt is not a function`으로 시작하지 못한다
+# 0038. Redis가 꺼져 있으면 vitest가 `code.charCodeAt is not a function`으로 시작하지 못한다
 
-- 날짜 / 관련 기능: 2026-10-30 / 시연 데이터 지난 일(decisions/0090) 작업 중, api 테스트
+- 날짜 / 관련 기능: 2026-10-30 / 시연 데이터 지난 일(decisions/0091) 작업 중, api 테스트
 - 증상: 새 클라우드 컨테이너에서 `npx vitest run test/unit/scenario-past.spec.ts`(DB를 쓰지 않는 단위 테스트)가 테스트를 하나도 돌리지 않고 멈췄다.
   ```
   ⎯⎯⎯⎯⎯⎯⎯ Startup Error ⎯⎯⎯⎯⎯⎯⎯⎯

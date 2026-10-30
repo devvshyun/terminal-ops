@@ -12,7 +12,7 @@ import { DEMO_ACCOUNTS } from './seed-accounts.js';
  * 건너뛸 때도 메모리에만 있는 상태(브릿지VAN 등록, 시뮬레이터 설정·시작)는 다시 맞춘다 — 묶음을 down/up하면 두 서버가 비어 있다(최종 검토).
  * 세움전자 발주(납품 명세)는 다시 만들 수 없다(발주번호가 업체 서버 메모리에만 있다) — 시나리오 문서가 "새 발주"를 안내한다.
  *
- * 예외 하나 — "지난 일"(decisions/0090): 단말기 두 대(DM-0021·0022)는 API로 만든 뒤 시각만 며칠 앞으로 옮기고(scenario-past.ts, 직접 SQL),
+ * 예외 하나 — "지난 일"(decisions/0091): 단말기 두 대(DM-0021·0022)는 API로 만든 뒤 시각만 며칠 앞으로 옮기고(scenario-past.ts, 직접 SQL),
  * 이상 단말기 찾기를 API로 한 번 돌린다. 띄운 직후 처음 화면의 오래 오프라인·배송 뒤 설치 안 됨이 0이 아니게.
  */
 export interface ScenarioOptions {
@@ -26,7 +26,7 @@ export interface ScenarioOptions {
   simTargetUrl?: string;
   /** 시연 계정 대신 쓸 로그인(테스트가 자기 계정으로) — 역할별 아이디·비밀번호 */
   logins?: Partial<Record<'admin' | 'operator', { loginId: string; password: string }>>;
-  /** 지난 일(시각 옮기기)을 쓸 손. 없으면 건너뛴다 — 이상 단말기 찾기는 그래도 돌지만 걸리는 것이 없다(decisions/0090) */
+  /** 지난 일(시각 옮기기)을 쓸 손. 없으면 건너뛴다 — 이상 단말기 찾기는 그래도 돌지만 걸리는 것이 없다(decisions/0091) */
   past?: PastWriter;
   log?: (line: string) => void;
 }
@@ -157,7 +157,7 @@ export async function runScenario(opts: ScenarioOptions): Promise<ScenarioResult
   }
   log(`운영 중 ${inService.length}대`);
 
-  // 2) 재고 3(그중 하나는 A/S 교체품), 입고(검수 전) 2, 배정 1, 배송 중 2(번개·느림보 — 워커의 택배 수집이 시간이 지나며 배송 완료로)
+  // 2) 재고 3, 입고(검수 전) 2, 배정 1, 배송 중 2(번개·느림보 — 워커의 택배 수집이 시간이 지나며 배송 완료로). 재고 첫 대는 3)에서 A/S 교체품으로 나간다
   const inStock = [next(), next(), next()];
   for (const s of inStock) await stock(s);
   const received = [next(), next()];
@@ -174,7 +174,6 @@ export async function runScenario(opts: ScenarioOptions): Promise<ScenarioResult
     await allocate(s, 'YEOKSAM-CAFE');
     await ship(s, carrier);
   }
-  log(`재고 ${inStock.length} · 입고 ${received.length} · 배정 1 · 배송 중 ${shipping.length}`);
 
   // 2-1) 지난 일 단말기 둘(시각은 8번에서 옮긴다). VAN 대조(6번)보다 먼저 — 운영 중인 DM-0021은 브릿지VAN에도 등록해 둔다(rearm)
   //      DM-0021: SN-200, 역삼카페 운영 중(시뮬레이터에서 꺼 둠). DM-0022: SN-100, 판교분식 배송 완료(설치 안 함)
@@ -200,6 +199,9 @@ export async function runScenario(opts: ScenarioOptions): Promise<ScenarioResult
   await op.call('POST', `/service-tickets/${ticket.id}/remote-checks`, { resolved: false, note: '원격 점검: 프린터 헤드 응답 없음 — 교체' });
   await op.call('POST', `/service-tickets/${ticket.id}/replacements`, { replacementSerialNo: inStock[0], carrier: 'BUNGAE' });
   log('A/S 접수 1 · 교체 출고 1');
+  // 개수는 교체 출고 뒤에 센다 — 교체품은 재고에서 배송 중으로 옮겨 갔다(2026-10-30 리허설: 진행 줄이 출고 전 "재고 3 · 배송 중 2"였다)
+  const counts = { inStock: inStock.length - 1, received: received.length, allocated: 1, shipping: shipping.length + 1 };
+  log(`재고 ${counts.inStock} · 입고 ${counts.received} · 배정 ${counts.allocated} · 배송 중 ${counts.shipping}(교체품 포함)`);
 
   // 4) 발주: 세움전자가 2대 덜 보내게 해 두고 10대 → 되돌림(발주가 실패해도 — 다른 시연 단계에 남지 않게)
   await partnerAdmin('/__admin/config', { seum: { shortfall: 2 } });
@@ -223,7 +225,7 @@ export async function runScenario(opts: ScenarioOptions): Promise<ScenarioResult
   // 7) 지난주 주간 리포트 → 톡톡메신저(첨부)
   await op.call('POST', '/reports/weekly', {});
 
-  // 8) 지난 일(decisions/0090): DM-0021·0022의 시각을 며칠 앞으로(직접 SQL, 이 두 대만) → 이상 단말기 찾기(API) → 열린 이상 둘
+  // 8) 지난 일(decisions/0091): DM-0021·0022의 시각을 며칠 앞으로(직접 SQL, 이 두 대만) → 이상 단말기 찾기(API) → 열린 이상 둘
   //    그리고 SN-200 펌웨어 배포 하나를 시작해 멈춰 둔다(처음 화면 "진행 중 배포"). 대상은 DM-0021 하나 — 보고하지 않아 단계가 넘어가지 않는다
   const backdated = opts.past ? await writePast(opts.past) : false;
   const scan = (await op.call<{ detected: number; open: Record<string, number> }>('POST', '/anomaly-scans')).body;
@@ -245,10 +247,7 @@ export async function runScenario(opts: ScenarioOptions): Promise<ScenarioResult
     inService,
     summary: {
       inService: inService.length,
-      inStock: inStock.length - 1,
-      received: received.length,
-      allocated: 1,
-      shipping: shipping.length,
+      ...counts,
       poNo: po.poNo,
       vanRegistrations: registrations,
       openAnomalies: Object.values(scan.open).reduce((a, b) => a + b, 0),

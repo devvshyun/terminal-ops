@@ -2,7 +2,7 @@
 
 > 이 파일은 `node scripts/docs-index.mjs`가 만든다. 손으로 고치지 않는다(decisions/0046). 기록을 더한 뒤 다시 만들고, `--check`로 확인한다.
 
-## 결정 기록 (90)
+## 결정 기록 (91)
 
 - [0001](decisions/0001-인증은-작업자-헤더로.md) 인증은 하지 않고, 작업자는 요청 헤더로 기록한다
 - [0002](decisions/0002-esm-vitest-tsc-빌드.md) ESM + Vitest + tsc 빌드로 API를 만든다
@@ -93,9 +93,10 @@
 - [0087](decisions/0087-시연-묶음은-웹-하나만-127-0-0-1에-연다.md) 시연 묶음은 웹 하나만 127.0.0.1에 연다
 - [0088](decisions/0088-시연-화면은-호스트-이름별로-앱마다-쿠키가-따로.md) 시연 화면은 호스트 이름별로 — 앱마다 쿠키가 따로
 - [0089](decisions/0089-시연-데이터는-실제-HTTP-API로-한-번.md) 시연 데이터는 실제 HTTP API로, 한 번만
-- [0090](decisions/0090-시연-데이터의-지난-일은-두-대만-시각을-옮긴다.md) 시연 데이터의 "지난 일"은 단말기 두 대만 시각을 옮긴다(0089 일부 뒤집기)
+- [0090](decisions/0090-시연-이미지의-api-버전은-빌드-인자로.md) 시연 이미지의 api 버전은 빌드 인자로(기본 demo)
+- [0091](decisions/0091-시연-데이터의-지난-일은-두-대만-시각을-옮긴다.md) 시연 데이터의 "지난 일"은 단말기 두 대만 시각을 옮긴다(0089 일부 뒤집기)
 
-## 트러블슈팅 (36)
+## 트러블슈팅 (38)
 
 - [0001](troubleshooting/0001-설치-직후-WSL2-미동작.md) 설치 직후 WSL2·Docker가 동작하지 않음
 - [0002](troubleshooting/0002-em-create-optionalprops-타입오류.md) em.create에서 TS2345 "Property 'version' is missing"
@@ -132,7 +133,9 @@
 - [0033](troubleshooting/0033-새-앱에서-npm-install이-edgesOut-null로-멈춘다.md) 새 앱에서 `npm install`이 `Cannot read properties of null (reading 'edgesOut')`로 멈춘다
 - [0034](troubleshooting/0034-좁은-화면에서-표를-옆으로-밀게-했는데-문서-폭이-늘어난다.md) 좁은 화면에서 표를 옆으로 밀게 했는데도 문서 폭이 늘어난다
 - [0035](troubleshooting/0035-시연-도구-화면을-새로-열면-화면-대신-업체-서버-JSON이-온다.md) 시연 도구 `/partners`를 새로 열면 화면 대신 업체 서버의 JSON이 온다
-- [0036](troubleshooting/0036-Redis가-꺼져-있으면-vitest가-code-charCodeAt-오류로-시작하지-못한다.md) Redis가 꺼져 있으면 vitest가 `code.charCodeAt is not a function`으로 시작하지 못한다
+- [0036](troubleshooting/0036-시연-데이터-진행-줄과-마지막-요약의-개수가-다르다.md) 시연 데이터 진행 줄과 마지막 요약의 개수가 다르다
+- [0037](troubleshooting/0037-시연-4단계-번개택배-429를-켜도-아무것도-안-보인다.md) 시연 4단계 번개택배 429를 켜도 아무것도 안 보인다
+- [0038](troubleshooting/0038-Redis가-꺼져-있으면-vitest가-code-charCodeAt-오류로-시작하지-못한다.md) Redis가 꺼져 있으면 vitest가 `code.charCodeAt is not a function`으로 시작하지 못한다
 
 ## 실험 (19)
 

@@ -14,7 +14,7 @@ if (!demoSeedAllowed()) {
   console.log('시연 데이터는 넣지 않음(NODE_ENV=production 또는 SEED_DEMO=0)');
 } else {
   await waitForApi(apiUrl);
-  // 지난 일(decisions/0090)만 MySQL·Redis에 직접 쓴다 — 시연 단말기 두 대의 시각. 나머지는 모두 HTTP API
+  // 지난 일(decisions/0091)만 MySQL·Redis에 직접 쓴다 — 시연 단말기 두 대의 시각. 나머지는 모두 HTTP API
   const orm = await MikroORM.init(config);
   const redis = createAppRedis();
   const past: PastWriter = {

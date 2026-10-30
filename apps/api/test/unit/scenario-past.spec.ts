@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { backdateStatements, PAST_DELIVERED_SERIAL, PAST_OFFLINE_SERIAL, PAST_TERMINALS, writePast, type PastWriter } from '../../src/db/scenario-past.js';
 
-/** 시연 데이터의 지난 일(decisions/0090): 시연 단말기 두 대의 시각만 옮기고, 운영에서는 아무것도 쓰지 않는다 */
+/** 시연 데이터의 지난 일(decisions/0091): 시연 단말기 두 대의 시각만 옮기고, 운영에서는 아무것도 쓰지 않는다 */
 describe('시연 지난 일', () => {
   const now = new Date('2026-10-30T03:00:00.000Z');
   const recorder = () => {
