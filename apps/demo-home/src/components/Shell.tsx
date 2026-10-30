@@ -1,9 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { NavLink, Outlet } from 'react-router';
+import { Link, NavLink, Outlet } from 'react-router';
 import { ACTS, ALL_STEPS } from '../lib/acts';
 import { forgetAll } from '../lib/memo';
 import { resetProgress, useProgress } from '../lib/progress';
 import { ReplayClock, ReplayNotice } from '../replay/ReplayBar';
+import { TourBar } from '../replay/TourBar';
 import { getReplay } from '../replay/runtime';
 import { useMe } from '../session';
 import { Open } from './Step';
@@ -22,6 +23,11 @@ export function Shell() {
           <span className="brand-mark" aria-hidden="true" />
           단말온 시연 홈
         </strong>
+        {replay ? (
+          <Link to="/" className="link intro-link">
+            소개
+          </Link>
+        ) : null}
         <div className="progress" aria-label="진행률">
           <span className="bar" aria-hidden="true">
             <span style={{ width: `${(done.size / ALL_STEPS.length) * 100}%` }} />
@@ -66,9 +72,9 @@ export function Shell() {
         </nav>
           <div className="more" aria-label="다른 화면">
             <small className="muted">다른 화면</small>
-            <Open app="console" label="운영 관제(monitor)" />
-            <Open app="developers" label="개발자센터(admin)" />
-            <Open app="sandbox" path="/partners" label="시연 도구" />
+            <Open app="console" label="운영 관제(monitor)" compact />
+            <Open app="developers" label="개발자센터(admin)" compact />
+            <Open app="sandbox" path="/partners" label="시연 도구" compact />
           </div>
         </aside>
         {/* 로그인한 사람이 바뀌면 가운데를 새로 그린다 — SessionCacheSync(사본)가 캐시를 비워, 떠 있던 결과 패널이 로그인 전 401을 그대로 들고 있었다(리허설에서 찾음) */}
@@ -76,6 +82,7 @@ export function Shell() {
           <Outlet />
         </main>
       </div>
+      {replay ? <TourBar /> : null}
     </>
   );
 }

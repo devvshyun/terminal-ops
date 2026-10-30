@@ -1,9 +1,11 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { keys } from '../api/query-keys';
 import { type AppKey, appUrl } from '../lib/apps';
 import { markDone, useProgress } from '../lib/progress';
+import { registerRunner } from '../replay/runners';
 import { getReplay } from '../replay/runtime';
+import { useTourStep } from '../replay/tour';
 import { useMe } from '../session';
 import { ErrorBox } from './ErrorBox';
 
@@ -13,8 +15,14 @@ import { ErrorBox } from './ErrorBox';
  */
 export function Step({ stepKey, n, title, who, children, actions, result }: { stepKey: string; n: string; title: string; who: string; children: ReactNode; actions?: ReactNode; result?: ReactNode }) {
   const done = useProgress().has(stepKey);
+  // 자동 재생이 비추는 단계(녹화 재생본) — 테두리로 표시하고 화면 가운데로 옮긴다
+  const current = useTourStep() === stepKey;
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (current) ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  }, [current]);
   return (
-    <section className={done ? 'step done' : 'step'} aria-label={title}>
+    <section ref={ref} className={['step', done ? 'done' : '', current ? 'tour-current' : ''].filter(Boolean).join(' ')} aria-label={title} data-step={stepKey}>
       <header>
         <span className="step-n">{n}</span>
         <div className="step-head">
@@ -73,6 +81,18 @@ export function Run({ label, stepKey, onRun, needsLogin = true, markStep = true 
     },
   });
   const allowed = !needsLogin || can.ok;
+  // 자동 재생이 이 단추를 찾아 누르게 등록한다(녹화 재생본에서만 쓰인다). 최신 상태는 ref로
+  const latest = useRef({ allowed, pending: run.isPending, mutateAsync: run.mutateAsync });
+  latest.current = { allowed, pending: run.isPending, mutateAsync: run.mutateAsync };
+  useEffect(
+    () =>
+      registerRunner(stepKey, {
+        label,
+        enabled: () => latest.current.allowed && !latest.current.pending,
+        run: () => latest.current.mutateAsync().catch(() => undefined),
+      }),
+    [stepKey, label],
+  );
   return (
     <div className="run">
       <button type="button" className="primary" disabled={!allowed || run.isPending} onClick={() => run.mutate()}>
@@ -85,16 +105,30 @@ export function Run({ label, stepKey, onRun, needsLogin = true, markStep = true 
   );
 }
 
-/** 그 앱 화면을 새 탭으로. 녹화 재생본에서는 녹화할 때 찍은 그 화면 사진(지금 녹화 시각 이전의 마지막 것)을 연다 */
-export function Open({ app, path = '/', label }: { app: AppKey; path?: string; label: string }) {
+/**
+ * 그 앱 화면을 새 탭으로. 녹화 재생본에서는 녹화할 때 찍은 그 화면 사진(지금 녹화 시각 이전의 마지막 것)을 카드 안에 바로 보인다 — 누르면 크게.
+ * compact면(왼쪽 "다른 화면") 사진 대신 링크만
+ */
+export function Open({ app, path = '/', label, compact = false }: { app: AppKey; path?: string; label: string; compact?: boolean }) {
   const replay = getReplay();
   if (replay) {
     const shot = replay.shot(`${app}:${path}`);
     if (!shot) return <small className="muted">{label} — 녹화본에는 이 화면 사진이 없습니다</small>;
+    const href = `${import.meta.env.BASE_URL}shots/${shot.file}`;
+    if (compact) {
+      return (
+        <a className="open" href={href} target="_blank" rel="noreferrer" title={shot.title}>
+          {label} (녹화 사진) ↗
+        </a>
+      );
+    }
     return (
-      <a className="open" href={`${import.meta.env.BASE_URL}shots/${shot.file}`} target="_blank" rel="noreferrer" title={shot.title}>
-        {label} (녹화 사진) ↗
-      </a>
+      <figure className="shot">
+        <a href={href} target="_blank" rel="noreferrer" aria-label={`${label} (녹화 사진 크게 보기)`}>
+          <img src={href} alt={shot.title} loading="lazy" />
+        </a>
+        <figcaption>{shot.title} · 녹화할 때 찍은 화면</figcaption>
+      </figure>
     );
   }
   return (
