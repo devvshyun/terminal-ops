@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "build:replay": "tsc --noEmit -p tsconfig.json && vite build -c vite.replay.config.ts",
     "preview": "vite preview",
+    "preview:replay": "vite preview -c vite.replay.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   },

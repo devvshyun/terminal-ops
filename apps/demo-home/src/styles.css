@@ -154,6 +154,28 @@ code {
   border-color: var(--ink-3);
 }
 
+/* 녹화 재생본(보강 11): 로그인 자리의 녹화 시계, 위 막대 아래 안내 띠 */
+.top .replay-clock .mono {
+  color: #fff;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.replay-notice {
+  margin: 0;
+  padding: 10px 16px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-bottom: 1px solid var(--line);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.replay-notice a {
+  color: inherit;
+  font-weight: 700;
+}
+
 /* ───── 화면 ───── */
 .page {
   max-width: 1240px;

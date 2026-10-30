@@ -65,10 +65,25 @@ export async function startRollout(modelCode: string): Promise<RolloutView> {
     (r) => r.modelCode === modelCode && (r.status === 'RUNNING' || r.status === 'PAUSED'),
   );
   if (active) throw new Error(`${modelCode}에 진행 중인 배포(${active.version})가 있습니다. 끝나거나 어드민 "펌웨어 배포"에서 중단한 뒤 다시 실행하세요.`);
+  await powerOnInService(modelCode);
   const version = await nextVersion(modelCode);
   await api('/firmware', { method: 'POST', body: { modelCode, version } });
   const body: CreateRolloutRequest = { modelCode, version, stages: [10, 50, 100], failureThreshold: 0.2, minSamples: 5 };
   return api<RolloutView>('/firmware-rollouts', { method: 'POST', body });
+}
+
+/**
+ * 운영 중(IN_SERVICE)인데 시뮬레이터가 모르는 단말기를 시뮬레이터에 더한다(켠다). 배포는 운영 중인 단말기를 대상으로 고르는데,
+ * 시뮬레이터는 시연 데이터의 단말기 목록만 돈다 — 4막에서 점주가 설치를 확인한 교체품은 대상이 되지만 보고하지 않아, 그 단계가 시간 제한(10분)까지 멈췄다(troubleshooting/0040).
+ * 실제로는 설치한 단말기가 켜지며 하트비트를 보낸다. 시뮬레이터가 목록 대신 개수로 만드는 모드(serials 빈 배열)면 건드리지 않는다
+ */
+export async function powerOnInService(modelCode: string): Promise<string[]> {
+  const live = await page<TerminalView>('/terminals', { status: 'IN_SERVICE', modelCode, size: 100 });
+  const sim = await call<{ serials: string[] }>('sim', '/__admin/config');
+  if (sim.serials.length === 0) return [];
+  const missing = live.items.map((t) => t.serialNo).filter((s) => !sim.serials.includes(s));
+  if (missing.length > 0) await call('sim', '/__admin/config', { method: 'POST', body: { serials: [...sim.serials, ...missing] } });
+  return missing;
 }
 
 /** 번개택배 추적 조회가 429를 낼 확률(0~1) */

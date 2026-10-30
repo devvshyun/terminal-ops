@@ -82,12 +82,32 @@ describe('시연 실행 묶음 (보강 10)', () => {
       'GET /firmware': () => ({ body: { items: [{ modelCode: 'SN-100', version: '1.1.0' }], nextBeforeId: null } }),
       'POST /firmware': () => ({ status: 201, body: {} }),
       'POST /firmware-rollouts': () => ({ status: 201, body: { id: 5, version: '1.2.0', status: 'RUNNING' } }),
+      'GET /terminals': () => ({ body: { items: [terminal('DM-0001', 'IN_SERVICE')], total: 1, page: 1, size: 100 } }),
+      'GET /sim/__admin/config': () => ({ body: { serials: ['DM-0001'], offlineSerials: [] } }),
     });
     expect(await startRollout('SN-100')).toMatchObject({ id: 5, version: '1.2.0' });
     expect(calls.filter((c) => c.method === 'POST').map((c) => c.body)).toEqual([
       { modelCode: 'SN-100', version: '1.2.0' },
       { modelCode: 'SN-100', version: '1.2.0', stages: [10, 50, 100], failureThreshold: 0.2, minSamples: 5 },
     ]);
+  });
+
+  it('배포 전에 운영 중인데 시뮬레이터가 모르는 단말기(4막에서 설치한 교체품 등)를 시뮬레이터에 더한다 — 아니면 그 단말기가 보고하지 않아 단계가 시간 제한까지 멈춘다(troubleshooting/0040)', async () => {
+    const { calls } = mockApi({
+      'GET /firmware-rollouts': () => ({ body: { items: [], nextBeforeId: null } }),
+      'GET /firmware': () => ({ body: { items: [], nextBeforeId: null } }),
+      'POST /firmware': () => ({ status: 201, body: {} }),
+      'POST /firmware-rollouts': () => ({ status: 201, body: { id: 6, version: '1.1.0', status: 'RUNNING' } }),
+      'GET /terminals': () => ({ body: { items: [terminal('DM-0001', 'IN_SERVICE'), terminal('DM-0014', 'IN_SERVICE')], total: 2, page: 1, size: 100 } }),
+      'GET /sim/__admin/config': () => ({ body: { serials: ['DM-0001', 'DM-0002'], offlineSerials: ['DM-0002'] } }),
+      'POST /sim/__admin/config': () => ({ body: {} }),
+    });
+    await startRollout('SN-100');
+    const list = calls.find((c) => c.method === 'GET' && c.path === '/terminals')!;
+    expect([list.query.get('status'), list.query.get('modelCode')]).toEqual(['IN_SERVICE', 'SN-100']);
+    const posts = calls.filter((c) => c.method === 'POST');
+    expect(posts.map((c) => c.path)).toEqual(['/sim/__admin/config', '/firmware', '/firmware-rollouts']);
+    expect(posts[0].body).toEqual({ serials: ['DM-0001', 'DM-0002', 'DM-0014'] });
   });
 
   it('장애 손잡이: 번개택배 429 확률, 시뮬레이터 펌웨어 실패율 — 바꾸는 값만 보낸다', async () => {

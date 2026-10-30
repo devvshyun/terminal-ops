@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-replay/
 .env
 *.log
 # 이 PC 전용 Claude Code 설정(절대 경로, 개발 DB에 워커를 켜는 미리보기 구성) — 공유용 .claude/settings.json 등은 막지 않는다(decisions/0041)
