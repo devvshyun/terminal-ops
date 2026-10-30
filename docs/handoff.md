@@ -21,7 +21,7 @@
 - **시연 리허설 반영(2026-10-30)**: 로컬 컨트롤러가 Windows에서 14단계를 모두 돌린 결과로 `docs/demo.md`(8단계 DM-0004, 429 켜기를 7번 출고 바로 앞 6번으로, 시연 데이터 표, Chrome·Edge 권장), 시연 데이터 요약(troubleshooting/0036), api 버전 빌드 인자(0090)를 고쳤다. 기록은 [devlog 2026-10-30](devlog/2026-10-30.md).
 - 2026-10-30 시연 데이터 "지난 일"(decisions/0091): 띄운 직후 처음 화면의 장기 오프라인·배송 완료 후 미설치·열린 이상·진행 중 배포가 0이 아니게 — DM-0021·0022 두 대만 시각을 옮기고 찾기를 한 번, SN-200 배포 하나를 멈춰 둔다. 시연 문서 [demo.md](demo.md) 1장 표.
 - **보강 10 시연 홈**(`apps/demo-home`, `demo.localhost:8080`·개발 :5180, 0092): 시나리오 7막을 단계마다 설명 + 실행 + 결과로. 스펙 [specs/2026-10-30-demo-home.md](specs/2026-10-30-demo-home.md)
-- **보강 11 녹화 재생본**(GitHub Pages, 0093·0094): 시연 홈을 서버 없이 — 녹화기 `apps/demo-home/scripts/record.cjs`, 재생본 `npm run build:replay`, 배포 `.github/workflows/pages.yml`(처음 한 번 Settings → Pages → Source "GitHub Actions"). 화면·API를 바꾸면 녹화본을 다시 찍는다. 과정 [making/2026-10-30-demo-replay.md](making/2026-10-30-demo-replay.md)
+- **보강 11 GitHub Pages**(0093~0096): https://devvshyun.github.io/terminal-ops/ = 소개 앱 → `video.html`(시연 영상 mp4) · `demo/`(시연 홈 녹화 재생본). 녹화기 `apps/demo-home/scripts/record.cjs`, 영상 `record-video.cjs`, 재생본 `npm run build:replay`, 배포 `.github/workflows/pages.yml`. 화면·API를 바꾸면 녹화본을 다시 찍는다. 과정 [making/2026-10-30-demo-replay.md](making/2026-10-30-demo-replay.md)
 - 클라우드 컨테이너는 재시작되면 dockerd가 꺼진다 — `dockerd`를 띄우고 `docker start terminal-ops-mysql terminal-ops-redis`. Docker Hub가 429를 주면 `mirror.gcr.io`에서 받아 이름을 붙였다.
 
 ### 클라우드 디자인 브랜치를 합칠 때(먼저 할 일)

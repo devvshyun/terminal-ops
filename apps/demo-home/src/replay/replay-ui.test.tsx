@@ -73,11 +73,12 @@ describe('녹화 재생본 화면(보강 11)', () => {
     expect(screen.getByText(/운영 관제\(monitor\) — 녹화본에는 이 화면 사진이 없습니다/)).toBeInTheDocument();
   });
 
-  it('소개 페이지부터 — 시연 보기를 누르면 자동 재생 막대가 1막 첫 자막과 함께 뜬다', async () => {
+  it('첫 화면은 바로 1막(소개는 소개 페이지가 맡는다), #/tour는 자동 진행 막대와 1막 첫 자막으로 시작한다', async () => {
     startReplay();
     renderApp('/');
-    expect(await screen.findByRole('heading', { name: '결제단말기 운영 시스템, 실제로 돌려 본 장면' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /시연 보기/ }));
+    expect(await screen.findByRole('heading', { name: '한눈에' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '자동 재생' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '▶ 자동 진행' }));
     const bar = await screen.findByRole('region', { name: '자동 재생' });
     expect(bar).toHaveTextContent(`1막 · 1/${TOUR.length}`);
     expect(bar).toHaveTextContent(TOUR[0]!.caption);

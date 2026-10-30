@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Link, NavLink, Outlet } from 'react-router';
+import { NavLink, Outlet, useNavigate } from 'react-router';
 import { ACTS, ALL_STEPS } from '../lib/acts';
 import { forgetAll } from '../lib/memo';
 import { resetProgress, useProgress } from '../lib/progress';
@@ -16,6 +16,7 @@ export function Shell() {
   const me = useMe();
   const client = useQueryClient();
   const replay = getReplay();
+  const navigate = useNavigate();
   return (
     <>
       <header className="top">
@@ -24,9 +25,15 @@ export function Shell() {
           단말온 시연 홈
         </strong>
         {replay ? (
-          <Link to="/" className="link intro-link">
-            소개
-          </Link>
+          <>
+            {/* 재생본은 GitHub Pages의 /demo/ — 소개 페이지는 한 칸 위 */}
+            <a href="../" className="link intro-link">
+              소개
+            </a>
+            <button type="button" className="link" onClick={() => navigate('/tour')}>
+              ▶ 자동 진행
+            </button>
+          </>
         ) : null}
         <div className="progress" aria-label="진행률">
           <span className="bar" aria-hidden="true">
