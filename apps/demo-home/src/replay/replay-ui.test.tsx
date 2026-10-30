@@ -1,7 +1,8 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resetProgress } from '../lib/progress';
+import { resetSessionForTest } from '../session';
 import { OPERATOR, renderApp } from '../test/render';
 import { Replay, type Recording } from './engine';
 import { replayFetch, setReplay } from './runtime';
@@ -32,6 +33,7 @@ function startReplay() {
 
 afterEach(() => {
   setReplay(null);
+  resetSessionForTest();
   resetProgress();
 });
 
@@ -44,10 +46,14 @@ describe('녹화 재생본 화면(보강 11)', () => {
     expect(screen.queryByLabelText('비밀번호')).not.toBeInTheDocument();
 
     const failOn = await screen.findByRole('region', { name: '장애 켜기: 실패율 60%' });
+    // 로그인 칸이 없어도 녹화본의 /auth/me로 운영자가 된다 — 운영자만 누르는 단추가 켜져야 한다(재생본 리허설에서 찾음: 처음에는 아무도 /auth/me를 부르지 않아 꺼져 있었다)
+    const closeLike = await screen.findByRole('region', { name: '정상 배포' });
+    await waitFor(() => expect(within(closeLike).getByRole('button', { name: '실행: SN-100 새 버전 배포' })).toBeEnabled());
     const button = await within(failOn).findByRole('button', { name: '실행: 펌웨어 실패율 60%' });
-    await userEvent.click(button);
     const off = await screen.findByRole('region', { name: '되돌리기: 0%' });
-    expect(await within(off).findByText(/60%/)).toBeInTheDocument();
+    expect(await within(off).findByText('지금 펌웨어 실패율: 0%')).toBeInTheDocument();
+    await userEvent.click(button);
+    expect(await within(off).findByText('지금 펌웨어 실패율: 60%')).toBeInTheDocument();
 
     await userEvent.click(button);
     expect(await within(failOn).findByText(/이미 썼습니다/)).toBeInTheDocument();

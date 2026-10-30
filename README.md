@@ -281,7 +281,7 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 
 이 프로젝트의 산출물은 코드와 기록이다(규칙 `CLAUDE.md`, 양식 `docs/README.md`).
 
-- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 92·트러블슈팅 39·실험 19 (`node scripts/docs-index.mjs`로 만든다)
+- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 94·트러블슈팅 40·실험 20 (`node scripts/docs-index.mjs`로 만든다)
 - 개발일지: [`docs/devlog/`](docs/devlog/)(날짜별, 날마다 "N일차 요약"), 설계 스펙 [`docs/specs/`](docs/specs/), 구현 계획 [`docs/plans/`](docs/plans/), 날마다의 최종 리뷰 [`docs/reviews/`](docs/reviews/)
 - 7일 회고: [`docs/retrospective.md`](docs/retrospective.md) — 날별로 만든 것, 잘 된 것·안 된 것, 반복된 실수, 면접에서 말할 거리, 남은 이월과 그 뒤 보강
 - 공부거리: [`docs/study/backlog.md`](docs/study/backlog.md)
@@ -299,7 +299,7 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 | console | 8 | 58 |
 | developers | 9 | 44 |
 | sandbox | 4 | 26 |
-| demo-home | 8 | 44 |
+| demo-home | 10 | 54 |
 | landing | 1 | 14 |
 | partners | 7 | 61 |
 | device-sim | 6 | 49 |

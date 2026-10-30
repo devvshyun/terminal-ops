@@ -102,6 +102,11 @@ const say = (m) => {
     );
   });
 
+  // 로그인할 때 1막과 /auth/me를 이미 읽어 두어, 녹화를 시작한 뒤에는 다시 읽지 않았다(첫 녹화본에 1막·로그인 정보가 없었다) — 새로 고쳐 첫 화면부터 녹화한다
+  await p.reload();
+  await p.getByText('운영자(시연)').first().waitFor();
+  await p.waitForTimeout(2500);
+
   const step = (title) => p.getByRole('region', { name: title });
   const act = async (name) => {
     await p.getByRole('navigation', { name: '막' }).getByRole('link', { name }).click();

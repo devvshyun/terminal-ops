@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSessionCheck } from '../hooks/useSessionCheck';
 import { getReplay } from './runtime';
 
 const REPO = 'https://github.com/devvshyun/terminal-ops';
@@ -8,8 +9,12 @@ const mmss = (ms: number) => {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 };
 
-/** 위 막대 오른쪽(로그인 자리): 녹화 시계와 지금 흐르는지·기다리는지. 1초마다 다시 그린다 */
+/**
+ * 위 막대 오른쪽(로그인 자리): 녹화 시계와 지금 흐르는지·기다리는지. 1초마다 다시 그린다.
+ * 로그인 칸(LoginBox)이 하던 /auth/me 확인도 여기서 한다 — 녹화본의 응답으로 운영자가 된다(빼먹으면 실행 단추가 모두 꺼진다, 재생본 리허설에서 찾음)
+ */
 export function ReplayClock() {
+  useSessionCheck();
   const replay = getReplay();
   const [, tick] = useState(0);
   useEffect(() => {
