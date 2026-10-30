@@ -267,11 +267,11 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 
 ## 테스트
 
-(보강 9 시연 묶음과 그 최종 검토 반영 뒤, 클라우드 컨테이너에서 실제로 돌려 센 값(2026-10-29). 보강 8 뒤에는 api 94/620·sandbox 4/24, 보강 7 뒤에는 partners 6/53·device-sim 5/46. api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 6 뒤에는 api 90/603·admin 19/163·console 8/56, 보강 5 뒤에는 api 83/571, 보강 4 뒤에는 api 82/568·admin 14/125, 보강 3 뒤에는 api 80/561·merchant 7/47, 보강 2 뒤에는 api 79/549, 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
+(api는 시연 데이터 "지난 일"(decisions/0091) 뒤 2026-10-30에, 나머지는 보강 9 시연 묶음과 그 최종 검토 반영 뒤 2026-10-29에 클라우드 컨테이너에서 실제로 돌려 센 값. 보강 9 뒤 api는 95/623. 보강 8 뒤에는 api 94/620·sandbox 4/24, 보강 7 뒤에는 partners 6/53·device-sim 5/46. api는 실험 파일 제외 — 실험은 `EXPERIMENTS=1`에서만 돈다. 보강 6 뒤에는 api 90/603·admin 19/163·console 8/56, 보강 5 뒤에는 api 83/571, 보강 4 뒤에는 api 82/568·admin 14/125, 보강 3 뒤에는 api 80/561·merchant 7/47, 보강 2 뒤에는 api 79/549, 보강 1 뒤에는 api 66/453, admin 12/109, device-sim 4/40이었다)
 
 | 앱 | 파일 | 테스트 |
 |---|---|---|
-| api(실험 제외) | 95 | 623 |
+| api(실험 제외) | 96 | 631 |
 | admin | 19 | 165 |
 | merchant | 7 | 47 |
 | field | 8 | 64 |

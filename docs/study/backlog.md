@@ -226,3 +226,6 @@
 - Vite 개발 서버 미들웨어 순서(프록시 → SPA 기본 문서)와 프록시 `bypass` — docs/troubleshooting/0035
 - TanStack Query `setQueryData` 뒤 무효화 다시 읽기가 한 번에 그려질 때(React 일괄 렌더링)와 `key`로 다시 그리기 — `apps/sandbox/src/pages/DevicesPage.test.tsx`, docs/reviews/2026-10-29-sandbox-final-review.md
 - Docker `ARG`/`ENV` 범위(스테이지별)와 층 캐시 무효화 위치, compose 빌드 인자의 변수 치환(`.env`) — `apps/api/Dockerfile`, docs/decisions/0090-시연-이미지의-api-버전은-빌드-인자로.md
+- [ ] MySQL 한 표 UPDATE의 SET이 왼쪽부터 계산되고 뒤 식이 바뀐 값을 보는 것(다중 표 UPDATE는 보장 안 됨) — `apps/api/src/db/scenario-past.ts`, decisions/0091
+- [ ] `INSERT IGNORE`가 중복 키 말고도 경고로 바꿔 넘기는 오류들(형 변환·NOT NULL 등) — `apps/api/src/db/scenario-past.ts`, decisions/0091
+- [ ] vitest globalSetup 오류가 vite module-runner 소스맵 변환에서 다른 TypeError로 가려지는 경우 — docs/troubleshooting/0038
