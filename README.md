@@ -25,6 +25,7 @@ terminal-ops/
 │  ├─ console/           운영 관제 화면 — 큐·워커·주기 작업·Outbox·업무 오류 보기, 실패 job 다시 시도·지우기(Vite 프록시 /api → api, 보강 6)
 │  ├─ developers/        외부 연동 개발자센터 — 외부 업체 등록, API 키 발급·폐기, 호출 로그, 연동 문서(ADMIN, Vite 프록시 /api → api, 보강 7)
 │  ├─ sandbox/           시연 도구 — 가상 업체 장애 손잡이·받은 요청, 단말기 시뮬레이터 시작·정지·단말기 끄기(로그인 없음, Vite 프록시 /api/partners·/api/sim, 보강 8)
+│  ├─ demo-home/         시연 홈 — 시나리오 7막을 단계마다 설명 + 실행 + 바로 옆 실제 결과로(운영자로 로그인, 보강 10)
 │  ├─ landing/           소개 페이지 — api 없이 뜨는 정적 페이지(Vite + GSAP), 숫자는 실험 기록과 같은지 테스트가 본다(decisions/0078)
 │  ├─ partners/          가상 업체 서버(node:http, 포트 4010): 세움전자·번개택배·느림보물류·브릿지VAN·톡톡메신저
 │  └─ device-sim/        단말기 시뮬레이터(하트비트, 펌웨어 업데이트 결과 보고)
@@ -43,7 +44,7 @@ Docker만 있으면 된다. 모든 앱을 띄우고 시연 데이터까지 넣�
 cp .env.example .env                 # DEVICE_API_KEY만 임의의 값(16자 이상, 공백 없는 ASCII)으로 바꾼다
 docker compose -f docker-compose.demo.yml up -d --build
 docker compose -f docker-compose.demo.yml ps     # migrate·demo-seed는 Exited (0), 나머지는 Up
-# → http://admin.localhost:8080 (operator) · merchant · field · console · developers · sandbox.localhost:8080, 소개 http://localhost:8080
+# → 시연 홈 http://demo.localhost:8080 (operator로 로그인) · admin · merchant · field · console · developers · sandbox.localhost:8080, 소개 http://localhost:8080
 docker compose -f docker-compose.demo.yml down -v  # 처음부터 다시(시연 데이터·로그인 모두 지움)
 ```
 
@@ -61,7 +62,7 @@ Node 24, Docker Desktop(WSL2)이 필요하다. 명령은 Git Bash 기준.
 cp .env.example .env                 # 로컬 개발 전용 값. DEVICE_API_KEY는 자리표시자다 — 임의의 값(16자 이상, 공백 없는 ASCII)으로 바꿔 쓴다
                                      # (보강 2 뒤 .env가 이미 있으면 .env.example의 "# 보강 2" 아래 줄들을 덧붙인다 — DEVICE_API_KEY가 없으면 api가 뜨지 않는다)
 docker compose up -d --wait          # MySQL·Redis, healthcheck가 healthy가 될 때까지 기다린다(첫 실행은 MySQL 초기화에 수십 초)
-for a in api admin merchant field console developers sandbox landing partners device-sim; do (cd apps/$a && npm ci); done   # api·admin·merchant·field·console·developers는 packages/contracts를 링크한다(따로 설치하지 않는다)
+for a in api admin merchant field console developers sandbox demo-home landing partners device-sim; do (cd apps/$a && npm ci); done   # api·admin·merchant·field·console·developers는 packages/contracts를 링크한다(따로 설치하지 않는다)
 cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB 스키마와 기준 데이터(모델·가맹점·검수 항목)와 시연 계정 7개·시연 외부 업체 키(NODE_ENV=production·SEED_DEMO=0이면 기준 데이터만)
 
 # 필요한 것만 터미널마다 하나씩(또는 백그라운드 — 끌 때는 PID로)
@@ -75,12 +76,13 @@ cd apps/api && npm run db:migrate && npm run db:seed && cd ../..   # 개발 DB �
 (cd apps/landing && npm run dev)                       # :5177 → 소개 페이지(api 필요 없음)
 (cd apps/developers && npm run dev)                    # :5178 → 개발자센터 http://localhost:5178/login (ADMIN 계정 admin)
 (cd apps/sandbox && npm run dev)                       # :5179 → 시연 도구 http://localhost:5179/partners · /devices (partners·device-sim이 떠 있어야 한다)
+(cd apps/demo-home && npm run dev)                     # :5180 → 시연 홈 http://localhost:5180 (api·partners·device-sim이 떠 있어야 한다, operator로 로그인)
 (cd apps/device-sim && npm run build && node --env-file=../../.env dist/main.js)   # 선택: 단말기 시뮬레이터(:4020) — api와 같은 .env의 DEVICE_API_KEY를 X-Device-Key로 보낸다(api는 .env를 스스로 읽고, 시뮬레이터는 --env-file로)
 ```
 
 - 워커 프로세스를 띄우는 실험(0005·0014)은 먼저 `cd apps/api && npm run build` — `dist/worker.js`를 자식 프로세스로 띄우므로, 빌드하지 않으면 멈추고("먼저 npm run build 하세요"), 소스만 고치고 빌드를 잊으면 옛 워커로 잰다(경고 없음).
 - 테스트: 각 앱 폴더에서 `npm test`. api 테스트는 테스트 DB(`terminal_ops_test`)와 Redis 테스트 접두사(`test-`)만 쓰고, 가상 업체 서버를 테스트 포트(4011)에 직접 띄운다 — api 테스트를 두 개 동시에 돌리지 않는다. 실험은 `EXPERIMENTS=1 npx vitest run test/experiments/<파일> --silent=false`.
-- 타입 검사: vitest는 타입을 보지 않는다. api `npm run typecheck`(또는 `npm run build`), admin·merchant·field·console·developers·sandbox·landing `npm run build`(tsc 포함) — api·화면이 `packages/contracts`와 어긋나면 여기서 실패한다([decisions/0048](docs/decisions/0048-계약은-반환-타입-implements-enum-단언으로-강제한다.md)).
+- 타입 검사: vitest는 타입을 보지 않는다. api `npm run typecheck`(또는 `npm run build`), admin·merchant·field·console·developers·sandbox·demo-home·landing `npm run build`(tsc 포함) — api·화면이 `packages/contracts`와 어긋나면 여기서 실패한다([decisions/0048](docs/decisions/0048-계약은-반환-타입-implements-enum-단언으로-강제한다.md)).
 - 미리보기(화면 확인)는 `infra/preview.env`(주기 작업을 등록하지 않음)를 저장소 `.env` 뒤에 읽는다. 띄우기 전 점검(빌드, 남은 주기 작업 `npm run scheduler:clear`, 같은 접두사의 다른 워커)은 그 파일 주석에 있다.
 - 주기 작업은 Redis에 남는다(BullMQ job scheduler). 지우려면 `cd apps/api && npm run scheduler:clear`(이 접두사의 주기 작업만 — Redis 전체를 비우지 않는다).
 
@@ -190,6 +192,15 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 - `/devices` 단말기 시뮬레이터: 시작·정지, 설정(대상 api·대수·주기·묶음·펌웨어 실패율), 보낸 것(하트비트·받아들임·거절·실패·p50/p95·펌웨어 보고), 단말기 표에서 하나씩 끄고 켜기(`offlineSerials`)
 - 서버 쪽 새 관리 API: partners `GET /__admin/config`·`GET /__admin/requests?limit=&partner=`(메모리 200개), device-sim `GET /__admin/devices?limit=`([decisions/0085](docs/decisions/0085-업체-서버에-최근-요청-기록-시뮬레이터에-단말기-목록.md))
 
+## 시연 홈(보강 10)
+
+`http://demo.localhost:8080`(개발 :5180). [docs/demo.md](docs/demo.md)의 순서를 7막으로 묶어 단계마다 **설명 + 실행 단추 + 바로 옆 실제 결과**를 둔다 — 장애 시연 앱(정상 → 켜기 → 반응 → 되돌리기)과 개발자 실행 시연(설명 옆에 실제 응답)을 본떴다.
+
+- 막: 한눈에 · 공장에서 창고로 · 가맹점까지 · 고장과 교체 · 택배사가 429를 낸다 · 펌웨어 배포와 자동 중단 · 단말기가 끊긴다
+- 실행은 운영자(`operator`)로 로그인한 세션으로 운영 API 그대로, 장애 손잡이는 가상 업체·시뮬레이터 관리 API([decisions/0092](docs/decisions/0092-시연-홈은-운영자로-로그인해-실제-API를-실행한다.md)). api는 바뀌지 않았다
+- 같은 막을 여러 번 돌려도 된다: 재고가 없으면 시연용 재고(DM-9001…)를 만들고, 펌웨어는 쓰지 않은 다음 버전을 고른다
+- 끝낸 단계 표시는 이 브라우저(localStorage)에만
+
 ## 기능
 
 | ID | 기능 | 코드 |
@@ -260,7 +271,7 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 
 이 프로젝트의 산출물은 코드와 기록이다(규칙 `CLAUDE.md`, 양식 `docs/README.md`).
 
-- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 89·트러블슈팅 35·실험 19 (`node scripts/docs-index.mjs`로 만든다)
+- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 92·트러블슈팅 39·실험 19 (`node scripts/docs-index.mjs`로 만든다)
 - 개발일지: [`docs/devlog/`](docs/devlog/)(날짜별, 날마다 "N일차 요약"), 설계 스펙 [`docs/specs/`](docs/specs/), 구현 계획 [`docs/plans/`](docs/plans/), 날마다의 최종 리뷰 [`docs/reviews/`](docs/reviews/)
 - 7일 회고: [`docs/retrospective.md`](docs/retrospective.md) — 날별로 만든 것, 잘 된 것·안 된 것, 반복된 실수, 면접에서 말할 거리, 남은 이월과 그 뒤 보강
 - 공부거리: [`docs/study/backlog.md`](docs/study/backlog.md)
@@ -278,6 +289,7 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 | console | 8 | 58 |
 | developers | 9 | 44 |
 | sandbox | 4 | 26 |
+| demo-home | 8 | 44 |
 | landing | 1 | 14 |
 | partners | 7 | 61 |
 | device-sim | 6 | 49 |

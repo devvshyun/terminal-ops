@@ -2,6 +2,8 @@
 
 결제단말기 운영사 "단말온"(가상)의 단말기 한 대가 공장에서 나와 가맹점에서 쓰이다 고장 나 바뀌는 길을, 사람마다 다른 화면으로 따라간다. 등장하는 회사·가맹점은 모두 가상이다.
 
+> **시연 홈** http://demo.localhost:8080 — 아래 순서를 7막(막마다 2~4단계)으로 묶어, 단계마다 설명 · 실행 단추 · 바로 옆 실제 결과를 한 화면에 둔 것(보강 10, decisions/0092). 위에서 `operator`로 로그인하면 실행할 수 있다. 현장 스캔·점주 접수처럼 그 사람의 화면이 필요한 단계는 "화면 열기 ↗". 이 문서는 시연 홈 없이 화면을 직접 오가는 길과, 각 단계가 무엇을 보여 주는지의 기준이다.
+
 ## 0. 띄우기
 
 ```bash
@@ -27,8 +29,9 @@ docker compose -f docker-compose.demo.yml ps   # migrate·demo-seed는 Exited (0
 | http://console.localhost:8080 | 운영 관제 | 관제 |
 | http://developers.localhost:8080 | 개발자센터 | ADMIN |
 | http://sandbox.localhost:8080 | 시연 도구(가상 업체·시뮬레이터) | 시연자 |
+| http://demo.localhost:8080 | 시연 홈(7막, 실행 + 결과) | 시연자(운영자로 로그인) |
 
-`*.localhost`는 Chrome·Edge·Firefox가 이 PC로 푼다. 풀리지 않는 브라우저(일부 Safari)는 `/etc/hosts`에 `127.0.0.1 admin.localhost merchant.localhost field.localhost console.localhost developers.localhost sandbox.localhost`를 더한다.
+`*.localhost`는 Chrome·Edge·Firefox가 이 PC로 푼다. 풀리지 않는 브라우저(일부 Safari)는 `/etc/hosts`에 `127.0.0.1 admin.localhost merchant.localhost field.localhost console.localhost developers.localhost sandbox.localhost demo.localhost`를 더한다.
 
 ## 1. 시연 데이터(띄우면 이미 있다)
 

@@ -41,7 +41,13 @@ export async function call<T>(server: Server, path: string, init: { method?: 'GE
   // 프록시가 대상에 연결하지 못하면 502(Bad Gateway)·504
   if (res.status === 502 || res.status === 504) throw new ServerDown(server);
   const text = await res.text();
-  const body = text ? (JSON.parse(text) as unknown) : undefined;
+  let body: unknown;
+  try {
+    body = text ? JSON.parse(text) : undefined;
+  } catch {
+    // JSON이 아닌 본문(오류 페이지 등) — "연결 못 함"이 아니라 그 서버의 응답으로 보인다(시연 홈 최종 검토)
+    throw new ServerError(server, res.status, `JSON이 아닌 응답(HTTP ${res.status}): ${text.slice(0, 120)}`);
+  }
   if (!res.ok) {
     const message = (body as { message?: string } | undefined)?.message ?? `HTTP ${res.status}`;
     throw new ServerError(server, res.status, message);

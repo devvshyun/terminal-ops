@@ -2,7 +2,7 @@
 
 > 이 파일은 `node scripts/docs-index.mjs`가 만든다. 손으로 고치지 않는다(decisions/0046). 기록을 더한 뒤 다시 만들고, `--check`로 확인한다.
 
-## 결정 기록 (91)
+## 결정 기록 (92)
 
 - [0001](decisions/0001-인증은-작업자-헤더로.md) 인증은 하지 않고, 작업자는 요청 헤더로 기록한다
 - [0002](decisions/0002-esm-vitest-tsc-빌드.md) ESM + Vitest + tsc 빌드로 API를 만든다
@@ -95,8 +95,9 @@
 - [0089](decisions/0089-시연-데이터는-실제-HTTP-API로-한-번.md) 시연 데이터는 실제 HTTP API로, 한 번만
 - [0090](decisions/0090-시연-이미지의-api-버전은-빌드-인자로.md) 시연 이미지의 api 버전은 빌드 인자로(기본 demo)
 - [0091](decisions/0091-시연-데이터의-지난-일은-두-대만-시각을-옮긴다.md) 시연 데이터의 "지난 일"은 단말기 두 대만 시각을 옮긴다(0089 일부 뒤집기)
+- [0092](decisions/0092-시연-홈은-운영자로-로그인해-실제-API를-실행한다.md) 시연 홈은 운영자로 로그인해 실제 API를 실행한다
 
-## 트러블슈팅 (38)
+## 트러블슈팅 (39)
 
 - [0001](troubleshooting/0001-설치-직후-WSL2-미동작.md) 설치 직후 WSL2·Docker가 동작하지 않음
 - [0002](troubleshooting/0002-em-create-optionalprops-타입오류.md) em.create에서 TS2345 "Property 'version' is missing"
@@ -136,6 +137,7 @@
 - [0036](troubleshooting/0036-시연-데이터-진행-줄과-마지막-요약의-개수가-다르다.md) 시연 데이터 진행 줄과 마지막 요약의 개수가 다르다
 - [0037](troubleshooting/0037-시연-4단계-번개택배-429를-켜도-아무것도-안-보인다.md) 시연 4단계 번개택배 429를 켜도 아무것도 안 보인다
 - [0038](troubleshooting/0038-Redis가-꺼져-있으면-vitest가-code-charCodeAt-오류로-시작하지-못한다.md) Redis가 꺼져 있으면 vitest가 `code.charCodeAt is not a function`으로 시작하지 못한다
+- [0039](troubleshooting/0039-시연-홈에서-로그인해도-결과-패널이-로그인-전-401을-그대로-보인다.md) 시연 홈에서 로그인해도 결과 패널이 로그인 전 401을 그대로 보인다
 
 ## 실험 (19)
 
