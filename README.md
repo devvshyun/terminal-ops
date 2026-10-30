@@ -203,12 +203,13 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 
 ## 시연 홈 녹화 재생본(보강 11)
 
-**바로 보기: https://devvshyun.github.io/terminal-ops/** — 서버 없이 브라우저만으로(GitHub Pages). 소개 페이지 → [시연 보기]로 22단계 자동 진행(약 2분 30초, 자막) → 직접 아무 단계나 실행([decisions/0095](docs/decisions/0095-녹화-재생본은-소개-자동-재생-직접-실행-순서로-보인다.md)).
+**바로 보기: https://devvshyun.github.io/terminal-ops/** — 서버 없이(GitHub Pages). 소개 페이지 → [▶ 시연 영상 보기](https://devvshyun.github.io/terminal-ops/video.html)(약 2분 40초) · [시연하기](https://devvshyun.github.io/terminal-ops/demo/)(시나리오 7막을 단계마다 직접 실행) — [decisions/0096](docs/decisions/0096-GitHub-Pages는-소개-페이지-시연-영상-시연하기-세-갈래로.md)
 
 - 시연 묶음을 실제로 돌려 받은 응답을 녹화해 두고, [실행]을 누르면 그 응답을 녹화 순서대로 다시 낸다. 꾸며 낸 응답은 없다([decisions/0093](docs/decisions/0093-시연-홈을-녹화-재생본으로-GitHub-Pages에-올린다.md))
 - 기다리는 단계(배송 완료, 오프라인 판정)는 녹화 시계를 8배로 빨리 감는다. 다른 화면은 녹화할 때 찍은 사진으로 연다([decisions/0094](docs/decisions/0094-녹화-재생은-녹화-시계-하나로-응답을-고른다.md))
 - 녹화본 다시 찍기: 시연 묶음을 `down -v` → `up` 한 뒤 `node apps/demo-home/scripts/record.cjs`(10분 남짓). 재생본 빌드는 `cd apps/demo-home && npm run build:replay && npm run preview:replay`(:4181)
-- 배포: master에 demo-home이 바뀌면 `.github/workflows/pages.yml`이 테스트 → 재생본 빌드 → Pages
+- 시연 영상 다시 만들기: 재생본 미리보기를 띄운 채 `node apps/demo-home/scripts/record-video.cjs`(약 3분, ffmpeg) → `apps/landing/public/media/demo-tour.mp4`
+- 배포: master에 소개 페이지·시연 홈·docs가 바뀌면 `.github/workflows/pages.yml`이 두 앱을 테스트·빌드해 한 사이트로 묶어 Pages에 올린다(뿌리 = 소개, `video.html`, `demo/`)
 - 만든 과정(요청 → 판단 → 시행착오): [docs/making/2026-10-30-demo-replay.md](docs/making/2026-10-30-demo-replay.md)
 
 ## 기능
@@ -281,7 +282,7 @@ curl -s -H "Authorization: Bearer $(grep -o "pk_demo0001_[^']*" apps/api/src/db/
 
 이 프로젝트의 산출물은 코드와 기록이다(규칙 `CLAUDE.md`, 양식 `docs/README.md`).
 
-- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 95·트러블슈팅 40·실험 20 (`node scripts/docs-index.mjs`로 만든다)
+- 기록 색인(제목 목록): [`docs/index.md`](docs/index.md) — 결정 96·트러블슈팅 40·실험 20 (`node scripts/docs-index.mjs`로 만든다)
 - 개발일지: [`docs/devlog/`](docs/devlog/)(날짜별, 날마다 "N일차 요약"), 설계 스펙 [`docs/specs/`](docs/specs/), 구현 계획 [`docs/plans/`](docs/plans/), 날마다의 최종 리뷰 [`docs/reviews/`](docs/reviews/)
 - 7일 회고: [`docs/retrospective.md`](docs/retrospective.md) — 날별로 만든 것, 잘 된 것·안 된 것, 반복된 실수, 면접에서 말할 거리, 남은 이월과 그 뒤 보강
 - 공부거리: [`docs/study/backlog.md`](docs/study/backlog.md)

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f1a2c" />
+    <meta name="description" content="단말온 terminal-ops 시연 영상 — 시연 묶음을 실제로 돌려 받은 응답으로 시나리오 7막을 자동 진행한 화면" />
+    <title>단말온 시연 영상</title>
+    <!--
+      시연 영상 페이지(보강 11, decisions/0096). 영상은 시연 홈 녹화 재생본의 자동 진행을 Playwright로 녹화한 것
+      (apps/demo-home/scripts/record-video.cjs). 스크립트·글꼴 없이 뜬다 — 소개 페이지와 같은 색만 쓴다.
+    -->
+    <style>
+      :root {
+        --ink: #0f1a2c;
+        --ink-line: #2a3a58;
+        --ink-sub: #9fb0cc;
+        --signal: #2f6bff;
+        --signal-on-ink: #8fb2ff;
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--ink);
+        color: #e8edf6;
+        font-family: 'IBM Plex Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+        line-height: 1.6;
+      }
+      main {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 32px max(16px, env(safe-area-inset-left, 0px)) 64px;
+      }
+      .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 28px;
+      }
+      .top a {
+        color: var(--ink-sub);
+        text-decoration: none;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(1.6rem, 4vw, 2.4rem);
+        line-height: 1.25;
+      }
+      .lead {
+        margin: 0 0 24px;
+        color: var(--ink-sub);
+      }
+      video {
+        display: block;
+        width: 100%;
+        height: auto;
+        border: 1px solid var(--ink-line);
+        border-radius: 12px;
+        background: #000;
+      }
+      .acts {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 10px 20px;
+        margin: 24px 0 0;
+        padding: 0;
+        list-style: none;
+        color: var(--ink-sub);
+        font-size: 0.95rem;
+      }
+      .acts strong {
+        color: #fff;
+      }
+      .cta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 28px;
+      }
+      .cta {
+        display: inline-flex;
+        padding: 12px 20px;
+        border: 1px solid var(--ink-line);
+        border-radius: 10px;
+        color: #fff;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .cta-main {
+        background: var(--signal);
+        border-color: var(--signal);
+      }
+      .note {
+        margin-top: 20px;
+        color: var(--ink-sub);
+        font-size: 0.85rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav class="top" aria-label="바로가기">
+        <a href="./">← 단말온 소개</a>
+        <a href="https://github.com/devvshyun/terminal-ops">GitHub</a>
+      </nav>
+      <h1>시연 영상 — 단말기 한 대의 일생과 장애 세 가지</h1>
+      <p class="lead">
+        시연 홈이 시나리오 7막 22단계를 스스로 진행하는 화면입니다. 오른쪽 결과는 시연 묶음(api · MySQL · Redis · 가상 업체 · 단말기 시뮬레이터)을 실제로 돌려 받은 응답이고,
+        기다리는 장면(배송 완료 50초, 오프라인 판정 94초)은 빨리 감았습니다. 아래 자막이 지금 일어나는 일을 설명합니다.
+      </p>
+      <video controls playsinline preload="metadata" poster="./media/demo-tour-poster.jpg">
+        <source src="./media/demo-tour.mp4" type="video/mp4" />
+        브라우저가 영상을 재생하지 못합니다. <a href="./media/demo-tour.mp4">영상 파일</a>을 내려받아 보세요.
+      </video>
+      <ol class="acts">
+        <li><strong>1 한눈에</strong> — 운영자의 첫 화면</li>
+        <li><strong>2 공장에서 창고로</strong> — 2대 덜 온 것을 대조로 잡기</li>
+        <li><strong>3 가맹점까지</strong> — 택배 추적으로 배송 완료</li>
+        <li><strong>4 고장과 교체</strong> — 원격 점검 → 교체품</li>
+        <li><strong>5 택배사 429</strong> — 거절되면 기다렸다 재시도</li>
+        <li><strong>6 펌웨어 배포</strong> — 실패가 많으면 스스로 중단</li>
+        <li><strong>7 단말기 끊김</strong> — 오프라인 판정과 알림</li>
+      </ol>
+      <div class="cta-row">
+        <a class="cta cta-main" href="%VITE_DEMO_URL%">시연하기 — 직접 실행해 보기 →</a>
+        <a class="cta" href="./">소개로 돌아가기</a>
+      </div>
+      <p class="note">시연하기는 같은 녹화본으로 돕니다. 서버 없이 브라우저에서 단계마다 [실행]을 눌러 결과를 바로 옆에서 봅니다.</p>
+    </main>
+  </body>
+</html>

@@ -331,6 +331,32 @@ a {
   font-size: 13px;
 }
 
+.hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 28px 0 0;
+}
+.cta {
+  display: inline-flex;
+  align-items: center;
+  padding: 12px 20px;
+  border: 1px solid var(--ink-line);
+  border-radius: 10px;
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+}
+.cta:hover {
+  border-color: var(--signal-on-ink);
+}
+.cta-main {
+  background: var(--signal);
+  border-color: var(--signal);
+}
+.cta-main:hover {
+  background: #1f58e6;
+}
 .stack li {
   padding: 5px 11px;
   border: 1px solid var(--ink-line);

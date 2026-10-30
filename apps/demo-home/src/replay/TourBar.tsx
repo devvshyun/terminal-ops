@@ -123,10 +123,24 @@ export function TourBar() {
   );
 }
 
-/** 자동 재생 시작(소개 페이지의 단추): 녹화 시계·진행 표시를 처음으로 */
+/** 자동 진행 시작: 녹화 시계·진행 표시를 처음으로 */
 export function startTour() {
   resetProgress();
   forgetAll();
   getReplay()?.reset();
   tour.start();
+}
+
+/** #/tour — 자동 진행으로 시작해 1막으로(시연 영상 녹화기가 연다). 보통 시연 홈(재생본이 아님)에서는 그냥 1막 */
+export function StartTour() {
+  const navigate = useNavigate();
+  const client = useQueryClient();
+  useEffect(() => {
+    if (getReplay()) {
+      startTour();
+      void client.invalidateQueries();
+    }
+    navigate('/act/1', { replace: true });
+  }, [navigate, client]);
+  return null;
 }
