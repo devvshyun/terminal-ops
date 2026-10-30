@@ -49,7 +49,7 @@ export function Step({ stepKey, n, title, who, children, actions, result }: { st
 export function useCanRun(): { ok: boolean; reason: string | null } {
   const me = useMe();
   if (!me) return { ok: false, reason: '운영자로 로그인하면 실행할 수 있습니다' };
-  if (me.role !== 'OPERATOR') return { ok: false, reason: `실행은 운영자(operator)만 — 지금은 ${me.displayName}` };
+  if (me.role !== 'OPERATOR') return { ok: false, reason: `실행은 운영자(operator)만 할 수 있습니다. 지금은 ${me.displayName}` };
   return { ok: true, reason: null };
 }
 
@@ -66,7 +66,7 @@ export function Run({ label, stepKey, onRun, needsLogin = true, markStep = true 
     mutationFn: async () => {
       const replay = getReplay();
       if (!replay) return onRun();
-      if (!replay.startRun(stepKey, label)) throw new Error('녹화본에서 이 실행은 이미 썼습니다(녹화한 횟수만큼만 누를 수 있어요). 위의 "처음 상태로"를 누르면 처음부터 다시 볼 수 있습니다.');
+      if (!replay.startRun(stepKey, label)) throw new Error('녹화본에서 이 실행은 이미 썼습니다(녹화한 횟수만큼만 누를 수 있습니다). 위의 "처음 상태로"를 누르면 처음부터 다시 볼 수 있습니다.');
       try {
         return await onRun();
       } finally {
@@ -113,7 +113,7 @@ export function Open({ app, path = '/', label, compact = false }: { app: AppKey;
   const replay = getReplay();
   if (replay) {
     const shot = replay.shot(`${app}:${path}`);
-    if (!shot) return <small className="muted">{label} — 녹화본에는 이 화면 사진이 없습니다</small>;
+    if (!shot) return <small className="muted">{label}: 녹화본에 이 화면 사진은 없습니다</small>;
     const href = `${import.meta.env.BASE_URL}shots/${shot.file}`;
     if (compact) {
       return (

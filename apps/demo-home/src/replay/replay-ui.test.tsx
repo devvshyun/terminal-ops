@@ -70,7 +70,7 @@ describe('녹화 재생본 화면(보강 11)', () => {
     const ok = await screen.findByRole('region', { name: '정상 배포' });
     expect(within(ok).getByRole('img', { name: '어드민 펌웨어 배포' })).toHaveAttribute('src', '/shots/09-admin.jpg');
     expect(within(ok).getByRole('link', { name: '펌웨어 배포 열기 (녹화 사진 크게 보기)' })).toHaveAttribute('href', '/shots/09-admin.jpg');
-    expect(screen.getByText(/운영 관제\(monitor\) — 녹화본에는 이 화면 사진이 없습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/운영 관제\(monitor\): 녹화본에 이 화면 사진은 없습니다/)).toBeInTheDocument();
   });
 
   it('첫 화면은 바로 1막(소개는 소개 페이지가 맡는다), #/tour는 자동 진행 막대와 1막 첫 자막으로 시작한다', async () => {

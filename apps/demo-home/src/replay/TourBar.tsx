@@ -89,7 +89,7 @@ export function TourBar() {
     <div className="tour-bar" role="region" aria-label="자동 재생">
       {status === 'done' ? (
         <p className="tour-caption">
-          <strong>시연 끝.</strong> 이제 아무 막·단계나 직접 실행해 볼 수 있습니다(녹화를 처음 상태로 되돌립니다).
+          <strong>자동 진행이 끝났습니다.</strong> 직접 해 보기를 누르면 녹화를 처음 상태로 되돌리고, 아무 단계나 직접 실행할 수 있습니다.
         </p>
       ) : (
         <p className="tour-caption">

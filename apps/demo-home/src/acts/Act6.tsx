@@ -54,7 +54,7 @@ export function Act6() {
         actions={<Run label={`${MODEL} 새 버전 배포`} stepKey="6-abort" onRun={async () => { const r = await startRollout(MODEL); return `${r.version} 배포 시작`; }} />}
         result={<RolloutPanel rollout={latest} />}
       >
-        <p>또 다른 새 버전을 배포합니다. 어느 단계든 실패율이 기준(20%)을 넘으면 다음 단계로 가지 않고 스스로 중단합니다 — 실패는 그 단계 대상에서 멈춥니다. 대상이 몇 대뿐인 첫 단계는 보고가 다 모이면 판단하므로, 실패가 늦게 나오면 둘째 단계에서 멈추기도 합니다(확률이라 실행마다 다르다). 6-1 배포가 아직 진행 중이면 끝난 뒤에 실행하세요.</p>
+        <p>또 다른 새 버전을 배포합니다. 어느 단계든 실패율이 기준(20%)을 넘으면 배포가 그 단계에서 멈춥니다. 첫 단계는 대상이 몇 대뿐이라 보고가 다 모여야 판단하므로, 실패가 늦게 나오면 둘째 단계에서 멈추기도 합니다(확률이라 실행마다 다릅니다). 6-1 배포가 아직 진행 중이면 끝난 뒤에 실행하세요.</p>
       </Step>
       <Step stepKey="6-fail-off" n="6-4" title="되돌리기: 0%" who="시연자" actions={<Run label="펌웨어 실패율 0%" stepKey="6-fail-off" needsLogin={false} onRun={() => setFirmwareFailRate(0)} />} result={failLine}>
         <p>다음 시연을 위해 실패율을 0으로 되돌립니다.</p>

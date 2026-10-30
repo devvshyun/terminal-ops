@@ -63,7 +63,7 @@ export function Act2() {
         result={
           <>
             <ErrorBox error={orders.error} />
-            {po ? <p>발주 <span className="mono strong">{po.poNo}</span> · {po.modelCode} {po.quantity}대</p> : orders.data ? <p className="empty">열린 발주가 없습니다 — 새 발주를 내세요.</p> : null}
+            {po ? <p>발주 <span className="mono strong">{po.poNo}</span> · {po.modelCode} {po.quantity}대</p> : orders.data ? <p className="empty">열린 발주가 없습니다. 새 발주를 내세요.</p> : null}
             {serials ? (
               <>
                 <textarea aria-label="납품 시리얼" className="mono" readOnly rows={Math.min(8, serials.length)} value={serials.join('\n')} />
