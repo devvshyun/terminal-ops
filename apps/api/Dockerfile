@@ -20,6 +20,10 @@ COPY --from=build /repo/packages/contracts /repo/packages/contracts
 COPY --from=build /repo/apps/api/package.json ./package.json
 COPY --from=build /repo/apps/api/node_modules ./node_modules
 COPY --from=build /repo/apps/api/dist ./dist
+# 운영 관제에 보이는 api 버전(env.appVersion, 없으면 dev — decisions/0090). 이미지에 굳혀, 그 이미지가 어느 빌드인지 컨테이너가 바뀌어도 같다.
+# 맨 끝에 둔다 — 값이 바뀌어도 npm ci·빌드 층은 캐시를 그대로 쓴다
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
 USER node
 EXPOSE 3000
 CMD ["node", "dist/main.js"]

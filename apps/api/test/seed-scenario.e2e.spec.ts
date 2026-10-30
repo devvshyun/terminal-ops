@@ -44,6 +44,9 @@ describe('시연 데이터 시나리오', () => {
     expect([await status(16), await status(17)]).toEqual(['RECEIVED', 'RECEIVED']);
     expect(await status(18)).toBe('ALLOCATED');
     expect([await status(19), await status(20)]).toEqual(['SHIPPED', 'SHIPPED']);
+    // 진행 줄과 마지막 요약이 실제 상태와 같다 — 교체품(DM-0013)은 재고가 아니라 배송 중(2026-10-30 리허설: 진행 줄 "재고 3 · 배송 중 2", 요약 shipping 2)
+    expect(result.summary).toMatchObject({ inService: 12, inStock: 2, received: 2, allocated: 1, shipping: 3 });
+    expect(lines).toContain('재고 2 · 입고 2 · 배정 1 · 배송 중 3(교체품 포함)');
 
     const tickets = (await withCookie(t, op).get('/service-tickets')).body.items as { status: string }[];
     expect(tickets.map((x) => x.status).sort()).toEqual(['OPEN', 'REPLACING']);
