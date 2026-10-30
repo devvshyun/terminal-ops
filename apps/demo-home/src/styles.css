@@ -1113,6 +1113,148 @@ tr.current > td {
   }
 }
 
+/* ───── 녹화 재생본: 소개 · 자동 재생 · 사진(보강 11 후속) ───── */
+.top .intro-link {
+  color: #dbe3f2;
+  font-size: 0.9rem;
+}
+
+.intro {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 20px 64px;
+}
+
+.intro h1 {
+  font-size: 1.9rem;
+  line-height: 1.3;
+  margin: 6px 0 16px;
+}
+
+.intro h2 {
+  font-size: 1.1rem;
+  margin: 28px 0 10px;
+}
+
+.intro .scenes {
+  margin: 0;
+  padding-left: 22px;
+  display: grid;
+  gap: 8px;
+}
+
+.intro .scenes li strong {
+  display: block;
+}
+
+.intro .scenes li span {
+  color: var(--muted);
+}
+
+.intro-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 28px 0 16px;
+}
+
+.intro .big-button {
+  font-size: 1.05rem;
+  padding: 12px 22px;
+}
+
+.intro .link-button {
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.intro .small {
+  font-size: 0.85rem;
+}
+
+.step.tour-current {
+  outline: 3px solid var(--signal);
+  outline-offset: 2px;
+}
+
+figure.shot {
+  /* 단추 줄(.step-actions, 가로 배치) 아래 한 줄을 다 쓴다 */
+  flex: 1 0 100%;
+  width: 100%;
+  margin: 6px 0 0;
+}
+
+figure.shot img {
+  display: block;
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  object-position: top;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+figure.shot figcaption {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.tour-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--ink);
+  color: #fff;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.18);
+}
+
+.tour-caption {
+  margin: 0;
+  flex: 1 1 420px;
+  line-height: 1.55;
+}
+
+.tour-n {
+  display: inline-block;
+  margin-right: 10px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--ink-3);
+  color: var(--ink-sub);
+  font-size: 0.8rem;
+}
+
+.tour-ctl {
+  display: flex;
+  gap: 8px;
+}
+
+.tour-ctl button:not(.primary) {
+  background: transparent;
+  color: #dbe3f2;
+  border-color: var(--ink-3);
+}
+
+/* 자동 재생 막대에 가리지 않게 */
+body:has(.tour-bar) .page {
+  padding-bottom: 180px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

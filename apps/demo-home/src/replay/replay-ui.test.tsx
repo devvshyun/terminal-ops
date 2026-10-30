@@ -2,10 +2,14 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resetProgress } from '../lib/progress';
+
+const loadDone = () => JSON.parse(localStorage.getItem('terminal-ops:demo-home:done') ?? '[]') as string[];
 import { resetSessionForTest } from '../session';
 import { OPERATOR, renderApp } from '../test/render';
 import { Replay, type Recording } from './engine';
+import { ALL_STEPS } from '../lib/acts';
 import { replayFetch, setReplay } from './runtime';
+import { TOUR, tour } from './tour';
 
 /** 6막 "장애 켜기: 실패율 60%" 하나를 녹화한 작은 녹화본 */
 const REC: Recording = {
@@ -32,6 +36,7 @@ function startReplay() {
 }
 
 afterEach(() => {
+  tour.stop();
   setReplay(null);
   resetSessionForTest();
   resetProgress();
@@ -45,10 +50,10 @@ describe('녹화 재생본 화면(보강 11)', () => {
     expect(screen.getByLabelText('녹화 시계')).toBeInTheDocument();
     expect(screen.queryByLabelText('비밀번호')).not.toBeInTheDocument();
 
-    const failOn = await screen.findByRole('region', { name: '장애 켜기: 실패율 60%' });
     // 로그인 칸이 없어도 녹화본의 /auth/me로 운영자가 된다 — 운영자만 누르는 단추가 켜져야 한다(재생본 리허설에서 찾음: 처음에는 아무도 /auth/me를 부르지 않아 꺼져 있었다)
-    const closeLike = await screen.findByRole('region', { name: '정상 배포' });
-    await waitFor(() => expect(within(closeLike).getByRole('button', { name: '실행: SN-100 새 버전 배포' })).toBeEnabled());
+    // 로그인 정보가 채워지면 가운데가 새로 그려진다(Shell의 key) — 요소를 붙잡지 않고 매번 찾는다
+    await waitFor(() => expect(within(screen.getByRole('region', { name: '정상 배포' })).getByRole('button', { name: '실행: SN-100 새 버전 배포' })).toBeEnabled());
+    const failOn = await screen.findByRole('region', { name: '장애 켜기: 실패율 60%' });
     const button = await within(failOn).findByRole('button', { name: '실행: 펌웨어 실패율 60%' });
     const off = await screen.findByRole('region', { name: '되돌리기: 0%' });
     expect(await within(off).findByText('지금 펌웨어 실패율: 0%')).toBeInTheDocument();
@@ -59,11 +64,47 @@ describe('녹화 재생본 화면(보강 11)', () => {
     expect(await within(failOn).findByText(/이미 썼습니다/)).toBeInTheDocument();
   });
 
-  it('화면 열기는 녹화 때 찍은 사진으로, 사진이 없는 화면은 그렇다고 적는다', async () => {
+  it('화면 열기는 녹화 사진을 카드 안에 바로 보인다(누르면 크게). 왼쪽 "다른 화면"은 링크, 사진이 없는 화면은 그렇다고 적는다', async () => {
     startReplay();
     renderApp('/act/6');
     const ok = await screen.findByRole('region', { name: '정상 배포' });
-    expect(within(ok).getByRole('link', { name: '펌웨어 배포 열기 (녹화 사진) ↗' })).toHaveAttribute('href', '/shots/09-admin.jpg');
+    expect(within(ok).getByRole('img', { name: '어드민 펌웨어 배포' })).toHaveAttribute('src', '/shots/09-admin.jpg');
+    expect(within(ok).getByRole('link', { name: '펌웨어 배포 열기 (녹화 사진 크게 보기)' })).toHaveAttribute('href', '/shots/09-admin.jpg');
     expect(screen.getByText(/운영 관제\(monitor\) — 녹화본에는 이 화면 사진이 없습니다/)).toBeInTheDocument();
+  });
+
+  it('소개 페이지부터 — 시연 보기를 누르면 자동 재생 막대가 1막 첫 자막과 함께 뜬다', async () => {
+    startReplay();
+    renderApp('/');
+    expect(await screen.findByRole('heading', { name: '결제단말기 운영 시스템, 실제로 돌려 본 장면' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /시연 보기/ }));
+    const bar = await screen.findByRole('region', { name: '자동 재생' });
+    expect(bar).toHaveTextContent(`1막 · 1/${TOUR.length}`);
+    expect(bar).toHaveTextContent(TOUR[0]!.caption);
+    await userEvent.click(within(bar).getByRole('button', { name: '일시정지' }));
+    expect(within(bar).getByRole('button', { name: '계속' })).toBeInTheDocument();
+  });
+
+  it('자동 재생은 그 단계의 실행 단추를 스스로 누른다 — 사람이 누른 것과 같은 결과', async () => {
+    startReplay();
+    tour.start();
+    while (TOUR[tour.get().index]!.step !== '6-fail-on') tour.next();
+    renderApp('/act/6');
+    // 로그인 정보가 채워지면 가운데가 새로 그려진다(Shell의 key) — 요소를 붙잡아 두지 않고 매번 찾는다
+    await waitFor(() => expect(within(screen.getByRole('region', { name: '되돌리기: 0%' })).getByText('지금 펌웨어 실패율: 60%')).toBeInTheDocument(), { timeout: 4000 });
+    expect(screen.getByRole('region', { name: '장애 켜기: 실패율 60%' })).toHaveClass('tour-current');
+  });
+
+  it('보기만 하는 단계도 자막을 읽을 시간이 지나면 끝냄으로 표시하고 다음 단계로 — 다 보면 22/22', { timeout: 15000 }, async () => {
+    startReplay();
+    tour.start();
+    while (TOUR[tour.get().index]!.step !== '5-normal') tour.next();
+    renderApp('/act/5');
+    await waitFor(() => expect(TOUR[tour.get().index]!.step).toBe('5-on'), { timeout: 8000 });
+    expect(loadDone()).toContain('5-normal');
+  });
+
+  it('자동 재생 순서는 22단계를 막 순서대로 모두 지난다', () => {
+    expect(TOUR.map((s) => s.step)).toEqual(ALL_STEPS);
   });
 });

@@ -9,6 +9,8 @@ import { Act7 } from './acts/Act7';
 import { SessionCacheSync } from './components/SessionCacheSync';
 import { Shell } from './components/Shell';
 import { ACTS } from './lib/acts';
+import { Intro } from './replay/Intro';
+import { getReplay } from './replay/runtime';
 
 const PAGES = [Act1, Act2, Act3, Act4, Act5, Act6, Act7];
 
@@ -35,8 +37,9 @@ export function App() {
     <>
       <SessionCacheSync />
       <Routes>
+        {/* 녹화 재생본은 소개 페이지부터(보강 11 후속) — 보통 시연 홈은 바로 1막 */}
+        <Route index element={getReplay() ? <Intro /> : <Navigate to="/act/1" replace />} />
         <Route element={<Shell />}>
-          <Route index element={<Navigate to="/act/1" replace />} />
           <Route path="act/:n" element={<ActPage />} />
           <Route path="*" element={<p>없는 화면입니다.</p>} />
         </Route>
