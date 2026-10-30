@@ -44,7 +44,7 @@ export function Act4() {
           latestOpen ? (
             <Run label={`A/S #${latestOpen.id} 원격 점검 → 교체 출고`} stepKey="4-replace" onRun={async () => { const t = await replaceForTicket(latestOpen.id); remember('act4-ticket', String(t.id)); }} />
           ) : (
-            <small className="muted">열린 접수가 없습니다 — 4-1에서 접수하세요.</small>
+            <small className="muted">열린 접수가 없습니다. 4-1에서 접수하세요.</small>
           )
         }
         result={replaced ? <p className="big">{line(replaced)}</p> : null}

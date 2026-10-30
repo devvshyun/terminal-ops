@@ -37,7 +37,7 @@ export function ReplayNotice() {
   const at = new Date(replay.recording.recordedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
   return (
     <p className="replay-notice" role="note">
-      <strong>녹화 재생본</strong> — {at}에 시연 묶음(api·MySQL·Redis·가상 업체·시뮬레이터)을 실제로 돌려 받은 응답을 다시 보여 줍니다. 기다리는 단계는 {replay.speed}배로 빨리 감고, 다른 화면은 녹화할 때 찍은 사진으로 엽니다. 직접 돌려 보려면{' '}
+      <strong>녹화 재생본</strong>입니다. {at}에 시연 묶음(api·MySQL·Redis·가상 업체·시뮬레이터)을 실제로 돌려 받은 응답을 다시 보여 줍니다. 기다리는 단계는 {replay.speed}배로 빨리 감고, 다른 화면은 녹화할 때 찍은 사진으로 보여 줍니다. 직접 돌려 보려면{' '}
       <a href={`${REPO}#시연--명령-하나로보강-9`} target="_blank" rel="noreferrer">
         README
       </a>

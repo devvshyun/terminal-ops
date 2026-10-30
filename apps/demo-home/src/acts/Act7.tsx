@@ -46,7 +46,7 @@ export function Act7() {
       <Step stepKey="7-on" n="7-3" title="되돌리기: 켜기" who="시연자" actions={<Run label={`${SERIAL} 켜기`} stepKey="7-on" needsLogin={false} onRun={() => setDeviceOffline(SERIAL, false)} />}>
         <p>다시 켜면 다음 하트비트에 온라인으로 돌아오고 "온라인" 알림이 갑니다.</p>
       </Step>
-      <p className="muted">끝. 큐·워커는 <Open app="console" label="운영 관제" compact />, 외부 업체 키는 <Open app="developers" label="개발자센터" compact />에서 이어 볼 수 있습니다.</p>
+      <p className="muted">큐·워커는 <Open app="console" label="운영 관제" compact />, 외부 업체 키는 <Open app="developers" label="개발자센터" compact />에서 이어 볼 수 있습니다.</p>
     </>
   );
 }

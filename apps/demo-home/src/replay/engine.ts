@@ -169,5 +169,5 @@ export class Replay {
 }
 
 function missing(method: string, url: string): ReplayReply {
-  return { status: NOT_RECORDED, body: { message: `녹화본에 없는 요청입니다(${method} ${url}). 녹화본은 녹화한 순서대로만 다시 낼 수 있어요 — 위의 "처음 상태로"로 되돌리세요.` } };
+  return { status: NOT_RECORDED, body: { message: `녹화본에 없는 요청입니다(${method} ${url}). 녹화본은 녹화한 순서대로만 다시 낼 수 있습니다. 위의 "처음 상태로"로 되돌리세요.` } };
 }

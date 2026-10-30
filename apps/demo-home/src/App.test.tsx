@@ -64,7 +64,7 @@ describe('시연 홈 틀 (보강 10, decisions/0092)', () => {
     loginAs(MONITOR);
     renderApp('/act/3');
     expect(await screen.findByRole('button', { name: '실행: 재고 한 대를 강남김밥으로 출고' })).toBeDisabled();
-    expect(screen.getAllByText('실행은 운영자(operator)만 — 지금은 관제(시연)').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('실행은 운영자(operator)만 할 수 있습니다. 지금은 관제(시연)').length).toBeGreaterThan(0);
   });
 
   it('"끝냄"을 누르면 진행률이 오르고, 처음 상태로 하면 0', async () => {

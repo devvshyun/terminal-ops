@@ -43,7 +43,7 @@ export function Act5() {
       <Step stepKey="5-normal" n="5-1" title="정상: 최근 택배 수집" who="시스템(워커)" actions={<Open app="admin" path="/batch-runs" label="배치 실행 이력 열기" />}
         result={<><ErrorBox error={runs.error} /><RunsList runs={(runs.data?.items ?? []).slice(0, 4)} /></>}
       >
-        <p>번개택배 추적 수집 기록입니다. 띄우고 1~2분 지나면 시연 데이터의 배송이 모두 끝나 새 기록이 없습니다 — 5-3에서 새로 출고해야 추적 호출이 생깁니다.</p>
+        <p>번개택배 추적 수집 기록입니다. 띄우고 1~2분 지나면 시연 데이터의 배송이 모두 끝나 새 기록이 없습니다. 5-3에서 새로 출고해야 추적 호출이 생깁니다.</p>
       </Step>
       <Step stepKey="5-on" n="5-2" title="장애 켜기: 429 50%" who="시연자 · 가상 업체" actions={<Run label="번개택배 429 확률 50%" stepKey="5-on" needsLogin={false} onRun={() => setBungae429(0.5)} />}
         result={<><ErrorBox error={config.error} />{rateLine}</>}
@@ -66,7 +66,7 @@ export function Act5() {
         <p>다음 수집 주기(15초)부터 위는 번개택배가 받은 요청, 아래는 우리 수집 기록입니다. 429를 받은 수집은 ERROR로 남고, 큐가 <code>Retry-After</code>만큼 기다렸다 다시 시도해(2번째) 받아 옵니다.</p>
       </Step>
       <Step stepKey="5-off" n="5-4" title="되돌리기: 0%" who="시연자" actions={<Run label="번개택배 429 확률 0%" stepKey="5-off" needsLogin={false} onRun={() => setBungae429(0)} />} result={rateLine}>
-        <p>시연 도구의 "모두 기본값으로"는 받은 데이터(운송장 등)까지 지웁니다 — 손잡이 하나만 0으로 되돌립니다.</p>
+        <p>시연 도구의 "모두 기본값으로"는 받은 데이터(운송장 등)까지 지웁니다. 여기서는 손잡이 하나만 0으로 되돌립니다.</p>
       </Step>
     </>
   );
